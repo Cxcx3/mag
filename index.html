@@ -556,7 +556,16 @@ function bindEditor(){
   document.getElementById('closeEditor').onclick=()=>editorPanel.classList.remove('open');
   document.querySelectorAll('.remove-ad').forEach(b=>b.onclick=()=>{MAGAZINE.cities[+b.dataset.ci].ads.splice(+b.dataset.ai,1);renderEditor();bindEditor();});
 }
-editorToggle.onclick=()=>{editorPanel.classList.add('open');renderEditor();bindEditor();};
+editorToggle.onclick=()=>{
+  if(isEditorUnlocked){
+    editorPanel.classList.add('open');
+    renderEditor();
+    bindEditor();
+    return;
+  }
+  document.getElementById('passwordModal').classList.add('show');
+  setTimeout(()=>document.getElementById('passwordInput')?.focus(), 120);
+};
 
 const PAGES=[{id:'cover',cls:'cover',html:()=>`<div class="top-tag">${MAGAZINE.cover.issueTag}</div><div class="title">${MAGAZINE.cover.mainText}<br>${MAGAZINE.cover.highlight}<span class="hi">.</span></div><div class="sub">${MAGAZINE.cover.subtitle}</div>${mediaBlock(MAGAZINE.cover.coverPhotoUrl?{type:'image',url:MAGAZINE.cover.coverPhotoUrl}:null,'[ COVER PHOTO ]','cover-photo')}<div class="flip-hint">Tap or swipe to flip →</div>`},...MAGAZINE.cities.map(cityPage),{id:'back',cls:'back-cover',html:()=>`<h2>${MAGAZINE.backCover.heading}</h2><p>${MAGAZINE.backCover.description}</p><div class="cta-box">DM <span class="handle">${MAGAZINE.backCover.handle}</span>${MAGAZINE.backCover.ctaEnd}</div>`}];
 
@@ -593,8 +602,9 @@ window.addEventListener('DOMContentLoaded',()=>{
 });
 document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextPage();if(e.key==='ArrowLeft')prevPage();});
 
-// Show password modal on load
-window.addEventListener('load',()=>{if(!isEditorUnlocked){document.getElementById('passwordModal').classList.add('show');}});
+window.addEventListener('load',()=>{
+  editorToggle.style.display = 'block';
+});
 </script>
 </body>
 </html>
