@@ -347,10 +347,80 @@ const DEFAULT_MAGAZINE = {
 };
 
 function cloneData(x){ return JSON.parse(JSON.stringify(x)); }
+function normalizeMedia(media, fallback){
+  if (media && typeof media === 'object' && media.url) return media;
+  return fallback || null;
+}
+function normalizeMagazine(saved){
+  const base = cloneData(DEFAULT_MAGAZINE);
+  if (!saved || typeof saved !== 'object') return base;
+
+  const mergedCities = (saved.cities && Array.isArray(saved.cities) ? saved.cities : base.cities).map((city, idx) => {
+    const fallbackCity = base.cities[idx] || base.cities[0];
+    const model = {
+      ...(fallbackCity?.model || {}),
+      ...(city?.model || {})
+    };
+    model.media = normalizeMedia(city?.model?.media, fallbackCity?.model?.media);
+
+    const ads = (city?.ads && Array.isArray(city.ads) ? city.ads : fallbackCity?.ads || []).map((ad, adIdx) => {
+      const fallbackAd = (fallbackCity?.ads || [])[adIdx] || {};
+      return {
+        ...fallbackAd,
+        ...(ad || {}),
+        media: normalizeMedia(ad?.media, fallbackAd?.media)
+      };
+    });
+
+    return {
+      ...(fallbackCity || {}),
+      ...(city || {}),
+      model,
+      ads
+    };
+  });
+
+  const merged = {
+    ...base,
+    ...(saved || {}),
+    cover: {
+      ...base.cover,
+      ...(saved.cover || {})
+    },
+    backCover: {
+      ...base.backCover,
+      ...(saved.backCover || {})
+    },
+    cities: mergedCities
+  };
+
+  if (!merged.cover.coverPhotoUrl) merged.cover.coverPhotoUrl = base.cover.coverPhotoUrl;
+  merged.cities.forEach((city, idx) => {
+    const fallbackCity = base.cities[idx] || base.cities[0];
+    if (!city.model || !city.model.media) city.model = { ...(fallbackCity.model || {}), ...(city.model || {}) };
+    city.model.media = normalizeMedia(city.model?.media, fallbackCity.model?.media);
+    city.ads = (city.ads || []).map((ad, adIdx) => {
+      const fallbackAd = (fallbackCity.ads || [])[adIdx] || {};
+      return {
+        ...fallbackAd,
+        ...(ad || {}),
+        media: normalizeMedia(ad?.media, fallbackAd?.media)
+      };
+    });
+  });
+
+  return merged;
+}
+
 function getMagazine(){
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : cloneData(DEFAULT_MAGAZINE);
+    const parsed = saved ? JSON.parse(saved) : null;
+    const normalized = normalizeMagazine(parsed);
+    if (JSON.stringify(normalized) !== JSON.stringify(parsed || {})) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    }
+    return normalized;
   } catch(e) { return cloneData(DEFAULT_MAGAZINE); }
 }
 
