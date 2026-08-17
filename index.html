@@ -347,9 +347,24 @@ const DEFAULT_MAGAZINE = {
 };
 
 function cloneData(x){ return JSON.parse(JSON.stringify(x)); }
+function sanitizeImageUrl(value){
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('file://')) return null;
+  if (trimmed.startsWith('C:/') || trimmed.startsWith('C:\\')) return null;
+  return trimmed;
+}
 function normalizeMedia(media, fallback){
-  if (media && typeof media === 'object' && media.url) return media;
-  return fallback || null;
+  if (media && typeof media === 'object' && media.url) {
+    const clean = sanitizeImageUrl(media.url);
+    if (clean) return { ...media, url: clean };
+  }
+  if (fallback && typeof fallback === 'object' && fallback.url) {
+    const clean = sanitizeImageUrl(fallback.url);
+    if (clean) return { ...fallback, url: clean };
+  }
+  return null;
 }
 function normalizeMagazine(saved){
   const base = cloneData(DEFAULT_MAGAZINE);
@@ -394,7 +409,7 @@ function normalizeMagazine(saved){
     cities: mergedCities
   };
 
-  if (!merged.cover.coverPhotoUrl) merged.cover.coverPhotoUrl = base.cover.coverPhotoUrl;
+  merged.cover.coverPhotoUrl = sanitizeImageUrl(merged.cover.coverPhotoUrl) || base.cover.coverPhotoUrl;
   merged.cities.forEach((city, idx) => {
     const fallbackCity = base.cities[idx] || base.cities[0];
     if (!city.model || !city.model.media) city.model = { ...(fallbackCity.model || {}), ...(city.model || {}) };
@@ -619,8 +634,8 @@ function bindEditor(){
       const ci=+activeTab.split('-')[1],c=MAGAZINE.cities[ci];
       document.querySelectorAll('[data-key]').forEach(el=>c[el.dataset.key]=el.value);
       c.model=c.model||{}; document.querySelectorAll('[data-model]').forEach(el=>c.model[el.dataset.model]=el.value);
-      const mediaUrl=document.querySelector('[data-model-media]')?.value.trim(); c.model.media=mediaUrl?{type:'image',url:mediaUrl}:null;
-      document.querySelectorAll('.ad-editor[data-ai]').forEach(adEl=>{const ai=+adEl.dataset.ai,a=c.ads[ai]; if(!a)return; adEl.querySelectorAll('[data-ad]').forEach(el=>a[el.dataset.ad]=el.value); const u=adEl.querySelector('[data-ad-media]')?.value.trim(); a.media=u?{type:'image',url:u}:null;});
+      const mediaUrl=document.querySelector('[data-model-media]')?.value.trim(); c.model.media = sanitizeImageUrl(mediaUrl) ? {type:'image',url:sanitizeImageUrl(mediaUrl)} : null;
+      document.querySelectorAll('.ad-editor[data-ai]').forEach(adEl=>{const ai=+adEl.dataset.ai,a=c.ads[ai]; if(!a)return; adEl.querySelectorAll('[data-ad]').forEach(el=>a[el.dataset.ad]=el.value); const u=adEl.querySelector('[data-ad-media]')?.value.trim(); const clean = sanitizeImageUrl(u); a.media = clean ? {type:'image',url:clean} : null;});
     }
     localStorage.setItem(STORAGE_KEY,JSON.stringify(MAGAZINE));
     setTimeout(()=>location.reload(),100);
