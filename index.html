@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>The Spotlight Magazine — Bold Edition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14121A;
+    --coral:#FF4D6D;
+    --yellow:#FFD23F;
+    --violet:#6C4AB6;
+    --paper:#F5F1E8;
+    --cyan:#3FDDE0;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--ink);
+    font-family:'Space Grotesk', sans-serif;
+    color:var(--ink);
+    overflow-x:hidden;
+  }
+  body{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height:100vh; padding:24px 12px 40px;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(255,77,109,0.18), transparent 45%),
+      radial-gradient(circle at 85% 80%, rgba(63,221,224,0.14), transparent 45%),
+      var(--ink);
+  }
+  .masthead{
+    text-align:center; margin-bottom:18px; color:var(--paper);
+  }
+  .masthead .eyebrow{
+    font-size:11px; letter-spacing:0.35em; text-transform:uppercase;
+    color:var(--yellow); font-weight:600; margin-bottom:6px;
+  }
+  .masthead h1{
+    font-family:'Anton', sans-serif; font-weight:400;
+    font-size:clamp(28px,7vw,42px); letter-spacing:0.02em;
+    margin:0; line-height:0.95;
+    text-transform:uppercase;
+  }
+  .masthead h1 span{ color:var(--coral); }
+  .book-wrap{
+    position:relative;
+    width:min(92vw, 380px);
+    aspect-ratio: 3 / 4.6;
+    perspective:2400px;
+  }
+  .book{
+    position:absolute; inset:0;
+  }
+  .page{
+    position:absolute; inset:0;
+    transform-origin:left center;
+    transform-style:preserve-3d;
+    transition:transform 0.85s cubic-bezier(.45,.05,.15,1);
+    transform:rotateY(0deg);
+    border-radius:6px;
+    box-shadow:0 18px 40px rgba(0,0,0,0.45);
+  }
+  .page.flipped{ transform:rotateY(-178deg); }
+  .face{
+    position:absolute; inset:0;
+    backface-visibility:hidden;
+    border-radius:6px;
+    overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+  .face.back{
+    transform:rotateY(180deg);
+    background:
+      repeating-linear-gradient(135deg, rgba(0,0,0,0.05) 0 2px, transparent 2px 14px),
+      var(--paper);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .face.back .mark{
+    font-family:'Anton', sans-serif; font-size:13px; letter-spacing:0.3em;
+    color:rgba(20,18,26,0.35); text-transform:uppercase; transform:rotate(-90deg);
+  }
+  .sheet{
+    width:100%; height:100%; padding:22px 18px; overflow-y:auto;
+    display:flex; flex-direction:column;
+  }
+  .media-box{
+    width:100%; border-radius:8px; overflow:hidden; position:relative;
+    background:linear-gradient(150deg, var(--cyan), var(--violet));
+  }
+  .media-box img, .media-box video{
+    width:100%; height:100%; object-fit:cover; display:block;
+  }
+  .media-box.placeholder{
+    display:flex; align-items:center; justify-content:center; text-align:center;
+  }
+  .media-box.placeholder span{
+    font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.85); font-weight:700; padding:0 12px; line-height:1.4;
+  }
+  .cover{ background:var(--ink); color:var(--paper); justify-content:space-between; position:relative;}
+  .cover::before{
+    content:""; position:absolute; top:-40px; right:-60px; width:220px; height:220px;
+    background:var(--coral); border-radius:50%; filter:blur(10px); opacity:0.35;
+  }
+  .cover .top-tag{
+    font-size:10px; letter-spacing:0.3em; text-transform:uppercase; color:var(--cyan); font-weight:600;
+  }
+  .cover .title{
+    font-family:'Anton', sans-serif; font-size:clamp(34px,10vw,52px); line-height:0.9;
+    text-transform:uppercase; margin:10px 0 4px; position:relative; z-index:1;
+  }
+  .cover .title .hi{color:var(--coral);}
+  .cover .sub{ font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--yellow); font-weight:600; margin-bottom:16px;}
+  .cover-photo{
+    flex:1; margin:6px 0 14px;
+    border:3px solid var(--yellow);
+    min-height:150px;
+  }
+  .cover .flip-hint{
+    font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--paper); opacity:0.7;
+    display:flex; align-items:center; gap:6px;
+  }
+  .city-page{ background:var(--paper); }
+  .city-band{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px; margin:-22px -18px 16px; 
+  }
+  .city-band .cnum{
+    font-family:'Anton', sans-serif; font-size:11px; letter-spacing:0.2em; color:rgba(255,255,255,0.85);
+  }
+  .city-band .cname{
+    font-family:'Anton', sans-serif; font-size:22px; text-transform:uppercase; color:#fff; letter-spacing:0.01em;
+  }
+  .stamp{
+    align-self:flex-end; margin:-6px 4px 14px 0;
+    border:2px dashed var(--ink); border-radius:8px; padding:6px 12px;
+    transform:rotate(-6deg); font-size:10px; letter-spacing:0.18em; text-transform:uppercase; font-weight:700;
+    background:var(--yellow); color:var(--ink);
+  }
+  .section-label{
+    font-size:10px; letter-spacing:0.25em; text-transform:uppercase; font-weight:700; color:var(--violet);
+    margin:4px 0 8px;
+  }
+  .spotlight-card{
+    display:flex; gap:12px; align-items:center; margin-bottom:18px;
+    background:#fff; border:2px solid var(--ink); border-radius:10px; padding:10px;
+  }
+  .spotlight-photo{
+    width:64px; height:64px; border-radius:8px; flex-shrink:0;
+  }
+  .spotlight-photo span{ font-size:8px; }
+  .spotlight-info .name{ font-family:'Anton', sans-serif; font-size:16px; text-transform:uppercase; margin:0 0 2px;}
+  .spotlight-info .role{ font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--coral); font-weight:700; margin:0 0 4px;}
+  .spotlight-info .bio{ font-size:11px; line-height:1.4; margin:0; color:#3a3540;}
+  .ad-card{
+    background:#fff; border-radius:10px; padding:12px; margin-bottom:12px;
+    border-left:5px solid var(--coral); box-shadow:0 3px 0 rgba(20,18,26,0.08);
+  }
+  .ad-card:nth-of-type(2n){ border-left-color:var(--cyan); }
+  .ad-card:nth-of-type(3n){ border-left-color:var(--yellow); }
+  .ad-card .ad-media{ height:110px; margin-bottom:8px; }
+  .ad-card .biz-name{ font-family:'Anton', sans-serif; font-size:14px; text-transform:uppercase; margin:0 0 3px;}
+  .ad-card .biz-tag{ font-size:10px; color:var(--violet); font-weight:700; text-transform:uppercase; letter-spacing:0.08em; margin:0 0 6px;}
+  .ad-card .biz-blurb{ font-size:11.5px; line-height:1.4; margin:0 0 6px; color:#3a3540;}
+  .ad-card .biz-cta{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--ink); }
+  .ad-card .biz-cta::after{ content:" →"; }
+  .ad-card .biz-cta a{ color:inherit; text-decoration:none; }
+  .back-cover{ background:var(--coral); color:var(--ink); justify-content:center; align-items:center; text-align:center;}
+  .back-cover h2{ font-family:'Anton', sans-serif; font-size:26px; text-transform:uppercase; margin:0 0 10px; line-height:1.05;}
+  .back-cover p{ font-size:12px; line-height:1.5; max-width:260px; margin:0 auto 18px;}
+  .back-cover .cta-box{
+    background:var(--ink); color:var(--paper); border-radius:10px; padding:14px 18px;
+    font-size:12px; font-weight:700; letter-spacing:0.05em;
+  }
+  .back-cover .cta-box .handle{ color:var(--yellow); }
+  .theme-slc .city-band{ background:var(--violet); }
+  .theme-wj .city-band{ background:#1E7A3D; }
+  .theme-mc .city-band{ background:var(--coral); }
+  .theme-ch .city-band{ background:#2E8B8B; }
+  .theme-sandy .city-band{ background:#B8860B; }
+  .theme-draper .city-band{ background:#4A3F8F; }
+  .controls{
+    display:flex; align-items:center; gap:14px; margin-top:20px;
+  }
+  .nav-btn{
+    width:42px; height:42px; border-radius:50%; border:none; cursor:pointer;
+    background:var(--paper); color:var(--ink); font-size:18px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform 0.15s, opacity 0.2s;
+  }
+  .nav-btn:hover{ transform:scale(1.08); }
+  .nav-btn:disabled{ opacity:0.25; cursor:default; transform:none; }
+  .dots{ display:flex; gap:6px; flex-wrap:wrap; max-width:160px; justify-content:center; }
+  .dot{
+    width:8px; height:8px; border-radius:50%; background:rgba(245,241,232,0.3); border:none; cursor:pointer; padding:0;
+    transition:background 0.2s, transform 0.2s;
+  }
+  .dot.active{ background:var(--coral); transform:scale(1.3); }
+  .page-count{
+    color:var(--paper); opacity:0.6; font-size:11px; letter-spacing:0.1em; margin-top:10px;
+  }
+  .tap-zone{ position:absolute; top:0; bottom:0; width:18%; z-index:500; cursor:pointer; }
+  .tap-zone.left{ left:0; }
+  .tap-zone.right{ right:0; }
+  /* Password Modal */
+  #passwordModal{position:fixed;inset:0;background:rgba(20,18,26,0.95);display:none;z-index:10000;align-items:center;justify-content:center}
+  #passwordModal.show{display:flex}
+  .password-box{background:#f5f1e8;border-radius:16px;padding:40px;text-align:center;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
+  .password-box h2{font-family:'Anton',sans-serif;font-size:28px;margin:0 0 12px;color:#14121A}
+  .password-box p{font-size:14px;color:#666;margin:0 0 24px}
+  .password-box input{width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:16px}
+  .password-box input:focus{outline:none;border-color:#FF4D6D}
+  .password-box button{width:100%;padding:12px;background:#FF4D6D;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px}
+  .password-box button:hover{background:#E63A5A}
+</style>
+</head>
+<body>
+
+  <div class="masthead">
+    <div class="eyebrow">Wasatch Front · Digital Edition</div>
+    <h1>The <span>Spotlight</span> Magazine</h1>
+  </div>
+
+  <div class="book-wrap">
+    <div class="book" id="book"></div>
+    <div class="tap-zone left" onclick="prevPage()"></div>
+    <div class="tap-zone right" onclick="nextPage()"></div>
+  </div>
+
+  <div class="controls">
+    <button class="nav-btn" id="prevBtn" onclick="prevPage()">‹</button>
+    <div class="dots" id="dots"></div>
+    <button class="nav-btn" id="nextBtn" onclick="nextPage()">›</button>
+  </div>
+  <div class="page-count" id="pageCount"></div>
+
+  <!-- Password Modal -->
+  <div id="passwordModal">
+    <div class="password-box">
+      <h2>Editor Password</h2>
+      <p>Enter password to edit magazine</p>
+      <input type="password" id="passwordInput" placeholder="Enter password" onkeypress="if(event.key==='Enter')checkPassword()">
+      <button onclick="checkPassword()">UNLOCK EDITOR</button>
+      <p style="font-size:11px;margin-top:16px;color:#999">Read-only link for sharing. Only you can edit with password.</p>
+    </div>
+  </div>
+
+<script>
+const DEFAULT_CITIES = [
+  {
+    theme:'theme-slc', num:'01', name:'Salt Lake City',
+    model:{ name:'Ava Sinclair', role:'Cover-Featured Model',
+      bio:'Downtown-based model and content creator, bringing SLC street style to every page.',
+      media:null },
+    ads:[
+      { name:'Peak & Pine Coffee Roasters', tag:'Local Roaster',
+        blurb:'Small-batch beans roasted weekly in the Granary District. Try the seasonal cardamom pour-over.',
+        cta:'Visit us downtown', link:'#', media:null },
+      { name:'Wasatch Wax Candle Co.', tag:'Handmade Goods',
+        blurb:'Soy candles poured in small batches, inspired by canyon hikes and mountain air.',
+        cta:'Shop the collection', link:'#', media:null },
+      { name:'Iron Door Fitness', tag:'Studio & Gym',
+        blurb:'Boutique strength studio with sunrise classes and a members-only sauna.',
+        cta:'Book a free class', link:'#', media:null },
+    ]
+  },
+  {
+    theme:'theme-wj', num:'02', name:'West Jordan',
+    model:{ name:'Devon Marsh', role:'Featured Model',
+      bio:'West Jordan-raised model and this issue\'s face for the west valley.',
+      media:null },
+    ads:[
+      { name:'New Business', tag:'Local Business',
+        blurb:'Tell readers what makes this business special.',
+        cta:'Visit Website', link:'#', media:null },
+    ]
+  },
+  {
+    theme:'theme-mc', num:'03', name:'Millcreek',
+    model:{ name:'Jordan Reyes', role:'Featured Model',
+      bio:'Millcreek native and part-time trail runner, shot on location at Millcreek Canyon.',
+      media:null },
+    ads:[
+      { name:'Millcreek Botanical Florals', tag:'Florist',
+        blurb:'Weekly flower subscriptions and same-day arrangements for the whole valley.',
+        cta:'Order this week\'s bouquet', link:'#', media:null },
+    ]
+  },
+  {
+    theme:'theme-ch', num:'04', name:'Cottonwood Heights',
+    model:{ name:'Sienna Cole', role:'Featured Model',
+      bio:'Sienna splits her time between modeling and coaching youth ski teams at Big Cottonwood.',
+      media:null },
+    ads:[
+      { name:'Butterfield Nail Studio', tag:'Nail Salon',
+        blurb:'Custom nail art and gel sets, booked online in under a minute.',
+        cta:'Book your appointment', link:'#', media:null },
+    ]
+  },
+  {
+    theme:'theme-sandy', num:'05', name:'Sandy',
+    model:{ name:'Marcus Bell', role:'Featured Model',
+      bio:'Marcus is a Sandy-based fitness model and personal trainer, repping the south valley.',
+      media:null },
+    ads:[
+      { name:'Sandy Station Barbershop', tag:'Barbershop',
+        blurb:'Classic cuts and hot towel shaves, walk-ins welcome most weekdays.',
+        cta:'Check today\'s wait', link:'#', media:null },
+    ]
+  },
+  {
+    theme:'theme-draper', num:'06', name:'Draper',
+    model:{ name:'Talia Fenwick', role:'Featured Model',
+      bio:'Talia is a Draper-raised creative and this month\'s spotlight face for the south valley.',
+      media:null },
+    ads:[
+      { name:'Draper Peak Dental Studio', tag:'Dental Care',
+        blurb:'Modern, comfort-first dentistry with evening and weekend appointments.',
+        cta:'Book a cleaning', link:'#', media:null },
+    ]
+  },
+];
+
+const STORAGE_KEY = 'spotlightMagazineFullV2';
+const ADMIN_PASSWORD = 'spotlight2024';
+const DEFAULT_MAGAZINE = {
+  cover: {
+    eyebrow: 'Wasatch Front · Digital Edition',
+    mainText: 'The ',
+    highlight: 'Spotlight',
+    subtitle: 'Salt Lake City → Draper',
+    issueTag: 'Issue 01 · August 2026',
+    coverPhotoUrl: null,
+  },
+  cities: cloneData(DEFAULT_CITIES),
+  backCover: {
+    heading: 'Want your business<br>in the next issue?',
+    description: 'Every issue reaches locals scrolling Instagram — no printing, no mailers, just one link people actually tap. New cities added every month.',
+    ctaText: 'DM ',
+    handle: '@yourhandle',
+    ctaEnd: '<br>to reserve your spot'
+  }
+};
+
+function cloneData(x){ return JSON.parse(JSON.stringify(x)); }
+function getMagazine(){
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : cloneData(DEFAULT_MAGAZINE);
+  } catch(e) { return cloneData(DEFAULT_MAGAZINE); }
+}
+
+let isEditorUnlocked = false;
+const MAGAZINE = getMagazine();
+const CITIES = MAGAZINE.cities;
+
+function checkPassword(){
+  const input = document.getElementById('passwordInput');
+  if(input.value === ADMIN_PASSWORD){
+    isEditorUnlocked = true;
+    document.getElementById('passwordModal').classList.remove('show');
+    editorToggle.style.display = 'block';
+    input.value = '';
+  } else {
+    alert('Incorrect password');
+    input.value = '';
+    input.focus();
+  }
+}
+
+function mediaBlock(media, placeholderText, extraClass){
+  const cls = 'media-box' + (extraClass ? ' '+extraClass : '');
+  if(!media || !media.url){
+    return `<div class="${cls} placeholder"><span>${placeholderText}</span></div>`;
+  }
+  if(media.type === 'video'){
+    return `<div class="${cls}"><video src="${media.url}" autoplay muted loop playsinline></video></div>`;
+  }
+  return `<div class="${cls}"><img src="${media.url}" alt=""></div>`;
+}
+
+function standardAdHtml(a){
+  return `
+    <div class="ad-card">
+      ${mediaBlock(a.media, '[ '+a.name.toUpperCase()+' PHOTO / GIF / VIDEO ]', 'ad-media')}
+      <div class="biz-name">${a.name}</div>
+      <div class="biz-tag">${a.tag}</div>
+      <div class="biz-blurb">${a.blurb}</div>
+      <div class="biz-cta"><a href="${a.link}" target="_blank" rel="noopener">${a.cta}</a></div>
+    </div>
+  `;
+}
+
+function cityPage(c){
+  const total = MAGAZINE.cities.length;
+  const adsHtml = c.ads.map(a => standardAdHtml(a)).join('');
+  return {
+    id:'city-'+c.num,
+    cls:'city-page '+c.theme,
+    html:`
+      <div class="city-band"><span class="cname">${c.name}</span><span class="cnum">${c.num} / ${String(total).padStart(2,'0')}</span></div>
+      <div class="stamp">Local Spotlight</div>
+      <div class="section-label">Featured Face</div>
+      <div class="spotlight-card">
+        ${mediaBlock(c.model.media, '[ MODEL PHOTO ]', 'spotlight-photo')}
+        <div class="spotlight-info">
+          <p class="name">${c.model.name}</p>
+          <p class="role">${c.model.role}</p>
+          <p class="bio">${c.model.bio}</p>
+        </div>
+      </div>
+      <div class="section-label">This Month's Businesses</div>
+      ${adsHtml}
+      <div class="footer-note">Sample ad — reserve this spot for your business</div>
+    `
+  };
+}
+
+const editorCss = document.createElement('style');
+editorCss.textContent = `
+  #editorToggle{position:fixed;top:16px;right:16px;z-index:9999;border:0;border-radius:999px;padding:11px 16px;background:#FFD23F;color:#14121A;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35);display:none}
+  #editorPanel{position:fixed;inset:0;z-index:9998;background:rgba(20,18,26,.96);display:none;overflow:auto;padding:24px 14px 50px;color:#F5F1E8;font-family:'Space Grotesk',sans-serif}
+  #editorPanel.open{display:block}
+  .editor-inner{width:min(1000px,100%);margin:auto}
+  .editor-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:18px}
+  .editor-head h2{margin:0;font-family:'Anton',sans-serif;font-size:30px;text-transform:uppercase}
+  .editor-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .ed-btn{border:0;border-radius:8px;padding:10px 14px;font-weight:800;cursor:pointer;font-size:12px}
+  .ed-primary{background:#FF4D6D;color:white}.ed-light{background:#F5F1E8;color:#14121A}.ed-danger{background:#b8001f;color:#fff}
+  .editor-card{background:#f5f1e8;color:#14121A;border-radius:14px;padding:18px;margin:12px 0;border-left:5px solid #FF4D6D}
+  .editor-card h3{margin:0 0 14px;font-family:'Anton',sans-serif;text-transform:uppercase;font-size:22px}
+  .editor-card h4{margin:12px 0 10px;font-family:'Anton',sans-serif;font-size:16px;text-transform:uppercase}
+  .ed-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  .ed-field{display:flex;flex-direction:column}
+  .ed-field label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;color:#3a3540}
+  .ed-field input,.ed-field textarea,.ed-field select{border:2px solid #ddd;border-radius:7px;padding:10px;font:inherit;background:white;color:#14121A;flex:1}
+  .ed-field input:focus,.ed-field textarea:focus,.ed-field select:focus{outline:none;border-color:#FF4D6D;box-shadow:0 0 0 3px rgba(255,77,109,0.1)}
+  .ed-field textarea{min-height:75px;resize:vertical}
+  .ed-field.full{grid-column:1/-1}
+  .editor-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+  .editor-tab{border:none;background:#f5f1e8;color:#14121A;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;text-transform:uppercase;transition:all 0.2s}
+  .editor-tab.active{background:#FF4D6D;color:white}.editor-tab:hover{background:#FFD23F;color:#14121A}
+  .ad-editor{border:2px solid #ddd;border-radius:10px;padding:12px;margin:12px 0}.ad-editor h4{margin:0 0 10px}
+`;
+document.head.appendChild(editorCss);
+
+const editorToggle = document.createElement('button');
+editorToggle.id='editorToggle'; editorToggle.textContent='EDIT MAGAZINE';
+document.body.appendChild(editorToggle);
+
+const editorPanel=document.createElement('div');
+editorPanel.id='editorPanel';
+editorPanel.innerHTML=`<div class="editor-inner">
+  <div class="editor-head"><div><h2>SpotLIGHT Editor</h2></div><div class="editor-actions"><button class="ed-btn ed-primary" id="saveMagazine">SAVE & PREVIEW</button><button class="ed-btn ed-light" id="closeEditor">CLOSE</button></div></div>
+  <div class="editor-tabs" id="editorTabs"></div>
+  <div id="editorContent"></div>
+</div>`;
+document.body.appendChild(editorPanel);
+
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+let activeTab = 'cover';
+function renderEditor(){
+  const tabs = document.getElementById('editorTabs');
+  const root = document.getElementById('editorContent');
+  const tabList = ['cover', ...MAGAZINE.cities.map((c,i)=>'city-'+i), 'back'];
+  const tabLabels = ['COVER', ...MAGAZINE.cities.map(c=>c.name.toUpperCase()), 'BACK COVER'];
+  
+  tabs.innerHTML = tabList.map((t,i)=>`<button class="editor-tab ${t===activeTab?'active':''}" data-tab="${t}">${tabLabels[i]}</button>`).join('');
+  tabs.querySelectorAll('.editor-tab').forEach(btn=>btn.onclick=()=>{activeTab=btn.dataset.tab;renderEditor();});
+  
+  if(activeTab==='cover'){
+    const c = MAGAZINE.cover;
+    root.innerHTML = `
+      <div class="editor-card">
+        <h3>Front Cover</h3>
+        <div class="ed-grid">
+          <div class="ed-field full"><label>Eyebrow / Issue Tag</label><input data-cover="eyebrow" value="${esc(c.eyebrow)}"></div>
+          <div class="ed-field"><label>Main Text</label><input data-cover="mainText" value="${esc(c.mainText)}"></div>
+          <div class="ed-field"><label>Highlight Word</label><input data-cover="highlight" value="${esc(c.highlight)}"></div>
+          <div class="ed-field full"><label>Subtitle</label><input data-cover="subtitle" value="${esc(c.subtitle)}"></div>
+          <div class="ed-field full"><label>Issue Tag</label><input data-cover="issueTag" value="${esc(c.issueTag)}"></div>
+          <div class="ed-field full"><label>Cover Photo URL</label><input data-cover="coverPhotoUrl" placeholder="https://.../photo.jpg" value="${esc(c.coverPhotoUrl||'')}"></div>
+        </div>
+      </div>
+    `;
+  } else if(activeTab==='back'){
+    const b = MAGAZINE.backCover;
+    root.innerHTML = `
+      <div class="editor-card">
+        <h3>Back Cover</h3>
+        <div class="ed-grid">
+          <div class="ed-field full"><label>Main Heading</label><textarea data-back="heading">${esc(b.heading)}</textarea></div>
+          <div class="ed-field full"><label>Description</label><textarea data-back="description">${esc(b.description)}</textarea></div>
+          <div class="ed-field"><label>CTA Start</label><input data-back="ctaText" value="${esc(b.ctaText)}"></div>
+          <div class="ed-field"><label>Handle</label><input data-back="handle" value="${esc(b.handle)}"></div>
+          <div class="ed-field full"><label>CTA End</label><input data-back="ctaEnd" value="${esc(b.ctaEnd)}"></div>
+        </div>
+      </div>
+    `;
+  } else if(activeTab.startsWith('city-')){
+    const ci = +activeTab.split('-')[1];
+    const c = MAGAZINE.cities[ci];
+    const adsHtml = (c.ads||[]).map((a,ai)=>`
+      <div class="ad-editor" data-ai="${ai}"><h4>Business ${ai+1}<button class="ed-btn ed-danger remove-ad" data-ci="${ci}" data-ai="${ai}" style="padding:6px 9px;font-size:11px">REMOVE</button></h4>
+        <div class="ed-grid">
+          <div class="ed-field"><label>Name</label><input data-ad="name" value="${esc(a.name)}"></div>
+          <div class="ed-field"><label>Tag</label><input data-ad="tag" value="${esc(a.tag)}"></div>
+          <div class="ed-field full"><label>Description</label><textarea data-ad="blurb">${esc(a.blurb)}</textarea></div>
+          <div class="ed-field"><label>Button</label><input data-ad="cta" value="${esc(a.cta)}"></div>
+          <div class="ed-field"><label>Link</label><input data-ad="link" value="${esc(a.link)}"></div>
+          <div class="ed-field full"><label>Photo URL</label><input data-ad-media="url" value="${esc(a.media?.url||'')}" placeholder="https://.../image.jpg"></div>
+        </div>
+      </div>`).join('');
+    root.innerHTML = `
+      <div class="editor-card">
+        <h3>${esc(c.name)}</h3>
+        <div class="ed-grid">
+          <div class="ed-field"><label>City Name</label><input data-key="name" value="${esc(c.name)}"></div>
+          <div class="ed-field"><label>Number</label><input data-key="num" value="${esc(c.num)}"></div>
+          <div class="ed-field"><label>Theme</label><select data-key="theme"><option value="theme-slc">Purple</option><option value="theme-wj">Green</option><option value="theme-mc">Coral</option><option value="theme-ch">Teal</option><option value="theme-sandy">Gold</option><option value="theme-draper">Violet</option></select></div>
+        </div>
+        <h4>Featured Person</h4>
+        <div class="ed-grid">
+          <div class="ed-field"><label>Name</label><input data-model="name" value="${esc(c.model?.name)}"></div>
+          <div class="ed-field"><label>Role</label><input data-model="role" value="${esc(c.model?.role)}"></div>
+          <div class="ed-field full"><label>Bio</label><textarea data-model="bio">${esc(c.model?.bio)}</textarea></div>
+          <div class="ed-field full"><label>Photo URL</label><input data-model-media="url" value="${esc(c.model?.media?.url||'')}"></div>
+        </div>
+        <h4>Businesses</h4>
+        <div class="ads">${adsHtml}</div>
+        <button class="ed-btn ed-primary" style="margin-top:12px" onclick="const c=MAGAZINE.cities[${ci}];c.ads.push({name:'New',tag:'Business',blurb:'',cta:'',link:'#',media:null});renderEditor();bindEditor()">+ ADD BUSINESS</button>
+      </div>
+    `;
+    const sel = root.querySelector('select[data-key="theme"]'); if(sel) sel.value=c.theme||'theme-slc';
+  }
+}
+
+function bindEditor(){
+  document.getElementById('saveMagazine').onclick=()=>{
+    if(activeTab==='cover'){
+      document.querySelectorAll('[data-cover]').forEach(el=>MAGAZINE.cover[el.dataset.cover]=el.value||null);
+    } else if(activeTab==='back'){
+      document.querySelectorAll('[data-back]').forEach(el=>MAGAZINE.backCover[el.dataset.back]=el.value);
+    } else if(activeTab.startsWith('city-')){
+      const ci=+activeTab.split('-')[1],c=MAGAZINE.cities[ci];
+      document.querySelectorAll('[data-key]').forEach(el=>c[el.dataset.key]=el.value);
+      c.model=c.model||{}; document.querySelectorAll('[data-model]').forEach(el=>c.model[el.dataset.model]=el.value);
+      const mediaUrl=document.querySelector('[data-model-media]')?.value.trim(); c.model.media=mediaUrl?{type:'image',url:mediaUrl}:null;
+      document.querySelectorAll('.ad-editor[data-ai]').forEach(adEl=>{const ai=+adEl.dataset.ai,a=c.ads[ai]; if(!a)return; adEl.querySelectorAll('[data-ad]').forEach(el=>a[el.dataset.ad]=el.value); const u=adEl.querySelector('[data-ad-media]')?.value.trim(); a.media=u?{type:'image',url:u}:null;});
+    }
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(MAGAZINE));
+    setTimeout(()=>location.reload(),100);
+  };
+  document.getElementById('closeEditor').onclick=()=>editorPanel.classList.remove('open');
+  document.querySelectorAll('.remove-ad').forEach(b=>b.onclick=()=>{MAGAZINE.cities[+b.dataset.ci].ads.splice(+b.dataset.ai,1);renderEditor();bindEditor();});
+}
+editorToggle.onclick=()=>{editorPanel.classList.add('open');renderEditor();bindEditor();};
+
+const PAGES=[{id:'cover',cls:'cover',html:()=>`<div class="top-tag">${MAGAZINE.cover.issueTag}</div><div class="title">${MAGAZINE.cover.mainText}<br>${MAGAZINE.cover.highlight}<span class="hi">.</span></div><div class="sub">${MAGAZINE.cover.subtitle}</div>${mediaBlock(MAGAZINE.cover.coverPhotoUrl?{type:'image',url:MAGAZINE.cover.coverPhotoUrl}:null,'[ COVER PHOTO ]','cover-photo')}<div class="flip-hint">Tap or swipe to flip →</div>`},...MAGAZINE.cities.map(cityPage),{id:'back',cls:'back-cover',html:()=>`<h2>${MAGAZINE.backCover.heading}</h2><p>${MAGAZINE.backCover.description}</p><div class="cta-box">DM <span class="handle">${MAGAZINE.backCover.handle}</span>${MAGAZINE.backCover.ctaEnd}</div>`}];
+
+const total=PAGES.length;
+let current=0;
+const bookEl=document.getElementById('book');
+const dotsEl=document.getElementById('dots');
+const prevBtn=document.getElementById('prevBtn');
+const nextBtn=document.getElementById('nextBtn');
+const pageCountEl=document.getElementById('pageCount');
+
+function renderPageContent(){
+  bookEl.innerHTML='';
+  dotsEl.innerHTML='';
+  PAGES.forEach((p,idx)=>{const pageEl=document.createElement('div');pageEl.className='page';pageEl.id='page-'+idx;const html=typeof p.html==='function'?p.html():p.html;pageEl.innerHTML=`<div class="face front ${p.cls}"><div class="sheet">${html}</div></div><div class="face back"><div class="mark">Spotlight</div></div>`;bookEl.appendChild(pageEl);const dot=document.createElement('button');dot.className='dot';dot.title=p.id;dot.onclick=()=>{current=idx;render();};dotsEl.appendChild(dot);});
+}
+renderPageContent();
+
+function render(){
+  PAGES.forEach((p,idx)=>{const el=document.getElementById('page-'+idx);const flipped=idx<current;el.classList.toggle('flipped',flipped);el.style.zIndex=flipped?(idx+1):(total-idx+1);});
+  [...dotsEl.children].forEach((d,idx)=>d.classList.toggle('active',idx===current));
+  prevBtn.disabled=current===0;
+  nextBtn.disabled=current===total-1;
+  pageCountEl.textContent=`Page ${current+1} of ${total}`;
+}
+function nextPage(){if(current<total-1){current++;render();}}
+function prevPage(){if(current>0){current--;render();}}
+
+let touchStartX=null;
+window.addEventListener('DOMContentLoaded',()=>{
+  const bookWrap=document.querySelector('.book-wrap');
+  if(bookWrap){bookWrap.addEventListener('touchstart',e=>{touchStartX=e.touches[0].clientX;});bookWrap.addEventListener('touchend',e=>{if(touchStartX===null)return;const dx=e.changedTouches[0].clientX-touchStartX;if(dx<-40)nextPage();if(dx>40)prevPage();touchStartX=null;});}
+  render();
+});
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextPage();if(e.key==='ArrowLeft')prevPage();});
+
+// Show password modal on load
+window.addEventListener('load',()=>{if(!isEditorUnlocked){document.getElementById('passwordModal').classList.add('show');}});
+</script>
+</body>
+</html>
