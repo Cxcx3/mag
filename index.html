@@ -35,6 +35,9 @@
       radial-gradient(circle at 85% 80%, rgba(63,221,224,0.14), transparent 45%),
       var(--ink);
   }
+  body > * {
+    text-align:center;
+  }
   .masthead{
     text-align:center; margin-bottom:18px; color:var(--paper);
   }
@@ -197,7 +200,7 @@
   .theme-sandy .city-band{ background:#B8860B; }
   .theme-draper .city-band{ background:#4A3F8F; }
   .controls{
-    display:flex; align-items:center; gap:14px; margin-top:20px;
+    display:flex; align-items:center; justify-content:center; gap:14px; margin-top:20px;
   }
   .nav-btn{
     width:42px; height:42px; border-radius:50%; border:none; cursor:pointer;
@@ -214,7 +217,7 @@
   }
   .dot.active{ background:var(--coral); transform:scale(1.3); }
   .page-count{
-    color:var(--paper); opacity:0.6; font-size:11px; letter-spacing:0.1em; margin-top:10px;
+    color:var(--paper); opacity:0.6; font-size:11px; letter-spacing:0.1em; margin-top:10px; text-align:center;
   }
   .tap-zone{ position:absolute; top:0; bottom:0; width:18%; z-index:500; cursor:pointer; touch-action:pan-y; }
   .tap-zone.left{ left:0; }
