@@ -35,12 +35,25 @@ const upload = multer({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Static uploads folder with range support for video streaming
-app.use('/uploads', express.static(uploadsDir, {
-  acceptRanges: true,
-  setHeaders: (res) => {
-    res.set('Access-Control-Allow-Origin', '*');
+// Static uploads folder with range support and proper mobile video streaming headers
+app.use('/uploads', (req, res, next) => {
+  const ext = path.extname(req.path).toLowerCase();
+  if (['.mp4', '.m4v', '.mov', '.webm', '.ogg', '.ogv'].includes(ext)) {
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Disposition', 'inline');
+    if (ext === '.mp4' || ext === '.m4v' || ext === '.mov') {
+      res.setHeader('Content-Type', 'video/mp4');
+    } else if (ext === '.webm') {
+      res.setHeader('Content-Type', 'video/webm');
+    } else if (ext === '.ogg' || ext === '.ogv') {
+      res.setHeader('Content-Type', 'video/ogg');
+    }
   }
+  next();
+}, express.static(uploadsDir, {
+  acceptRanges: true,
+  maxAge: '1d'
 }));
 
 // Upload endpoint for images and videos

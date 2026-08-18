@@ -792,6 +792,23 @@ function checkPassword(){
   }
 }
 
+function toggleVideoPlayback(videoEl) {
+  if (!videoEl) return;
+  const badge = videoEl.parentElement?.querySelector('.video-play-badge');
+  if (videoEl.paused) {
+    videoEl.muted = true;
+    videoEl.playsInline = true;
+    videoEl.play().then(() => {
+      if (badge) badge.style.display = 'none';
+    }).catch(() => {
+      if (badge) badge.style.display = 'flex';
+    });
+  } else {
+    videoEl.pause();
+    if (badge) badge.style.display = 'flex';
+  }
+}
+
 function mediaBlock(media, placeholderText, extraClass){
   const cls = 'media-box' + (extraClass ? ' '+extraClass : '');
   if(!media || !media.url || typeof media.url !== 'string' || !media.url.trim()){
@@ -801,20 +818,32 @@ function mediaBlock(media, placeholderText, extraClass){
   const type = media.type || detectMediaType(url);
 
   if(type === 'video'){
+    let mime = 'video/mp4';
+    if(/\.webm(\?|#|$)/i.test(url)) mime = 'video/webm';
+    else if(/\.ogg|\.ogv(\?|#|$)/i.test(url)) mime = 'video/ogg';
+    else if(/\.mov|\.quicktime(\?|#|$)/i.test(url)) mime = 'video/mp4';
+
     return `
-      <div class="${cls}">
+      <div class="${cls} video-wrapper" style="position:relative;overflow:hidden;background:#000;">
         <video 
-          src="${url}" 
+          class="magazine-video"
+          src="${url}"
           autoplay 
           muted 
           loop 
           playsinline 
           webkit-playsinline 
-          preload="auto"
+          x5-playsinline
+          preload="metadata"
           style="width:100%;height:100%;object-fit:cover;display:block;"
-          onclick="this.paused ? this.play() : this.pause()"
-          onerror="console.warn('Video load error', '${url}'); this.parentElement.innerHTML='<div class=\\'media-box placeholder\\'><span>[ VIDEO UNAVAILABLE ]</span></div>';"
-        ></video>
+          onclick="toggleVideoPlayback(this)"
+          onplay="const b=this.parentElement.querySelector('.video-play-badge'); if(b) b.style.display='none';"
+          onpause="const b=this.parentElement.querySelector('.video-play-badge'); if(b && !this.closest('.page.flipped')) b.style.display='flex';"
+        >
+          <source src="${url}" type="${mime}">
+          <source src="${url}">
+        </video>
+        <div class="video-play-badge" onclick="toggleVideoPlayback(this.previousElementSibling)" style="display:none;position:absolute;inset:0;margin:auto;width:44px;height:44px;border-radius:50%;background:rgba(20,18,26,0.75);color:#fff;border:2px solid #FFD23F;display:none;align-items:center;justify-content:center;font-size:16px;cursor:pointer;pointer-events:auto;z-index:4;box-shadow:0 4px 16px rgba(0,0,0,0.5);">▶</div>
       </div>
     `;
   }
@@ -1429,6 +1458,32 @@ function renderPageContent(){
   });
 }
 
+function syncActiveVideos(){
+  PAGES.forEach((p, idx) => {
+    const pageEl = document.getElementById('page-' + idx);
+    if (!pageEl) return;
+    const isVisible = (idx === current);
+    const videos = pageEl.querySelectorAll('video');
+    videos.forEach(v => {
+      v.muted = true;
+      v.playsInline = true;
+      const badge = v.parentElement?.querySelector('.video-play-badge');
+      if (isVisible) {
+        const p = v.play();
+        if (p !== undefined) {
+          p.then(() => {
+            if (badge) badge.style.display = 'none';
+          }).catch(() => {
+            if (badge) badge.style.display = 'flex';
+          });
+        }
+      } else {
+        v.pause();
+      }
+    });
+  });
+}
+
 function render(){
   PAGES.forEach((p, idx) => {
     const el = document.getElementById('page-' + idx);
@@ -1441,7 +1496,33 @@ function render(){
   prevBtn.disabled = current === 0;
   nextBtn.disabled = current === total - 1;
   pageCountEl.textContent = `Page ${current + 1} of ${total}`;
+  syncActiveVideos();
 }
+
+// User interaction unlock for mobile browsers
+document.addEventListener('touchstart', () => {
+  const activePage = document.getElementById('page-' + current);
+  if (activePage) {
+    const v = activePage.querySelector('video');
+    if (v && v.paused) {
+      v.muted = true;
+      v.playsInline = true;
+      v.play().catch(() => {});
+    }
+  }
+}, { once: true, passive: true });
+
+document.addEventListener('click', () => {
+  const activePage = document.getElementById('page-' + current);
+  if (activePage) {
+    const v = activePage.querySelector('video');
+    if (v && v.paused) {
+      v.muted = true;
+      v.playsInline = true;
+      v.play().catch(() => {});
+    }
+  }
+}, { once: true });
 
 function nextPage(){ if(current < total - 1){ current++; render(); } }
 function prevPage(){ if(current > 0){ current--; render(); } }
