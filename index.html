@@ -23,6 +23,7 @@
     color:var(--ink);
     overflow-x:hidden;
     overflow-y:auto;
+    overscroll-behavior: none;
   }
   body{
     display:flex;
@@ -39,7 +40,17 @@
       var(--ink);
   }
   body > * {
-    margin:0 auto;
+    margin-left:auto !important;
+    margin-right:auto !important;
+  }
+  .masthead, .book-wrap, .controls, .page-count {
+    position:relative;
+    left:auto;
+    right:auto;
+    align-self:center;
+  }
+  .controls {
+    width:min(92vw, 380px);
   }
   .masthead{
     text-align:center;
@@ -61,7 +72,9 @@
   .book-wrap{
     position:relative;
     width:min(92vw, 380px);
-    margin:0 auto;
+    margin-left:auto !important;
+    margin-right:auto !important;
+    align-self:center;
     aspect-ratio: 3 / 4.6;
     perspective:2400px;
   }
@@ -76,6 +89,7 @@
     transform:rotateY(0deg);
     border-radius:6px;
     box-shadow:0 18px 40px rgba(0,0,0,0.45);
+    will-change: transform;
   }
   .page.flipped{ transform:rotateY(-178deg); }
   .face{
@@ -96,10 +110,23 @@
     font-family:'Anton', sans-serif; font-size:13px; letter-spacing:0.3em;
     color:rgba(20,18,26,0.35); text-transform:uppercase; transform:rotate(-90deg);
   }
+
+  /* ===== MOBILE SCROLL FIX ===== */
   .sheet{
-    width:100%; height:100%; padding:22px 18px; overflow-y:auto;
+    width:100%; height:100%;
+    padding:22px 18px;
+    overflow: hidden;                 /* we control scroll ourselves */
+    position: relative;
     display:flex; flex-direction:column;
+    -webkit-overflow-scrolling: auto;
   }
+  .sheet-inner{
+    width:100%;
+    will-change: transform;
+    transform: translate3d(0,0,0);    /* forces GPU layer */
+  }
+  /* ============================= */
+
   .media-box{
     width:100%; border-radius:8px; overflow:hidden; position:relative;
     background:linear-gradient(150deg, var(--cyan), var(--violet));
@@ -149,7 +176,7 @@
   .city-page{ background:var(--paper); }
   .city-band{
     display:flex; align-items:center; justify-content:space-between;
-    padding:10px 14px; margin:-22px -18px 16px; 
+    padding:10px 14px; margin:-22px -18px 16px;
   }
   .city-band .cnum{
     font-family:'Anton', sans-serif; font-size:11px; letter-spacing:0.2em; color:rgba(255,255,255,0.85);
@@ -247,27 +274,23 @@
 </style>
 </head>
 <body>
-
   <div class="masthead">
     <div class="eyebrow">Wasatch Front · Digital Edition</div>
     <h1>The <span>Spotlight</span> Magazine</h1>
   </div>
-
   <div class="book-wrap">
     <div class="book" id="book"></div>
     <div class="tap-zone left" onclick="prevPage()"></div>
     <div class="tap-zone right" onclick="nextPage()"></div>
   </div>
-
   <div class="controls">
     <button class="nav-btn" id="prevBtn" onclick="prevPage()">‹</button>
     <div class="dots" id="dots"></div>
     <button class="nav-btn" id="nextBtn" onclick="nextPage()">›</button>
   </div>
   <div class="page-count" id="pageCount"></div>
-  <div style="color:rgba(245,241,232,0.25);font-size:9px;margin-top:4px;letter-spacing:0.05em;">build v7 - updated</div>
+  <div style="color:rgba(245,241,232,0.25);font-size:9px;margin-top:4px;letter-spacing:0.05em;">build v9 - custom momentum scroll</div>
   <button id="resetLink" onclick="if(confirm('Reset the magazine back to its default content? This clears anything edited in this browser.')) resetMagazineContent();" style="margin-top:8px;background:none;border:none;color:rgba(245,241,232,0.4);font-size:10px;letter-spacing:0.08em;text-decoration:underline;cursor:pointer;">Pages stuck? Reset content</button>
-
   <!-- Password Modal -->
   <div id="passwordModal">
     <div class="password-box">
@@ -278,7 +301,6 @@
       <p style="font-size:11px;margin-top:16px;color:#999">Read-only link for sharing. Only you can edit with password.</p>
     </div>
   </div>
-
 <script>
 const DEFAULT_CITIES = [
   {
@@ -354,7 +376,6 @@ const DEFAULT_CITIES = [
     ]
   },
 ];
-
 const STORAGE_KEY = 'spotlightMagazineFullV2';
 const ADMIN_PASSWORD = 'spotlight2024';
 const DEFAULT_MAGAZINE = {
@@ -384,7 +405,6 @@ const DEFAULT_MAGAZINE = {
     ctaEnd: '<br>to reserve your spot'
   }
 };
-
 function cloneData(x){ return JSON.parse(JSON.stringify(x)); }
 function sanitizeImageUrl(value){
   if (!value || typeof value !== 'string') return null;
@@ -406,7 +426,6 @@ function bindUploadInputs(){
   document.querySelectorAll('input[type="file"][data-upload-target]').forEach((fileInput) => {
     if (fileInput.dataset.bound === 'true') return;
     fileInput.dataset.bound = 'true';
-
     const row = fileInput.closest('.upload-row');
     if (row && !row.querySelector('.upload-trigger')) {
       const trigger = document.createElement('button');
@@ -416,14 +435,12 @@ function bindUploadInputs(){
       trigger.addEventListener('click', () => fileInput.click());
       row.insertBefore(trigger, fileInput);
     }
-
     document.querySelectorAll('[data-open-file]').forEach((openBtn) => {
       const target = openBtn.dataset.openFile;
       if (target === fileInput.dataset.uploadTarget) {
         openBtn.onclick = () => fileInput.click();
       }
     });
-
     fileInput.addEventListener('change', async (event) => {
       const file = event.target?.files?.[0];
       if (!file) return;
@@ -443,7 +460,6 @@ function bindUploadInputs(){
     });
   });
 }
-
 function attachUploadButton(targetName, buttonText = 'Add image from computer') {
   const fileInput = document.querySelector(`input[type="file"][data-upload-target="${targetName}"]`);
   if (!fileInput) return;
@@ -471,7 +487,6 @@ function normalizeMedia(media, fallback){
 function normalizeMagazine(saved){
   const base = cloneData(DEFAULT_MAGAZINE);
   if (!saved || typeof saved !== 'object') return base;
-
   const mergedCities = (saved.cities && Array.isArray(saved.cities) ? saved.cities : base.cities).map((city, idx) => {
     const fallbackCity = base.cities[idx] || base.cities[0];
     const model = {
@@ -479,7 +494,6 @@ function normalizeMagazine(saved){
       ...(city?.model || {})
     };
     model.media = normalizeMedia(city?.model?.media, fallbackCity?.model?.media);
-
     const ads = (city?.ads && Array.isArray(city.ads) ? city.ads : fallbackCity?.ads || []).map((ad, adIdx) => {
       const fallbackAd = (fallbackCity?.ads || [])[adIdx] || {};
       return {
@@ -488,7 +502,6 @@ function normalizeMagazine(saved){
         media: normalizeMedia(ad?.media, fallbackAd?.media)
       };
     });
-
     return {
       ...(fallbackCity || {}),
       ...(city || {}),
@@ -496,7 +509,6 @@ function normalizeMagazine(saved){
       ads
     };
   });
-
   const merged = {
     ...base,
     ...(saved || {}),
@@ -510,7 +522,6 @@ function normalizeMagazine(saved){
     },
     cities: mergedCities
   };
-
   merged.cover.coverPhotoUrl = sanitizeImageUrl(merged.cover.coverPhotoUrl) || base.cover.coverPhotoUrl;
   merged.cities.forEach((city, idx) => {
     const fallbackCity = base.cities[idx] || base.cities[0];
@@ -525,18 +536,13 @@ function normalizeMagazine(saved){
       };
     });
   });
-
   return merged;
 }
-
 function getMagazine(){
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     const parsed = saved ? JSON.parse(saved) : null;
     let normalized = normalizeMagazine(parsed);
-    // Safety net: if saved data got corrupted somehow and we ended up with
-    // zero city pages, wipe it and fall back to the full default magazine
-    // instead of leaving the reader stuck on a near-empty book.
     if (!normalized.cities || normalized.cities.length === 0) {
       localStorage.removeItem(STORAGE_KEY);
       normalized = cloneData(DEFAULT_MAGAZINE);
@@ -550,16 +556,13 @@ function getMagazine(){
     return cloneData(DEFAULT_MAGAZINE);
   }
 }
-
 function resetMagazineContent(){
   try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
   location.reload();
 }
-
 let isEditorUnlocked = false;
 const MAGAZINE = getMagazine();
 const CITIES = MAGAZINE.cities;
-
 function checkPassword(){
   const input = document.getElementById('passwordInput');
   if(input.value === ADMIN_PASSWORD){
@@ -576,7 +579,6 @@ function checkPassword(){
     input.focus();
   }
 }
-
 function mediaBlock(media, placeholderText, extraClass){
   const cls = 'media-box' + (extraClass ? ' '+extraClass : '');
   if(!media || !media.url){
@@ -587,7 +589,6 @@ function mediaBlock(media, placeholderText, extraClass){
   }
   return `<div class="${cls}"><img src="${media.url}" alt=""></div>`;
 }
-
 function standardAdHtml(a){
   return `
     <div class="ad-card">
@@ -599,7 +600,6 @@ function standardAdHtml(a){
     </div>
   `;
 }
-
 function cityPage(c){
   const total = MAGAZINE.cities.length;
   const adsHtml = c.ads.map(a => standardAdHtml(a)).join('');
@@ -624,10 +624,9 @@ function cityPage(c){
     `
   };
 }
-
 const editorCss = document.createElement('style');
 editorCss.textContent = `
-  #editorToggle{position:fixed;top:16px;right:16px;z-index:9999;border:0;border-radius:999px;padding:11px 16px;background:#FFD23F;color:#14121A;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35);display:none}
+  #editorToggle{position:fixed;top:16px;right:16px;z-index:9999;border:0;border-radius:999px;padding:11px 16px;background:#FFD23F;color:#14121A;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35);display:block}
   #editorPanel{position:fixed;inset:0;z-index:9998;background:rgba(20,18,26,.96);display:none;overflow:auto;padding:24px 14px 50px;color:#F5F1E8;font-family:'Space Grotesk',sans-serif}
   #editorPanel.open{display:block}
   .editor-inner{width:min(1000px,100%);margin:auto}
@@ -664,11 +663,9 @@ editorCss.textContent = `
   .upload-btn:hover{background:#FF4D6D}
 `;
 document.head.appendChild(editorCss);
-
 const editorToggle = document.createElement('button');
 editorToggle.id='editorToggle'; editorToggle.textContent='EDIT MAGAZINE';
 document.body.appendChild(editorToggle);
-
 const editorPanel=document.createElement('div');
 editorPanel.id='editorPanel';
 editorPanel.innerHTML=`<div class="editor-inner">
@@ -677,7 +674,6 @@ editorPanel.innerHTML=`<div class="editor-inner">
   <div id="editorContent"></div>
 </div>`;
 document.body.appendChild(editorPanel);
-
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 let activeTab = 'cover';
 function renderEditor(){
@@ -685,10 +681,10 @@ function renderEditor(){
   const root = document.getElementById('editorContent');
   const tabList = ['cover', ...MAGAZINE.cities.map((c,i)=>'city-'+i), 'back'];
   const tabLabels = ['COVER', ...MAGAZINE.cities.map(c=>c.name.toUpperCase()), 'BACK COVER'];
-  
+ 
   tabs.innerHTML = tabList.map((t,i)=>`<button class="editor-tab ${t===activeTab?'active':''}" data-tab="${t}">${tabLabels[i]}</button>`).join('');
   tabs.querySelectorAll('.editor-tab').forEach(btn=>btn.onclick=()=>{activeTab=btn.dataset.tab;renderEditor();});
-  
+ 
   if(activeTab==='cover'){
     const c = MAGAZINE.cover;
     root.innerHTML = `
@@ -815,7 +811,6 @@ function renderEditor(){
     const sel = root.querySelector('select[data-key="theme"]'); if(sel) sel.value=c.theme||'theme-slc';
   }
 }
-
 function bindEditor(){
   document.getElementById('saveMagazine').onclick=()=>{
     if(activeTab==='cover'){
@@ -845,9 +840,7 @@ editorToggle.onclick=()=>{
   document.getElementById('passwordModal').classList.add('show');
   setTimeout(()=>document.getElementById('passwordInput')?.focus(), 120);
 };
-
 const PAGES=[{id:'cover',cls:'cover',html:()=>`<div class="top-tag">${MAGAZINE.cover.issueTag}</div><div class="title">${MAGAZINE.cover.mainText}<br>${MAGAZINE.cover.highlight}<span class="hi">.</span></div><div class="sub">${MAGAZINE.cover.subtitle}</div>${mediaBlock(MAGAZINE.cover.coverPhotoUrl?{type:'image',url:MAGAZINE.cover.coverPhotoUrl}:null,'[ COVER PHOTO ]','cover-photo')}<div class="cover-story-grid"><div class="cover-story-card"><div class="mini-label">Feature</div><h3>${MAGAZINE.cover.featureTitle || 'This month’s local stories'}</h3><p>${MAGAZINE.cover.featureSummary || 'Add a feature summary here.'}</p>${mediaBlock(MAGAZINE.cover.featureImageUrl?{type:'image',url:MAGAZINE.cover.featureImageUrl}:null,'[ FEATURE IMAGE ]','story-media')}</div><div class="cover-story-card"><div class="mini-label">Story 1</div><h3>${MAGAZINE.cover.articleOneTitle || 'City Notes'}</h3><p>${MAGAZINE.cover.articleOneText || 'Add the first article summary here.'}</p>${mediaBlock(MAGAZINE.cover.articleOneImageUrl?{type:'image',url:MAGAZINE.cover.articleOneImageUrl}:null,'[ STORY IMAGE ]','story-media')}</div><div class="cover-story-card"><div class="mini-label">Story 2</div><h3>${MAGAZINE.cover.articleTwoTitle || 'Next up'}</h3><p>${MAGAZINE.cover.articleTwoText || 'Add a second article summary here.'}</p>${mediaBlock(MAGAZINE.cover.articleTwoImageUrl?{type:'image',url:MAGAZINE.cover.articleTwoImageUrl}:null,'[ STORY IMAGE ]','story-media')}</div></div><div class="flip-hint">Tap or swipe to flip →</div>`},...MAGAZINE.cities.map(cityPage),{id:'back',cls:'back-cover',html:()=>`<h2>${MAGAZINE.backCover.heading}</h2><p>${MAGAZINE.backCover.description}</p><div class="cta-box">DM <span class="handle">${MAGAZINE.backCover.handle}</span>${MAGAZINE.backCover.ctaEnd}</div>`}];
-
 const total=PAGES.length;
 let current=0;
 const bookEl=document.getElementById('book');
@@ -859,12 +852,36 @@ const pageCountEl=document.getElementById('pageCount');
 function renderPageContent(){
   bookEl.innerHTML='';
   dotsEl.innerHTML='';
-  PAGES.forEach((p,idx)=>{const pageEl=document.createElement('div');pageEl.className='page';pageEl.id='page-'+idx;const html=typeof p.html==='function'?p.html():p.html;pageEl.innerHTML=`<div class="face front ${p.cls}"><div class="sheet">${html}</div></div><div class="face back"><div class="mark">Spotlight</div></div>`;bookEl.appendChild(pageEl);const dot=document.createElement('button');dot.className='dot';dot.title=p.id;dot.onclick=()=>{current=idx;render();};dotsEl.appendChild(dot);});
+  PAGES.forEach((p,idx)=>{
+    const pageEl=document.createElement('div');
+    pageEl.className='page';
+    pageEl.id='page-'+idx;
+    const html = typeof p.html==='function' ? p.html() : p.html;
+    // Wrap content in .sheet-inner so we can translate it for scrolling
+    pageEl.innerHTML = `
+      <div class="face front ${p.cls}">
+        <div class="sheet">
+          <div class="sheet-inner">${html}</div>
+        </div>
+      </div>
+      <div class="face back"><div class="mark">Spotlight</div></div>`;
+    bookEl.appendChild(pageEl);
+    const dot=document.createElement('button');
+    dot.className='dot';
+    dot.title=p.id;
+    dot.onclick=()=>{current=idx;render();};
+    dotsEl.appendChild(dot);
+  });
 }
 renderPageContent();
 
 function render(){
-  PAGES.forEach((p,idx)=>{const el=document.getElementById('page-'+idx);const flipped=idx<current;el.classList.toggle('flipped',flipped);el.style.zIndex=flipped?(idx+1):(total-idx+1);});
+  PAGES.forEach((p,idx)=>{
+    const el=document.getElementById('page-'+idx);
+    const flipped=idx<current;
+    el.classList.toggle('flipped',flipped);
+    el.style.zIndex=flipped?(idx+1):(total-idx+1);
+  });
   [...dotsEl.children].forEach((d,idx)=>d.classList.toggle('active',idx===current));
   prevBtn.disabled=current===0;
   nextBtn.disabled=current===total-1;
@@ -872,41 +889,115 @@ function render(){
 }
 function nextPage(){if(current<total-1){current++;render();}}
 function prevPage(){if(current>0){current--;render();}}
-
-// Run the first render immediately — don't wait on a browser timing event
-// that may or may not still be pending by the time this script runs.
 render();
 
-let touchStartX=null;
-const bookWrap=document.querySelector('.book-wrap');
-if(bookWrap){
-  bookWrap.addEventListener('touchstart',e=>{touchStartX=e.touches[0].clientX;});
-  bookWrap.addEventListener('touchend',e=>{if(touchStartX===null)return;const dx=e.changedTouches[0].clientX-touchStartX;if(dx<-40)nextPage();if(dx>40)prevPage();touchStartX=null;});
+/* ========== CUSTOM MOMENTUM SCROLLER (the real fix) ========== */
+function initCustomScrollers() {
+  document.querySelectorAll('.sheet').forEach(sheet => {
+    if (sheet.dataset.scrollReady) return;
+    sheet.dataset.scrollReady = '1';
+
+    const inner = sheet.querySelector('.sheet-inner');
+    if (!inner) return;
+
+    let startY = 0;
+    let currentY = 0;
+    let velocity = 0;
+    let lastY = 0;
+    let lastTime = 0;
+    let isDragging = false;
+    let rafId = null;
+    let maxScroll = 0;
+
+    function updateMax() {
+      maxScroll = Math.max(0, inner.offsetHeight - sheet.clientHeight);
+    }
+
+    function setY(y) {
+      currentY = Math.max(-maxScroll, Math.min(0, y));
+      inner.style.transform = `translate3d(0, ${currentY}px, 0)`;
+    }
+
+    function momentum() {
+      if (Math.abs(velocity) < 0.15) {
+        velocity = 0;
+        return;
+      }
+      velocity *= 0.95; // friction
+      setY(currentY + velocity);
+      rafId = requestAnimationFrame(momentum);
+    }
+
+    sheet.addEventListener('touchstart', e => {
+      updateMax();
+      if (maxScroll <= 0) return;
+      isDragging = true;
+      startY = e.touches[0].clientY - currentY;
+      lastY = e.touches[0].clientY;
+      lastTime = Date.now();
+      velocity = 0;
+      if (rafId) cancelAnimationFrame(rafId);
+    }, { passive: true });
+
+    sheet.addEventListener('touchmove', e => {
+      if (!isDragging) return;
+      const y = e.touches[0].clientY;
+      const now = Date.now();
+      const dt = now - lastTime || 16;
+      velocity = (y - lastY) / dt * 16; // normalize
+      lastY = y;
+      lastTime = now;
+      setY(y - startY);
+    }, { passive: true });
+
+    sheet.addEventListener('touchend', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      if (Math.abs(velocity) > 0.5) {
+        rafId = requestAnimationFrame(momentum);
+      }
+    }, { passive: true });
+
+    // Reset scroll position when page is flipped away
+    sheet.addEventListener('transitionend', () => {
+      if (!sheet.closest('.page').classList.contains('flipped')) {
+        // page is currently visible – keep position
+      } else {
+        setY(0);
+      }
+    });
+  });
 }
 
-/* ---- MOBILE SCROLL FIX ----
-   iOS Safari has a known bug where native touch-drag-to-scroll doesn't
-   work inside an element that's also being 3D-rotated (our page-flip
-   effect). To work around it, we drive scrolling manually here instead
-   of relying on the browser's built-in gesture. */
-document.querySelectorAll('.sheet').forEach(sheet => {
-  let startY = 0, startScroll = 0, dragging = false;
-  sheet.addEventListener('touchstart', e => {
-    startY = e.touches[0].clientY;
-    startScroll = sheet.scrollTop;
-    dragging = true;
+// Run after pages are rendered
+initCustomScrollers();
+// Also re-init after editor save/reload (pages are re-created)
+window.addEventListener('load', initCustomScrollers);
+
+/* ========== PAGE FLIP SWIPE ========== */
+let touchStartX = null;
+const bookWrap = document.querySelector('.book-wrap');
+if (bookWrap) {
+  bookWrap.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
   }, { passive: true });
-  sheet.addEventListener('touchmove', e => {
-    if(!dragging) return;
-    const dy = startY - e.touches[0].clientY;
-    sheet.scrollTop = startScroll + dy;
+  bookWrap.addEventListener('touchend', e => {
+    if (touchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    // only flip if the gesture was mostly horizontal
+    if (Math.abs(dx) > 50) {
+      if (dx < -40) nextPage();
+      if (dx > 40) prevPage();
+    }
+    touchStartX = null;
   }, { passive: true });
-  sheet.addEventListener('touchend', () => { dragging = false; });
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') nextPage();
+  if (e.key === 'ArrowLeft') prevPage();
 });
-
-document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextPage();if(e.key==='ArrowLeft')prevPage();});
-
-window.addEventListener('load',()=>{
+window.addEventListener('load', () => {
   editorToggle.style.display = 'block';
 });
 </script>
