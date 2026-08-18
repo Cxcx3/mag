@@ -493,13 +493,30 @@ function sanitizeImageUrl(value){
   return trimmed;
 }
 
+function parseYouTubeId(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([\w-]{11})/i);
+  return match ? match[1] : null;
+}
+
+function parseVimeoId(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  const match = trimmed.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/[^\/]*\/videos\/|album\/(?:\d+\/)?video\/|video\/|)(\d+)/i);
+  return match ? match[1] : null;
+}
+
 function detectMediaType(url) {
   if (!url || typeof url !== 'string') return 'image';
-  const lower = url.trim().toLowerCase();
+  const trimmed = url.trim();
+  const lower = trimmed.toLowerCase();
   if (lower.startsWith('data:video/')) return 'video';
   if (lower.startsWith('data:image/')) return 'image';
   if (lower.startsWith('blob:') && lower.includes('video')) return 'video';
-  if (lower.match(/\.(mp4|webm|ogg|mov|m4v|ogv)(\?|#|$)/i)) return 'video';
+  if (parseYouTubeId(trimmed) || parseVimeoId(trimmed)) return 'video';
+  if (lower.match(/\.(mp4|webm|ogg|mov|m4v|ogv|avi|mkv|3gp|flv|wmv|ts)(\?|#|$)/i)) return 'video';
+  if (lower.includes('/uploads/') && lower.match(/_vid|video|\.mp4|\.webm|\.mov|\.m4v/i)) return 'video';
   return 'image';
 }
 
@@ -818,24 +835,66 @@ function mediaBlock(media, placeholderText, extraClass){
   const type = media.type || detectMediaType(url);
 
   if(type === 'video'){
+    const ytId = parseYouTubeId(url);
+    if(ytId){
+      return `
+        <div class="${cls} video-wrapper yt-embed-wrapper" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
+          <iframe 
+            src="https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1"
+            title="Video"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            loading="eager"
+          ></iframe>
+        </div>
+      `;
+    }
+
+    const vimeoId = parseVimeoId(url);
+    if(vimeoId){
+      return `
+        <div class="${cls} video-wrapper vimeo-embed-wrapper" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
+          <iframe 
+            src="https://player.vimeo.com/video/${vimeoId}?autoplay=1&muted=1&loop=1&background=1&playsinline=1&autopause=0"
+            title="Video"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
+            allow="autoplay; fullscreen; picture-in-picture"
+            loading="eager"
+          ></iframe>
+        </div>
+      `;
+    }
+
+    let posterAttr = '';
+    if(media.poster){
+      posterAttr = `poster="${media.poster}"`;
+    } else if(url.includes('/uploads/')){
+      const autoPoster = url.replace(/\.[^/.]+$/, '') + '-poster.jpg';
+      posterAttr = `poster="${autoPoster}"`;
+    }
+
     return `
-      <div class="${cls} video-wrapper" style="position:relative;overflow:hidden;background:#000;">
+      <div class="${cls} video-wrapper" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
         <video 
           class="magazine-video"
           src="${url}"
+          ${posterAttr}
           autoplay 
           muted 
           loop 
           playsinline 
           webkit-playsinline 
           x5-playsinline
+          x5-video-player-type="h5"
           preload="auto"
           style="width:100%;height:100%;object-fit:cover;display:block;"
           onclick="toggleVideoPlayback(this)"
           onplay="const b=this.parentElement?.querySelector('.video-play-badge'); if(b) b.style.display='none';"
           onpause="const b=this.parentElement?.querySelector('.video-play-badge'); if(b && !this.closest('.page.flipped')) b.style.display='flex';"
-        ></video>
-        <div class="video-play-badge" onclick="toggleVideoPlayback(this.previousElementSibling)" style="display:none;position:absolute;inset:0;margin:auto;width:44px;height:44px;border-radius:50%;background:rgba(20,18,26,0.75);color:#fff;border:2px solid #FFD23F;align-items:center;justify-content:center;font-size:16px;cursor:pointer;pointer-events:auto;z-index:4;box-shadow:0 4px 16px rgba(0,0,0,0.5);">▶</div>
+        >
+          <source src="${url}">
+        </video>
+        <div class="video-play-badge" onclick="toggleVideoPlayback(this.previousElementSibling)" style="display:none;position:absolute;inset:0;margin:auto;width:48px;height:48px;border-radius:50%;background:rgba(20,18,26,0.8);color:#FFD23F;border:2px solid #FFD23F;align-items:center;justify-content:center;font-size:18px;cursor:pointer;pointer-events:auto;z-index:4;box-shadow:0 4px 16px rgba(0,0,0,0.6);touch-action:manipulation;">▶</div>
       </div>
     `;
   }
@@ -969,6 +1028,14 @@ function renderMediaPreview(url, type) {
   if (!url) return '';
   const detectedType = type || detectMediaType(url);
   if (detectedType === 'video') {
+    const ytId = parseYouTubeId(url);
+    if(ytId) {
+      return `<img src="https://img.youtube.com/vi/${ytId}/hqdefault.jpg" class="media-preview-thumb" alt="YouTube Thumbnail"><span style="font-size:11px;font-weight:700;color:#2e7d32">▶ YouTube Video ready</span>`;
+    }
+    const vimeoId = parseVimeoId(url);
+    if(vimeoId) {
+      return `<div class="media-preview-thumb" style="display:flex;align-items:center;justify-content:center;background:#1ab7ea;color:#fff;font-weight:800;font-size:10px;">VIMEO</div><span style="font-size:11px;font-weight:700;color:#2e7d32">▶ Vimeo Video ready</span>`;
+    }
     return `<video src="${url}" class="media-preview-thumb" autoplay muted loop playsinline webkit-playsinline></video><span style="font-size:11px;font-weight:700;color:#2e7d32">▶ Video ready</span>`;
   }
   return `<img src="${url}" class="media-preview-thumb" alt="Preview"><span style="font-size:11px;font-weight:700;color:#2e7d32">✓ Image ready</span>`;
@@ -1500,23 +1567,34 @@ function unlockAndPlayVisibleVideos() {
     videos.forEach(v => {
       v.muted = true;
       v.defaultMuted = true;
+      v.volume = 0;
       v.playsInline = true;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      const badge = v.parentElement?.querySelector('.video-play-badge');
       if (v.paused) {
         const p = v.play();
         if (p !== undefined) {
           p.then(() => {
-            const badge = v.parentElement?.querySelector('.video-play-badge');
             if (badge) badge.style.display = 'none';
-          }).catch(() => {});
+          }).catch(() => {
+            if (badge) badge.style.display = 'flex';
+          });
         }
       }
     });
   }
 }
 
-document.addEventListener('touchstart', unlockAndPlayVisibleVideos, { passive: true });
-document.addEventListener('touchend', unlockAndPlayVisibleVideos, { passive: true });
-document.addEventListener('click', unlockAndPlayVisibleVideos);
+['touchstart', 'touchend', 'pointerdown', 'click'].forEach(evt => {
+  document.addEventListener(evt, unlockAndPlayVisibleVideos, { passive: true });
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    syncActiveVideos();
+  }
+});
 
 function nextPage(){ if(current < total - 1){ current++; render(); } }
 function prevPage(){ if(current > 0){ current--; render(); } }

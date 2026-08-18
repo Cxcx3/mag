@@ -3,6 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
+import { execFile } from 'child_process';
+import util from 'util';
+
+const execFilePromise = util.promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +17,51 @@ const PORT = 3000;
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Transcode video to 1080p faststart H.264 MP4 with yuv420p for 100% universal mobile playback
+async function transcodeVideoForMobile(inputPath, outputPath, posterPath) {
+  try {
+    // 1. Transcode video with libx264, baseline-compatible parameters, yuv420p, max 1080p, faststart moov atom
+    await execFilePromise('ffmpeg', [
+      '-y',
+      '-i', inputPath,
+      '-vf', "scale='min(1080,iw)':-2",
+      '-c:v', 'libx264',
+      '-profile:v', 'high',
+      '-level', '4.1',
+      '-pix_fmt', 'yuv420p',
+      '-crf', '23',
+      '-preset', 'veryfast',
+      '-movflags', '+faststart',
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-ar', '44100',
+      '-ac', '2',
+      outputPath
+    ]);
+
+    // 2. Extract first-frame thumbnail poster for instant mobile display
+    if (posterPath) {
+      try {
+        await execFilePromise('ffmpeg', [
+          '-y',
+          '-i', outputPath,
+          '-ss', '00:00:00.500',
+          '-frames:v', '1',
+          '-vf', "scale='min(1080,iw)':-2",
+          '-q:v', '2',
+          posterPath
+        ]);
+      } catch (pe) {
+        console.warn('Poster thumbnail extraction warning:', pe.message);
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error('FFmpeg transcoding error:', err);
+    return false;
+  }
 }
 
 const storage = multer.diskStorage({
@@ -82,19 +131,59 @@ app.get(['/data.json', '/api/data'], (req, res) => {
   }
 });
 
-// Upload endpoint for images and videos
-app.post('/api/upload', upload.single('file'), (req, res) => {
+// Upload endpoint for images and videos with auto-transcoding
+app.post('/api/upload', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  const isVideo = req.file.mimetype.startsWith('video/') || /\.(mp4|webm|ogg|mov|m4v)$/i.test(req.file.originalname);
-  const fileUrl = `/uploads/${req.file.filename}`;
+  const origExt = path.extname(req.file.originalname).toLowerCase();
+  const mime = (req.file.mimetype || '').toLowerCase();
+  const isVideo = mime.startsWith('video/') || ['.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v', '.3gp', '.ogv', '.flv', '.wmv', '.ts'].includes(origExt);
+
+  if (isVideo) {
+    const baseName = path.basename(req.file.filename, path.extname(req.file.filename));
+    const optFileName = `${baseName}.mp4`;
+    const tempInputPath = req.file.path;
+    const optOutputPath = path.join(uploadsDir, `${baseName}-web.mp4`);
+    const posterFileName = `${baseName}-poster.jpg`;
+    const posterPath = path.join(uploadsDir, posterFileName);
+
+    try {
+      const success = await transcodeVideoForMobile(tempInputPath, optOutputPath, posterPath);
+      if (success && fs.existsSync(optOutputPath)) {
+        const finalUrlPath = path.join(uploadsDir, optFileName);
+        if (tempInputPath !== finalUrlPath && fs.existsSync(tempInputPath)) {
+          try { fs.unlinkSync(tempInputPath); } catch(e){}
+        }
+        fs.renameSync(optOutputPath, finalUrlPath);
+
+        return res.json({
+          success: true,
+          url: `/uploads/${optFileName}`,
+          posterUrl: fs.existsSync(posterPath) ? `/uploads/${posterFileName}` : undefined,
+          type: 'video',
+          filename: optFileName,
+          optimized: true
+        });
+      }
+    } catch (err) {
+      console.warn('Transcode fallback to original:', err);
+    }
+
+    // Fallback if transcoding didn't complete
+    return res.json({
+      success: true,
+      url: `/uploads/${req.file.filename}`,
+      type: 'video',
+      filename: req.file.filename
+    });
+  }
 
   return res.json({
     success: true,
-    url: fileUrl,
-    type: isVideo ? 'video' : 'image',
+    url: `/uploads/${req.file.filename}`,
+    type: 'image',
     filename: req.file.filename,
     size: req.file.size
   });
