@@ -333,80 +333,120 @@
 <script>
 const DEFAULT_CITIES = [
   {
-    theme:'theme-slc', num:'01', name:'Salt Lake City',
-    model:{ name:'Ava Sinclair', role:'Cover-Featured Model',
-      bio:'Downtown-based model and content creator, bringing SLC street style to every page.',
-      media:{ type:'image', url:'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80' } },
-    ads:[
-      { name:'Peak & Pine Coffee Roasters', tag:'Local Roaster',
-        blurb:'Small-batch beans roasted weekly in the Granary District. Try the seasonal cardamom pour-over.',
-        cta:'Visit us downtown', link:'#', media:{ type:'image', url:'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80' } },
-      { name:'Wasatch Wax Candle Co.', tag:'Handmade Goods',
-        blurb:'Soy candles poured in small batches, inspired by canyon hikes and mountain air.',
-        cta:'Shop the collection', link:'#', media:{ type:'image', url:'https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80' } },
-      { name:'Iron Door Fitness', tag:'Studio & Gym',
-        blurb:'Boutique strength studio with sunrise classes and a members-only sauna.',
-        cta:'Book a free class', link:'#', media:{ type:'image', url:'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=80' } },
+    theme: 'theme-slc', num: '01', name: 'Salt Lake City',
+    model: {
+      name: 'Ava Sinclair', role: 'Cover-Featured Model',
+      bio: 'Downtown-based model and content creator, bringing SLC street style to every page.',
+      media: { type: 'image', url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80' }
+    },
+    ads: [
+      {
+        name: 'Peak & Pine Coffee Roasters', tag: 'Local Roaster',
+        blurb: 'Small-batch beans roasted weekly in the Granary District. Try the seasonal cardamom pour-over.',
+        cta: 'Visit us downtown', link: '#',
+        media: { type: 'image', url: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80' }
+      },
+      {
+        name: 'Wasatch Wax Candle Co.', tag: 'Handmade Goods',
+        blurb: 'Soy candles poured in small batches, inspired by canyon hikes and mountain air.',
+        cta: 'Shop the collection', link: '#',
+        media: { type: 'image', url: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80' }
+      },
+      {
+        name: 'Iron Door Fitness', tag: 'Studio & Gym',
+        blurb: 'Boutique strength studio with sunrise classes and a members-only sauna.',
+        cta: 'Book a free class', link: '#',
+        media: { type: 'image', url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=80' }
+      }
     ]
   },
   {
-    theme:'theme-wj', num:'02', name:'West Jordan',
-    model:{ name:'Devon Marsh', role:'Featured Model',
-      bio:'West Jordan-raised model and this issue\'s face for the west valley.',
-      media:{ type:'image', url:'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80' } },
-    ads:[
-      { name:'New Business', tag:'Local Business',
-        blurb:'Tell readers what makes this business special.',
-        cta:'Visit Website', link:'#', media:{ type:'image', url:'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=900&q=80' } },
+    theme: 'theme-wj', num: '02', name: 'West Jordan',
+    model: {
+      name: 'Devon Marsh', role: 'Featured Model',
+      bio: 'West Jordan-raised model and this issue\'s face for the west valley.',
+      media: { type: 'image', url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80' }
+    },
+    ads: [
+      {
+        name: 'New Business', tag: 'Local Business',
+        blurb: 'Tell readers what makes this business special.',
+        cta: 'Visit Website', link: '#',
+        media: { type: 'image', url: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=900&q=80' }
+      }
     ]
   },
   {
-    theme:'theme-mc', num:'03', name:'Millcreek',
-    model:{ name:'Jordan Reyes', role:'Featured Model',
-      bio:'Millcreek native and part-time trail runner, shot on location at Millcreek Canyon.',
-      media:{ type:'image', url:'https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=900&q=80' } },
-    ads:[
-      { name:'Millcreek Botanical Florals', tag:'Florist',
-        blurb:'Weekly flower subscriptions and same-day arrangements for the whole valley.',
-        cta:'Order this week\'s bouquet', link:'#', media:{ type:'image', url:'https://images.unsplash.com/photo-1468327768560-75b778cbb551?auto=format&fit=crop&w=900&q=80' } },
+    theme: 'theme-mc', num: '03', name: 'Millcreek',
+    model: {
+      name: 'Jordan Reyes', role: 'Featured Model',
+      bio: 'Millcreek native and part-time trail runner, shot on location at Millcreek Canyon.',
+      media: { type: 'image', url: 'https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=900&q=80' }
+    },
+    ads: [
+      {
+        name: 'Millcreek Botanical Florals', tag: 'Florist',
+        blurb: 'Weekly flower subscriptions and same-day arrangements for the whole valley.',
+        cta: 'Order this week\'s bouquet', link: '#',
+        media: { type: 'image', url: 'https://images.unsplash.com/photo-1468327768560-75b778cbb551?auto=format&fit=crop&w=900&q=80' }
+      }
     ]
   },
   {
-    theme:'theme-ch', num:'04', name:'Cottonwood Heights',
-    model:{ name:'Sienna Cole', role:'Featured Model',
-      bio:'Sienna splits her time between modeling and coaching youth ski teams at Big Cottonwood.',
-      media:{ type:'image', url:'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80' } },
-    ads:[
-      { name:'Butterfield Nail Studio', tag:'Nail Salon',
-        blurb:'Custom nail art and gel sets, booked online in under a minute.',
-        cta:'Book your appointment', link:'#', media:{ type:'image', url:'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=900&q=80' } },
+    theme: 'theme-ch', num: '04', name: 'Cottonwood Heights',
+    model: {
+      name: 'Sienna Cole', role: 'Featured Model',
+      bio: 'Sienna splits her time between modeling and coaching youth ski teams at Big Cottonwood.',
+      media: { type: 'image', url: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80' }
+    },
+    ads: [
+      {
+        name: 'Butterfield Nail Studio', tag: 'Nail Salon',
+        blurb: 'Custom nail art and gel sets, booked online in under a minute.',
+        cta: 'Book your appointment', link: '#',
+        media: { type: 'image', url: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=900&q=80' }
+      }
     ]
   },
   {
-    theme:'theme-sandy', num:'05', name:'Sandy',
-    model:{ name:'Marcus Bell', role:'Featured Model',
-      bio:'Marcus is a Sandy-based fitness model and personal trainer, repping the south valley.',
-      media:{ type:'image', url:'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80' } },
-    ads:[
-      { name:'Sandy Station Barbershop', tag:'Barbershop',
-        blurb:'Classic cuts and hot towel shaves, walk-ins welcome most weekdays.',
-        cta:'Check today\'s wait', link:'#', media:{ type:'image', url:'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80' } },
+    theme: 'theme-sandy', num: '05', name: 'Sandy',
+    model: {
+      name: 'Marcus Bell', role: 'Featured Model',
+      bio: 'Marcus is a Sandy-based fitness model and personal trainer, repping the south valley.',
+      media: { type: 'image', url: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80' }
+    },
+    ads: [
+      {
+        name: 'Sandy Station Barbershop', tag: 'Barbershop',
+        blurb: 'Classic cuts and hot towel shaves, walk-ins welcome most weekdays.',
+        cta: 'Check today\'s wait', link: '#',
+        media: { type: 'image', url: 'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80' }
+      }
     ]
   },
   {
-    theme:'theme-draper', num:'06', name:'Draper',
-    model:{ name:'Talia Fenwick', role:'Featured Model',
-      bio:'Talia is a Draper-raised creative and this month\'s spotlight face for the south valley.',
-      media:{ type:'image', url:'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80' } },
-    ads:[
-      { name:'Draper Peak Dental Studio', tag:'Dental Care',
-        blurb:'Modern, comfort-first dentistry with evening and weekend appointments.',
-        cta:'Book a cleaning', link:'#', media:{ type:'image', url:'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=900&q=80' } },
+    theme: 'theme-draper', num: '06', name: 'Draper',
+    model: {
+      name: 'Talia Fenwick', role: 'Featured Model',
+      bio: 'Talia is a Draper-raised creative and this month\'s spotlight face for the south valley.',
+      media: { type: 'image', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80' }
+    },
+    ads: [
+      {
+        name: 'Draper Peak Dental Studio', tag: 'Dental Care',
+        blurb: 'Modern, comfort-first dentistry with evening and weekend appointments.',
+        cta: 'Book a cleaning', link: '#',
+        media: { type: 'image', url: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=900&q=80' }
+      }
     ]
-  },
+  }
 ];
 
 const STORAGE_KEY = 'spotlightMagazineFullV2';
+const HAS_EDITS_KEY = 'spotlight_has_saved_edits';
+const DB_NAME = 'SpotlightMagDB_v2';
+const DB_STORE = 'magazineStore';
+const DB_KEY = 'savedMagazine';
 const ADMIN_PASSWORD = 'spotlight2024';
 const DATA_URL = './data.json';
 
@@ -418,15 +458,19 @@ const DEFAULT_MAGAZINE = {
     subtitle: 'Salt Lake City → Draper',
     issueTag: 'Issue 01 · August 2026',
     coverPhotoUrl: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=80',
+    coverPhotoType: 'image',
     featureTitle: 'This month’s local stories',
     featureSummary: 'Neighborhood culture, business wins, and the people shaping the Wasatch Front one block at a time.',
     featureImageUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80',
+    featureImageType: 'image',
     articleOneTitle: 'City Notes',
     articleOneText: 'From coffee culture to creative studios, this issue celebrates the people and places making each valley community feel local and alive.',
     articleOneImageUrl: 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+    articleOneImageType: 'image',
     articleTwoTitle: 'Next up',
     articleTwoText: 'Stay tuned for the next round of profiles, businesses, and creative energy from across the mountain communities.',
-    articleTwoImageUrl: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80'
+    articleTwoImageUrl: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80',
+    articleTwoImageType: 'image'
   },
   cities: cloneData(DEFAULT_CITIES),
   backCover: {
@@ -450,10 +494,53 @@ function sanitizeImageUrl(value){
 }
 
 function detectMediaType(url) {
-  if (!url) return 'image';
-  const lower = url.toLowerCase();
-  if (lower.match(/\.(mp4|webm|ogg|mov)(\?|$)/)) return 'video';
+  if (!url || typeof url !== 'string') return 'image';
+  const lower = url.trim().toLowerCase();
+  if (lower.startsWith('data:video/')) return 'video';
+  if (lower.startsWith('data:image/')) return 'image';
+  if (lower.startsWith('blob:') && lower.includes('video')) return 'video';
+  if (lower.match(/\.(mp4|webm|ogg|mov|m4v|ogv)(\?|#|$)/i)) return 'video';
   return 'image';
+}
+
+function uploadMediaFile(file, progressCallback) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload', true);
+
+    if (xhr.upload && progressCallback) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          progressCallback(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const res = JSON.parse(xhr.responseText);
+          if (res && res.url) {
+            resolve(res);
+          } else {
+            reject(new Error('Invalid response from server'));
+          }
+        } catch (e) {
+          reject(e);
+        }
+      } else {
+        reject(new Error('Upload failed with status ' + xhr.status));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out'));
+    xhr.send(formData);
+  });
 }
 
 function readFileAsDataURL(file){
@@ -465,58 +552,164 @@ function readFileAsDataURL(file){
   });
 }
 
-function bindUploadInputs(){
-  document.querySelectorAll('input[type="file"][data-upload-target]').forEach((fileInput) => {
-    if (fileInput.dataset.bound === 'true') return;
-    fileInput.dataset.bound = 'true';
-    const row = fileInput.closest('.upload-row');
-    if (row && !row.querySelector('.upload-trigger')) {
-      const trigger = document.createElement('button');
-      trigger.type = 'button';
-      trigger.className = 'upload-trigger';
-      trigger.textContent = 'Add from computer';
-      trigger.addEventListener('click', () => fileInput.click());
-      row.insertBefore(trigger, fileInput);
+// Open IndexedDB for local media persistence backup
+function openDB() {
+  return new Promise((resolve) => {
+    if (!window.indexedDB) {
+      resolve(null);
+      return;
     }
-    document.querySelectorAll('[data-open-file]').forEach((openBtn) => {
-      const target = openBtn.dataset.openFile;
-      if (target === fileInput.dataset.uploadTarget) {
-        openBtn.onclick = () => fileInput.click();
-      }
-    });
-    fileInput.addEventListener('change', async (event) => {
-      const file = event.target?.files?.[0];
-      if (!file) return;
-      try {
-        const dataUrl = await readFileAsDataURL(file);
-        const targetName = fileInput.dataset.uploadTarget;
-        const targetInput = document.querySelector(`[data-image-field="${targetName}"]`);
-        if (targetInput) {
-          targetInput.value = dataUrl || '';
-          targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+    try {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) {
+          db.createObjectStore(DB_STORE);
         }
-      } catch (err) {
-        console.error('Upload failed', err);
-        alert('Could not load this file. Please try another one.');
-      }
-      fileInput.value = '';
-    });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch (e) {
+      resolve(null);
+    }
   });
 }
 
+async function saveMagazineData(data) {
+  // 1. Save directly to server data.json
+  try {
+    const res = await fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      console.warn('Server save returned status', res.status);
+    }
+  } catch (e) {
+    console.warn('Server save failed, relying on client storage', e);
+  }
+
+  // 2. Backup to IndexedDB
+  try {
+    const db = await openDB();
+    if (db) {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).put(data, DB_KEY);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+  } catch (e) {
+    console.warn('IndexedDB save failed', e);
+  }
+
+  // 3. Mark edits in localStorage
+  try {
+    localStorage.setItem(HAS_EDITS_KEY, 'true');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {}
+}
+
+async function loadMagazine() {
+  // 1. Try to load from server data.json first
+  try {
+    const res = await fetch(DATA_URL + '?t=' + Date.now());
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data === 'object') {
+        return normalizeMagazine(data);
+      }
+    }
+  } catch (e) {
+    console.log('No server data.json found, checking local cache');
+  }
+
+  // 2. Fallback to IndexedDB / localStorage if offline
+  try {
+    const db = await openDB();
+    if (db) {
+      const dbData = await new Promise((resolve) => {
+        const tx = db.transaction(DB_STORE, 'readonly');
+        const req = tx.objectStore(DB_STORE).get(DB_KEY);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      });
+      if (dbData) {
+        return normalizeMagazine(dbData);
+      }
+    }
+  } catch (e) {
+    console.warn('Error reading from IndexedDB', e);
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      return normalizeMagazine(JSON.parse(saved));
+    }
+  } catch (e) {}
+
+  // 3. Fallback to built-in default
+  return cloneData(DEFAULT_MAGAZINE);
+}
+
+async function resetMagazineContent() {
+  try {
+    const db = await openDB();
+    if (db) {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).delete(DB_KEY);
+    }
+  } catch (e) {}
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(HAS_EDITS_KEY);
+  } catch (e) {}
+  location.reload();
+}
+
+function showToast(msg) {
+  let toast = document.getElementById('spotlightToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'spotlightToast';
+    toast.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#FF4D6D;color:#fff;padding:12px 24px;border-radius:30px;font-weight:700;font-size:13px;z-index:999999;box-shadow:0 8px 28px rgba(0,0,0,0.5);transition:opacity 0.3s ease, transform 0.3s ease;pointer-events:none;letter-spacing:0.04em;text-transform:uppercase;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(10px)';
+  }, 2600);
+}
+
 function normalizeMedia(media, fallback){
-  if (media && typeof media === 'object' && media.url) {
-    const clean = sanitizeImageUrl(media.url);
-    if (clean) {
-      return { 
-        type: media.type || detectMediaType(clean), 
-        url: clean 
-      };
+  if (media) {
+    if (typeof media === 'string') {
+      const clean = sanitizeImageUrl(media);
+      if (clean) return { type: detectMediaType(clean), url: clean };
+    } else if (typeof media === 'object' && media.url) {
+      const clean = sanitizeImageUrl(media.url);
+      if (clean) {
+        return { 
+          type: media.type || detectMediaType(clean), 
+          url: clean 
+        };
+      }
     }
   }
-  if (fallback && typeof fallback === 'object' && fallback.url) {
-    const clean = sanitizeImageUrl(fallback.url);
-    if (clean) return { type: fallback.type || detectMediaType(clean), url: clean };
+  if (fallback) {
+    if (typeof fallback === 'string') {
+      const clean = sanitizeImageUrl(fallback);
+      if (clean) return { type: detectMediaType(clean), url: clean };
+    } else if (typeof fallback === 'object' && fallback.url) {
+      const clean = sanitizeImageUrl(fallback.url);
+      if (clean) return { type: fallback.type || detectMediaType(clean), url: clean };
+    }
   }
   return null;
 }
@@ -524,6 +717,7 @@ function normalizeMedia(media, fallback){
 function normalizeMagazine(saved){
   const base = cloneData(DEFAULT_MAGAZINE);
   if (!saved || typeof saved !== 'object') return base;
+
   const mergedCities = (saved.cities && Array.isArray(saved.cities) ? saved.cities : base.cities).map((city, idx) => {
     const fallbackCity = base.cities[idx] || base.cities[0];
     const model = {
@@ -531,6 +725,7 @@ function normalizeMagazine(saved){
       ...(city?.model || {})
     };
     model.media = normalizeMedia(city?.model?.media, fallbackCity?.model?.media);
+
     const ads = (city?.ads && Array.isArray(city.ads) ? city.ads : fallbackCity?.ads || []).map((ad, adIdx) => {
       const fallbackAd = (fallbackCity?.ads || [])[adIdx] || {};
       return {
@@ -539,6 +734,7 @@ function normalizeMagazine(saved){
         media: normalizeMedia(ad?.media, fallbackAd?.media)
       };
     });
+
     return {
       ...(fallbackCity || {}),
       ...(city || {}),
@@ -546,6 +742,7 @@ function normalizeMagazine(saved){
       ads
     };
   });
+
   const merged = {
     ...base,
     ...(saved || {}),
@@ -559,49 +756,24 @@ function normalizeMagazine(saved){
     },
     cities: mergedCities
   };
+
   merged.cover.coverPhotoUrl = sanitizeImageUrl(merged.cover.coverPhotoUrl) || base.cover.coverPhotoUrl;
+  merged.cover.coverPhotoType = merged.cover.coverPhotoType || detectMediaType(merged.cover.coverPhotoUrl);
+
+  merged.cover.featureImageUrl = sanitizeImageUrl(merged.cover.featureImageUrl) || base.cover.featureImageUrl;
+  merged.cover.featureImageType = merged.cover.featureImageType || detectMediaType(merged.cover.featureImageUrl);
+
+  merged.cover.articleOneImageUrl = sanitizeImageUrl(merged.cover.articleOneImageUrl) || base.cover.articleOneImageUrl;
+  merged.cover.articleOneImageType = merged.cover.articleOneImageType || detectMediaType(merged.cover.articleOneImageUrl);
+
+  merged.cover.articleTwoImageUrl = sanitizeImageUrl(merged.cover.articleTwoImageUrl) || base.cover.articleTwoImageUrl;
+  merged.cover.articleTwoImageType = merged.cover.articleTwoImageType || detectMediaType(merged.cover.articleTwoImageUrl);
+
   return merged;
 }
 
-async function loadMagazine() {
-  // 1. Try shared data.json
-  try {
-    const res = await fetch(DATA_URL + '?t=' + Date.now());
-    if (res.ok) {
-      const data = await res.json();
-      const normalized = normalizeMagazine(data);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-      return normalized;
-    }
-  } catch (e) {
-    console.log('No data.json found, using localStorage / defaults');
-  }
-
-  // 2. Try localStorage
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return normalizeMagazine(JSON.parse(saved));
-  } catch (e) {}
-
-  // 3. Defaults
-  return cloneData(DEFAULT_MAGAZINE);
-}
-
-function resetMagazineContent(){
-  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
-  location.reload();
-}
-
 let isEditorUnlocked = false;
-let MAGAZINE = null;
-
-async function start() {
-  MAGAZINE = await loadMagazine();
-  buildPages();
-  renderPageContent();
-  render();
-  initCustomScrollers();
-}
+let MAGAZINE = cloneData(DEFAULT_MAGAZINE);
 
 function checkPassword(){
   const input = document.getElementById('passwordInput');
@@ -622,13 +794,42 @@ function checkPassword(){
 
 function mediaBlock(media, placeholderText, extraClass){
   const cls = 'media-box' + (extraClass ? ' '+extraClass : '');
-  if(!media || !media.url){
+  if(!media || !media.url || typeof media.url !== 'string' || !media.url.trim()){
     return `<div class="${cls} placeholder"><span>${placeholderText}</span></div>`;
   }
-  if(media.type === 'video'){
-    return `<div class="${cls}"><video src="${media.url}" autoplay muted loop playsinline></video></div>`;
+  const url = media.url.trim();
+  const type = media.type || detectMediaType(url);
+
+  if(type === 'video'){
+    return `
+      <div class="${cls}">
+        <video 
+          src="${url}" 
+          autoplay 
+          muted 
+          loop 
+          playsinline 
+          webkit-playsinline 
+          preload="auto"
+          style="width:100%;height:100%;object-fit:cover;display:block;"
+          onclick="this.paused ? this.play() : this.pause()"
+          onerror="console.warn('Video load error', '${url}'); this.parentElement.innerHTML='<div class=\\'media-box placeholder\\'><span>[ VIDEO UNAVAILABLE ]</span></div>';"
+        ></video>
+      </div>
+    `;
   }
-  return `<div class="${cls}"><img src="${media.url}" alt=""></div>`;
+
+  return `
+    <div class="${cls}">
+      <img 
+        src="${url}" 
+        alt="" 
+        loading="lazy"
+        style="width:100%;height:100%;object-fit:cover;display:block;"
+        onerror="console.warn('Image load error', '${url}'); this.parentElement.innerHTML='<div class=\\'media-box placeholder\\'><span>[ IMAGE UNAVAILABLE ]</span></div>';"
+      >
+    </div>
+  `;
 }
 
 function standardAdHtml(a){
@@ -652,9 +853,9 @@ function cityPage(c){
   const total = MAGAZINE.cities.length;
   const adsHtml = c.ads.map(a => standardAdHtml(a)).join('');
   return {
-    id:'city-'+c.num,
-    cls:'city-page '+c.theme,
-    html:`
+    id: 'city-' + c.num,
+    cls: 'city-page ' + c.theme,
+    html: `
       <div class="city-band"><span class="cname">${c.name}</span><span class="cnum">${c.num} / ${String(total).padStart(2,'0')}</span></div>
       <div class="stamp">Local Spotlight</div>
       <div class="section-label">Featured Face</div>
@@ -668,87 +869,111 @@ function cityPage(c){
       </div>
       <div class="section-label">This Month's Businesses</div>
       ${adsHtml}
-      <div class="footer-note">Sample ad — reserve this spot for your business</div>
+      <div class="footer-note" style="font-size:9px;color:#888;text-align:center;margin-top:8px;">Sample ad — reserve this spot for your business</div>
     `
   };
 }
 
 const editorCss = document.createElement('style');
 editorCss.textContent = `
-  #editorToggle{position:fixed;top:16px;right:16px;z-index:9999;border:0;border-radius:999px;padding:11px 16px;background:#FFD23F;color:#14121A;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.35);display:block}
-  #editorPanel{position:fixed;inset:0;z-index:9998;background:rgba(20,18,26,.96);display:none;overflow:auto;padding:24px 14px 50px;color:#F5F1E8;font-family:'Space Grotesk',sans-serif}
+  #editorToggle{position:fixed;top:14px;right:14px;z-index:9999;border:0;border-radius:999px;padding:12px 18px;background:#FFD23F;color:#14121A;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4);display:block;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+  #editorToggle:hover{background:#FF4D6D;color:#fff;}
+  #editorPanel{position:fixed;inset:0;z-index:9998;background:rgba(20,18,26,.97);display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 12px 70px;color:#F5F1E8;font-family:'Space Grotesk',sans-serif}
   #editorPanel.open{display:block}
-  .editor-inner{width:min(1000px,100%);margin:auto}
-  .editor-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:18px;flex-wrap:wrap}
-  .editor-head h2{margin:0;font-family:'Anton',sans-serif;font-size:30px;text-transform:uppercase}
+  .editor-inner{width:min(900px,100%);margin:0 auto}
+  .editor-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .editor-head h2{margin:0;font-family:'Anton',sans-serif;font-size:28px;text-transform:uppercase;letter-spacing:0.04em}
   .editor-actions{display:flex;gap:8px;flex-wrap:wrap}
-  .ed-btn{border:0;border-radius:8px;padding:10px 14px;font-weight:800;cursor:pointer;font-size:12px}
+  .ed-btn{border:0;border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer;font-size:12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
   .ed-primary{background:#FF4D6D;color:white}.ed-light{background:#F5F1E8;color:#14121A}.ed-danger{background:#b8001f;color:#fff}
   .ed-download{background:#3FDDE0;color:#14121A}
-  .editor-card{background:#f5f1e8;color:#14121A;border-radius:14px;padding:18px;margin:12px 0;border-left:5px solid #FF4D6D}
-  .editor-card h3{margin:0 0 14px;font-family:'Anton',sans-serif;text-transform:uppercase;font-size:22px}
-  .editor-card h4{margin:12px 0 10px;font-family:'Anton',sans-serif;font-size:16px;text-transform:uppercase}
-  .ed-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+  .editor-card{background:#f5f1e8;color:#14121A;border-radius:14px;padding:16px;margin:12px 0;border-left:6px solid #FF4D6D}
+  .editor-card h3{margin:0 0 12px;font-family:'Anton',sans-serif;text-transform:uppercase;font-size:22px}
+  .editor-card h4{margin:16px 0 10px;font-family:'Anton',sans-serif;font-size:16px;text-transform:uppercase}
+  .ed-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
   .ed-field{display:flex;flex-direction:column}
-  .ed-field label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px;color:#3a3540}
-  .ed-field input,.ed-field textarea,.ed-field select{border:2px solid #ddd;border-radius:7px;padding:10px;font:inherit;background:white;color:#14121A;flex:1}
-  .ed-field input:focus,.ed-field textarea:focus,.ed-field select:focus{outline:none;border-color:#FF4D6D;box-shadow:0 0 0 3px rgba(255,77,109,0.1)}
-  .ed-field textarea{min-height:75px;resize:vertical}
+  .ed-field label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;color:#3a3540}
+  .ed-field input,.ed-field textarea,.ed-field select{border:2px solid #ccc;border-radius:8px;padding:12px;font:inherit;background:white;color:#14121A;min-height:44px;box-sizing:border-box;}
+  .ed-field input:focus,.ed-field textarea:focus,.ed-field select:focus{outline:none;border-color:#FF4D6D;box-shadow:0 0 0 3px rgba(255,77,109,0.15)}
+  .ed-field textarea{min-height:80px;resize:vertical}
   .ed-field.full{grid-column:1/-1}
-  .upload-row{display:flex;flex-direction:column;gap:8px;margin-top:8px;border:2px dashed #d0c8be;border-radius:8px;padding:10px;background:rgba(255,255,255,0.5)}
-  .upload-row span{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#3a3540}
-  .upload-trigger{padding:10px 14px;border:0;border-radius:8px;background:#14121A;color:#f5f1e8;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:.08em;font-size:11px}
-  .upload-trigger:hover{background:#FF4D6D}
-  .upload-row input[type="file"]{display:none}
-  .editor-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
-  .editor-tab{border:none;background:#f5f1e8;color:#14121A;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;text-transform:uppercase;transition:all 0.2s}
+  
+  .upload-box{margin-top:8px;border:2px dashed #999;border-radius:10px;padding:12px;background:rgba(255,255,255,0.9);display:flex;flex-direction:column;gap:8px}
+  .upload-label-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:#14121A;color:#F5F1E8;padding:12px 18px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer;position:relative;overflow:hidden;text-transform:uppercase;letter-spacing:0.04em;touch-action:manipulation;-webkit-tap-highlight-color:transparent;min-height:46px;user-select:none;text-align:center;}
+  .upload-label-btn:hover,.upload-label-btn:active{background:#FF4D6D;color:#fff;}
+  .upload-native-input{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0.001;cursor:pointer;font-size:0;z-index:10;display:block;}
+  .upload-hint{font-size:11px;color:#666;font-weight:600;}
+  .upload-status-msg{font-size:12px;font-weight:700;color:#14121A;margin-top:2px}
+  
+  .editor-tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+  .editor-tab{border:none;background:#f5f1e8;color:#14121A;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;text-transform:uppercase;white-space:nowrap;flex-shrink:0;min-height:42px;touch-action:manipulation;}
   .editor-tab.active{background:#FF4D6D;color:white}.editor-tab:hover{background:#FFD23F;color:#14121A}
-  .ad-editor{border:2px solid #ddd;border-radius:10px;padding:12px;margin:12px 0}
+  .ad-editor{border:2px solid #ccc;border-radius:10px;padding:14px;margin:14px 0;background:rgba(255,255,255,0.7)}
   .ad-editor-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
   .ad-editor-head h4{margin:0}
   .ad-editor-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .media-type-row{display:flex;gap:16px;margin-bottom:8px}
-  .media-type-row label{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:600}
+  .media-type-row{display:flex;gap:18px;margin-bottom:8px}
+  .media-type-row label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:700}
+  .media-preview-box{margin-top:8px;display:flex;align-items:center;gap:12px;min-height:60px;}
+  .media-preview-thumb{width:90px;height:65px;border-radius:8px;object-fit:cover;border:1px solid #ccc;background:#000;}
 `;
 document.head.appendChild(editorCss);
 
 const editorToggle = document.createElement('button');
-editorToggle.id='editorToggle'; editorToggle.textContent='EDIT MAGAZINE';
+editorToggle.id = 'editorToggle';
+editorToggle.textContent = 'EDIT MAGAZINE';
 document.body.appendChild(editorToggle);
 
-const editorPanel=document.createElement('div');
-editorPanel.id='editorPanel';
-editorPanel.innerHTML=`<div class="editor-inner">
-  <div class="editor-head">
-    <div><h2>SpotLIGHT Editor</h2></div>
-    <div class="editor-actions">
-      <button class="ed-btn ed-primary" id="saveMagazine">SAVE & PREVIEW</button>
-      <button class="ed-btn ed-download" id="downloadData">DOWNLOAD data.json</button>
-      <button class="ed-btn ed-light" id="closeEditor">CLOSE</button>
+const editorPanel = document.createElement('div');
+editorPanel.id = 'editorPanel';
+editorPanel.innerHTML = `
+  <div class="editor-inner">
+    <div class="editor-head">
+      <div><h2>SpotLIGHT Editor</h2></div>
+      <div class="editor-actions">
+        <button class="ed-btn ed-primary" id="saveMagazine">SAVE & PREVIEW</button>
+        <button class="ed-btn ed-download" id="downloadData">DOWNLOAD data.json</button>
+        <button class="ed-btn ed-light" id="closeEditor">CLOSE</button>
+      </div>
     </div>
+    <div class="editor-tabs" id="editorTabs"></div>
+    <div id="editorContent"></div>
   </div>
-  <div class="editor-tabs" id="editorTabs"></div>
-  <div id="editorContent"></div>
-</div>`;
+`;
 document.body.appendChild(editorPanel);
 
-function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 let activeTab = 'cover';
 
+function renderMediaPreview(url, type) {
+  if (!url) return '';
+  const detectedType = type || detectMediaType(url);
+  if (detectedType === 'video') {
+    return `<video src="${url}" class="media-preview-thumb" autoplay muted loop playsinline webkit-playsinline></video><span style="font-size:11px;font-weight:700;color:#2e7d32">▶ Video ready</span>`;
+  }
+  return `<img src="${url}" class="media-preview-thumb" alt="Preview"><span style="font-size:11px;font-weight:700;color:#2e7d32">✓ Image ready</span>`;
+}
+
 function mediaFieldHTML(label, fieldName, currentMedia, typeName) {
-  const type = currentMedia?.type || 'image';
   const url = currentMedia?.url || '';
+  const type = currentMedia?.type || detectMediaType(url);
   return `
-    <div class="ed-field full">
+    <div class="ed-field full" data-media-container="${fieldName}">
       <label>${label}</label>
       <div class="media-type-row">
         <label><input type="radio" name="${typeName}" value="image" ${type === 'image' ? 'checked' : ''}> Image</label>
         <label><input type="radio" name="${typeName}" value="video" ${type === 'video' ? 'checked' : ''}> Video</label>
       </div>
-      <input data-media-url="${fieldName}" data-image-field="${fieldName}" placeholder="https://... (image or .mp4 / .webm)" value="${esc(url)}">
-      <div class="upload-row">
-        <span>Upload from computer (images work best)</span>
-        <input type="file" accept="image/*,video/*" data-upload-target="${fieldName}">
+      <input data-media-url="${fieldName}" data-image-field="${fieldName}" data-type-name="${typeName}" placeholder="Upload file below or paste web URL" value="${esc(url)}">
+      <div class="upload-box">
+        <label class="upload-label-btn">
+          <input type="file" accept="image/*,video/*,video/mp4,video/webm,video/quicktime,video/mov" class="upload-native-input" data-upload-target="${fieldName}" data-type-name="${typeName}">
+          <span class="upload-btn-text" id="status-text-${fieldName}">📁 Tap to Choose Photo / Video</span>
+        </label>
+        <span class="upload-hint">Works on iPhone, Android, and Laptop (MP4, WebM, MOV, JPG, PNG, WEBP)</span>
+      </div>
+      <div class="media-preview-box" id="preview-${fieldName}">
+        ${renderMediaPreview(url, type)}
       </div>
     </div>
   `;
@@ -759,11 +984,18 @@ function renderEditor(){
   const root = document.getElementById('editorContent');
   const tabList = ['cover', ...MAGAZINE.cities.map((c,i)=>'city-'+i), 'back'];
   const tabLabels = ['COVER', ...MAGAZINE.cities.map(c=>c.name.toUpperCase()), 'BACK COVER'];
- 
+  
   tabs.innerHTML = tabList.map((t,i)=>`<button class="editor-tab ${t===activeTab?'active':''}" data-tab="${t}">${tabLabels[i]}</button>`).join('');
-  tabs.querySelectorAll('.editor-tab').forEach(btn=>btn.onclick=()=>{activeTab=btn.dataset.tab;renderEditor();});
- 
-  if(activeTab==='cover'){
+  tabs.querySelectorAll('.editor-tab').forEach(btn => {
+    btn.onclick = () => {
+      saveActiveTabFields();
+      activeTab = btn.dataset.tab;
+      renderEditor();
+      bindEditor();
+    };
+  });
+
+  if(activeTab === 'cover'){
     const c = MAGAZINE.cover;
     root.innerHTML = `
       <div class="editor-card">
@@ -774,25 +1006,24 @@ function renderEditor(){
           <div class="ed-field"><label>Highlight Word</label><input data-cover="highlight" value="${esc(c.highlight)}"></div>
           <div class="ed-field full"><label>Subtitle</label><input data-cover="subtitle" value="${esc(c.subtitle)}"></div>
           <div class="ed-field full"><label>Issue Tag</label><input data-cover="issueTag" value="${esc(c.issueTag)}"></div>
-          <div class="ed-field full"><label>Feature Title</label><input data-cover="featureTitle" value="${esc(c.featureTitle||'')}"></div>
-          <div class="ed-field full"><label>Feature Summary</label><textarea data-cover="featureSummary">${esc(c.featureSummary||'')}</textarea></div>
+          <div class="ed-field full"><label>Feature Title</label><input data-cover="featureTitle" value="${esc(c.featureTitle || '')}"></div>
+          <div class="ed-field full"><label>Feature Summary</label><textarea data-cover="featureSummary">${esc(c.featureSummary || '')}</textarea></div>
           
-          ${mediaFieldHTML('Cover Photo / Video', 'cover-photo', c.coverPhotoUrl ? {type: detectMediaType(c.coverPhotoUrl), url: c.coverPhotoUrl} : null, 'cover-type')}
+          ${mediaFieldHTML('Cover Photo / Video', 'cover-photo', c.coverPhotoUrl ? {type: c.coverPhotoType || detectMediaType(c.coverPhotoUrl), url: c.coverPhotoUrl} : null, 'cover-type')}
           
-          ${mediaFieldHTML('Feature Image / Video', 'cover-feature', c.featureImageUrl ? {type: detectMediaType(c.featureImageUrl), url: c.featureImageUrl} : null, 'feature-type')}
+          ${mediaFieldHTML('Feature Image / Video', 'cover-feature', c.featureImageUrl ? {type: c.featureImageType || detectMediaType(c.featureImageUrl), url: c.featureImageUrl} : null, 'feature-type')}
           
-          <div class="ed-field"><label>Story 1 Title</label><input data-cover="articleOneTitle" value="${esc(c.articleOneTitle||'')}"></div>
-          <div class="ed-field"><label>Story 2 Title</label><input data-cover="articleTwoTitle" value="${esc(c.articleTwoTitle||'')}"></div>
-          <div class="ed-field full"><label>Story 1 Text</label><textarea data-cover="articleOneText">${esc(c.articleOneText||'')}</textarea></div>
-          <div class="ed-field full"><label>Story 2 Text</label><textarea data-cover="articleTwoText">${esc(c.articleTwoText||'')}</textarea></div>
+          <div class="ed-field"><label>Story 1 Title</label><input data-cover="articleOneTitle" value="${esc(c.articleOneTitle || '')}"></div>
+          <div class="ed-field"><label>Story 2 Title</label><input data-cover="articleTwoTitle" value="${esc(c.articleTwoTitle || '')}"></div>
+          <div class="ed-field full"><label>Story 1 Text</label><textarea data-cover="articleOneText">${esc(c.articleOneText || '')}</textarea></div>
+          <div class="ed-field full"><label>Story 2 Text</label><textarea data-cover="articleTwoText">${esc(c.articleTwoText || '')}</textarea></div>
           
-          ${mediaFieldHTML('Story 1 Image / Video', 'story-one', c.articleOneImageUrl ? {type: detectMediaType(c.articleOneImageUrl), url: c.articleOneImageUrl} : null, 'story1-type')}
-          ${mediaFieldHTML('Story 2 Image / Video', 'story-two', c.articleTwoImageUrl ? {type: detectMediaType(c.articleTwoImageUrl), url: c.articleTwoImageUrl} : null, 'story2-type')}
+          ${mediaFieldHTML('Story 1 Image / Video', 'story-one', c.articleOneImageUrl ? {type: c.articleOneImageType || detectMediaType(c.articleOneImageUrl), url: c.articleOneImageUrl} : null, 'story1-type')}
+          ${mediaFieldHTML('Story 2 Image / Video', 'story-two', c.articleTwoImageUrl ? {type: c.articleTwoImageType || detectMediaType(c.articleTwoImageUrl), url: c.articleTwoImageUrl} : null, 'story2-type')}
         </div>
       </div>
     `;
-    bindUploadInputs();
-  } else if(activeTab==='back'){
+  } else if(activeTab === 'back'){
     const b = MAGAZINE.backCover;
     root.innerHTML = `
       <div class="editor-card">
@@ -809,13 +1040,12 @@ function renderEditor(){
   } else if(activeTab.startsWith('city-')){
     const ci = +activeTab.split('-')[1];
     const c = MAGAZINE.cities[ci];
-    const adsHtml = (c.ads||[]).map((a,ai)=>`
+    const adsHtml = (c.ads || []).map((a, ai) => `
       <div class="ad-editor" data-ai="${ai}">
         <div class="ad-editor-head">
-          <h4>Business ${ai+1}</h4>
+          <h4>Business ${ai + 1}</h4>
           <div class="ad-editor-actions">
-            <button type="button" class="upload-btn" data-open-file="city-${ci}-ad-${ai}">Add media</button>
-            <button class="ed-btn ed-danger remove-ad" data-ci="${ci}" data-ai="${ai}" style="padding:6px 9px;font-size:11px">REMOVE</button>
+            <button class="ed-btn ed-danger remove-ad" data-ci="${ci}" data-ai="${ai}" style="padding:6px 10px;font-size:11px">REMOVE</button>
           </div>
         </div>
         <div class="ed-grid">
@@ -824,120 +1054,287 @@ function renderEditor(){
           <div class="ed-field full"><label>Description</label><textarea data-ad="blurb">${esc(a.blurb)}</textarea></div>
           <div class="ed-field"><label>Button Text</label><input data-ad="cta" value="${esc(a.cta)}"></div>
           <div class="ed-field"><label>Link</label><input data-ad="link" value="${esc(a.link)}" placeholder="https://..."></div>
-          <div class="ed-field full">
-            <label>Media</label>
-            <div class="media-type-row">
-              <label><input type="radio" name="ad-${ci}-${ai}-type" value="image" ${(a.media?.type||'image')==='image'?'checked':''}> Image</label>
-              <label><input type="radio" name="ad-${ci}-${ai}-type" value="video" ${a.media?.type==='video'?'checked':''}> Video</label>
-            </div>
-            <input data-ad-media="url" data-image-field="city-${ci}-ad-${ai}" value="${esc(a.media?.url||'')}" placeholder="https://... (image or video url)">
-            <div class="upload-row">
-              <span>Upload from computer</span>
-              <input type="file" accept="image/*,video/*" data-upload-target="city-${ci}-ad-${ai}">
-            </div>
-          </div>
+          ${mediaFieldHTML('Business Media (Photo or Video)', `city-${ci}-ad-${ai}`, a.media, `ad-${ci}-${ai}-type`)}
         </div>
       </div>`).join('');
+
     root.innerHTML = `
       <div class="editor-card">
         <h3>${esc(c.name)}</h3>
         <div class="ed-grid">
           <div class="ed-field"><label>City Name</label><input data-key="name" value="${esc(c.name)}"></div>
           <div class="ed-field"><label>Number</label><input data-key="num" value="${esc(c.num)}"></div>
-          <div class="ed-field"><label>Theme</label><select data-key="theme"><option value="theme-slc">Purple</option><option value="theme-wj">Green</option><option value="theme-mc">Coral</option><option value="theme-ch">Teal</option><option value="theme-sandy">Gold</option><option value="theme-draper">Violet</option></select></div>
+          <div class="ed-field"><label>Theme</label>
+            <select data-key="theme">
+              <option value="theme-slc" ${c.theme === 'theme-slc' ? 'selected' : ''}>Purple (SLC)</option>
+              <option value="theme-wj" ${c.theme === 'theme-wj' ? 'selected' : ''}>Green (West Jordan)</option>
+              <option value="theme-mc" ${c.theme === 'theme-mc' ? 'selected' : ''}>Coral (Millcreek)</option>
+              <option value="theme-ch" ${c.theme === 'theme-ch' ? 'selected' : ''}>Teal (Cottonwood Heights)</option>
+              <option value="theme-sandy" ${c.theme === 'theme-sandy' ? 'selected' : ''}>Gold (Sandy)</option>
+              <option value="theme-draper" ${c.theme === 'theme-draper' ? 'selected' : ''}>Violet (Draper)</option>
+            </select>
+          </div>
         </div>
         <h4>Featured Person</h4>
         <div class="ed-grid">
           <div class="ed-field"><label>Name</label><input data-model="name" value="${esc(c.model?.name)}"></div>
           <div class="ed-field"><label>Role</label><input data-model="role" value="${esc(c.model?.role)}"></div>
           <div class="ed-field full"><label>Bio</label><textarea data-model="bio">${esc(c.model?.bio)}</textarea></div>
-          <div class="ed-field full">
-            <label>Media</label>
-            <div class="media-type-row">
-              <label><input type="radio" name="model-${ci}-type" value="image" ${(c.model?.media?.type||'image')==='image'?'checked':''}> Image</label>
-              <label><input type="radio" name="model-${ci}-type" value="video" ${c.model?.media?.type==='video'?'checked':''}> Video</label>
-            </div>
-            <input data-model-media="url" data-image-field="city-${ci}-model" value="${esc(c.model?.media?.url||'')}" placeholder="https://...">
-            <div class="upload-row">
-              <span>Upload from computer</span>
-              <input type="file" accept="image/*,video/*" data-upload-target="city-${ci}-model">
-            </div>
-          </div>
+          ${mediaFieldHTML('Featured Person Media (Photo or Video)', `city-${ci}-model`, c.model?.media, `model-${ci}-type`)}
         </div>
         <h4>Businesses</h4>
         <div class="ads">${adsHtml}</div>
-        <button class="ed-btn ed-primary" style="margin-top:12px" onclick="const c=MAGAZINE.cities[${ci}];c.ads.push({name:'New',tag:'Business',blurb:'',cta:'',link:'#',media:null});renderEditor();bindEditor()">+ ADD BUSINESS</button>
+        <button class="ed-btn ed-primary" style="margin-top:12px" id="addBusinessBtn">+ ADD BUSINESS</button>
       </div>
     `;
-    bindUploadInputs();
-    const sel = root.querySelector('select[data-key="theme"]'); if(sel) sel.value=c.theme||'theme-slc';
+    
+    const addBtn = document.getElementById('addBusinessBtn');
+    if (addBtn) {
+      addBtn.onclick = () => {
+        saveActiveTabFields();
+        MAGAZINE.cities[ci].ads.push({
+          name: 'New Business',
+          tag: 'Local Spot',
+          blurb: 'Describe this business here.',
+          cta: 'Learn More',
+          link: '#',
+          media: null
+        });
+        renderEditor();
+        bindEditor();
+      };
+    }
   }
+  bindUploadInputs();
 }
 
-function bindEditor(){
-  document.getElementById('saveMagazine').onclick = () => {
-    if(activeTab==='cover'){
-      document.querySelectorAll('[data-cover]').forEach(el => MAGAZINE.cover[el.dataset.cover] = el.value || null);
-      
-      const coverUrl = document.querySelector('[data-media-url="cover-photo"]')?.value.trim();
-      MAGAZINE.cover.coverPhotoUrl = sanitizeImageUrl(coverUrl);
-      
-      const featureUrl = document.querySelector('[data-media-url="cover-feature"]')?.value.trim();
-      MAGAZINE.cover.featureImageUrl = sanitizeImageUrl(featureUrl);
-      
-      const story1Url = document.querySelector('[data-media-url="story-one"]')?.value.trim();
-      MAGAZINE.cover.articleOneImageUrl = sanitizeImageUrl(story1Url);
-      
-      const story2Url = document.querySelector('[data-media-url="story-two"]')?.value.trim();
-      MAGAZINE.cover.articleTwoImageUrl = sanitizeImageUrl(story2Url);
-    } 
-    else if(activeTab==='back'){
-      document.querySelectorAll('[data-back]').forEach(el => MAGAZINE.backCover[el.dataset.back] = el.value);
-    } 
-    else if(activeTab.startsWith('city-')){
-      const ci = +activeTab.split('-')[1];
-      const c = MAGAZINE.cities[ci];
+function saveActiveTabFields() {
+  if (!MAGAZINE) return;
+  if(activeTab === 'cover'){
+    const c = MAGAZINE.cover;
+    document.querySelectorAll('[data-cover]').forEach(el => {
+      c[el.dataset.cover] = el.value || '';
+    });
+    
+    const coverUrl = document.querySelector('[data-media-url="cover-photo"]')?.value.trim();
+    const coverType = document.querySelector('input[name="cover-type"]:checked')?.value || detectMediaType(coverUrl);
+    c.coverPhotoUrl = sanitizeImageUrl(coverUrl);
+    c.coverPhotoType = coverType;
+    
+    const featUrl = document.querySelector('[data-media-url="cover-feature"]')?.value.trim();
+    const featType = document.querySelector('input[name="feature-type"]:checked')?.value || detectMediaType(featUrl);
+    c.featureImageUrl = sanitizeImageUrl(featUrl);
+    c.featureImageType = featType;
+    
+    const s1Url = document.querySelector('[data-media-url="story-one"]')?.value.trim();
+    const s1Type = document.querySelector('input[name="story1-type"]:checked')?.value || detectMediaType(s1Url);
+    c.articleOneImageUrl = sanitizeImageUrl(s1Url);
+    c.articleOneImageType = s1Type;
+    
+    const s2Url = document.querySelector('[data-media-url="story-two"]')?.value.trim();
+    const s2Type = document.querySelector('input[name="story2-type"]:checked')?.value || detectMediaType(s2Url);
+    c.articleTwoImageUrl = sanitizeImageUrl(s2Url);
+    c.articleTwoImageType = s2Type;
+  } 
+  else if(activeTab === 'back'){
+    document.querySelectorAll('[data-back]').forEach(el => {
+      MAGAZINE.backCover[el.dataset.back] = el.value;
+    });
+  } 
+  else if(activeTab.startsWith('city-')){
+    const ci = +activeTab.split('-')[1];
+    const c = MAGAZINE.cities[ci];
+    if (c) {
       document.querySelectorAll('[data-key]').forEach(el => c[el.dataset.key] = el.value);
       c.model = c.model || {};
       document.querySelectorAll('[data-model]').forEach(el => c.model[el.dataset.model] = el.value);
       
-      const modelUrl = document.querySelector('[data-model-media]')?.value.trim();
+      const modelUrl = document.querySelector(`[data-media-url="city-${ci}-model"]`)?.value.trim();
       const modelType = document.querySelector(`input[name="model-${ci}-type"]:checked`)?.value || detectMediaType(modelUrl);
-      c.model.media = sanitizeImageUrl(modelUrl) ? { type: modelType, url: sanitizeImageUrl(modelUrl) } : null;
+      const cleanModel = sanitizeImageUrl(modelUrl);
+      c.model.media = cleanModel ? { type: modelType, url: cleanModel } : null;
       
       document.querySelectorAll('.ad-editor[data-ai]').forEach(adEl => {
         const ai = +adEl.dataset.ai;
         const a = c.ads[ai];
-        if(!a) return;
+        if (!a) return;
         adEl.querySelectorAll('[data-ad]').forEach(el => a[el.dataset.ad] = el.value);
-        const u = adEl.querySelector('[data-ad-media]')?.value.trim();
+        const u = adEl.querySelector(`[data-media-url="city-${ci}-ad-${ai}"]`)?.value.trim();
         const type = adEl.querySelector(`input[name="ad-${ci}-${ai}-type"]:checked`)?.value || detectMediaType(u);
         const clean = sanitizeImageUrl(u);
         a.media = clean ? { type, url: clean } : null;
       });
     }
+  }
+}
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(MAGAZINE));
-    setTimeout(() => location.reload(), 150);
-  };
+function bindUploadInputs(){
+  document.querySelectorAll('input[type="file"][data-upload-target]').forEach((fileInput) => {
+    if (fileInput.dataset.bound === 'true') return;
+    fileInput.dataset.bound = 'true';
 
-  document.getElementById('downloadData').onclick = () => {
-    const dataStr = JSON.stringify(MAGAZINE, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'data.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    alert('data.json downloaded!\n\nNow upload this file to your GitHub repository (replace the existing data.json).\nAfter 1-2 minutes everyone will see your changes.');
-  };
+    fileInput.addEventListener('change', async (event) => {
+      const file = event.target?.files?.[0];
+      if (!file) return;
 
-  document.getElementById('closeEditor').onclick = () => editorPanel.classList.remove('open');
-  document.querySelectorAll('.remove-ad').forEach(b => b.onclick = () => {
-    MAGAZINE.cities[+b.dataset.ci].ads.splice(+b.dataset.ai, 1);
-    renderEditor();
-    bindEditor();
+      const targetName = fileInput.dataset.uploadTarget;
+      const typeName = fileInput.dataset.typeName;
+      const statusLabel = document.getElementById('status-text-' + targetName);
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|ogg|mov|m4v)$/i.test(file.name);
+
+      if (statusLabel) {
+        statusLabel.textContent = `⏳ Uploading ${isVideo ? 'video' : 'photo'}...`;
+      }
+
+      try {
+        let finalUrl = '';
+        let finalType = isVideo ? 'video' : 'image';
+
+        try {
+          // Upload to server
+          const uploadRes = await uploadMediaFile(file, (percent) => {
+            if (statusLabel) {
+              statusLabel.textContent = `⏳ Uploading ${isVideo ? 'video' : 'photo'} (${percent}%)...`;
+            }
+          });
+          if (uploadRes && uploadRes.url) {
+            finalUrl = uploadRes.url;
+            finalType = uploadRes.type || finalType;
+          }
+        } catch (serverErr) {
+          console.warn('Server upload failed, using local object URL fallback', serverErr);
+          if (isVideo) {
+            finalUrl = URL.createObjectURL(file);
+          } else {
+            finalUrl = await readFileAsDataURL(file);
+          }
+        }
+
+        const targetInput = document.querySelector(`[data-image-field="${targetName}"]`);
+        if (targetInput) {
+          targetInput.value = finalUrl || '';
+          targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        if (typeName) {
+          const radio = document.querySelector(`input[name="${typeName}"][value="${finalType}"]`);
+          if (radio) radio.checked = true;
+        }
+
+        const previewContainer = document.getElementById('preview-' + targetName);
+        if (previewContainer) {
+          previewContainer.innerHTML = renderMediaPreview(finalUrl, finalType);
+        }
+
+        if (statusLabel) {
+          statusLabel.textContent = `✅ ${isVideo ? 'Video' : 'Photo'} Added! Tap to change`;
+        }
+      } catch (err) {
+        console.error('File load failed', err);
+        if (statusLabel) {
+          statusLabel.textContent = `❌ Upload failed. Tap to try again`;
+        }
+      }
+      fileInput.value = '';
+    });
+  });
+
+  // URL input change updates preview and switches type if needed
+  document.querySelectorAll('input[data-image-field]').forEach(input => {
+    if (input.dataset.previewBound === 'true') return;
+    input.dataset.previewBound = 'true';
+
+    const updatePreview = () => {
+      const val = input.value.trim();
+      const targetName = input.dataset.imageField;
+      const typeName = input.dataset.typeName;
+      const detected = detectMediaType(val);
+
+      if (typeName) {
+        const radio = document.querySelector(`input[name="${typeName}"][value="${detected}"]`);
+        if (radio && val) radio.checked = true;
+      }
+
+      const activeRadio = document.querySelector(`input[name="${typeName}"]:checked`);
+      const effectiveType = activeRadio ? activeRadio.value : detected;
+
+      const previewContainer = document.getElementById('preview-' + targetName);
+      if (previewContainer) {
+        previewContainer.innerHTML = renderMediaPreview(val, effectiveType);
+      }
+    };
+
+    input.addEventListener('input', updatePreview);
+    input.addEventListener('change', updatePreview);
+  });
+
+  // Radio button change updates preview
+  document.querySelectorAll('.media-type-row input[type="radio"]').forEach(radio => {
+    if (radio.dataset.radioBound === 'true') return;
+    radio.dataset.radioBound = 'true';
+    radio.addEventListener('change', () => {
+      const container = radio.closest('[data-media-container]');
+      if (!container) return;
+      const input = container.querySelector('input[data-image-field]');
+      if (!input) return;
+      const previewContainer = container.querySelector('.media-preview-box');
+      if (previewContainer) {
+        previewContainer.innerHTML = renderMediaPreview(input.value.trim(), radio.value);
+      }
+    });
+  });
+}
+
+function bindEditor(){
+  const saveBtn = document.getElementById('saveMagazine');
+  if (saveBtn) {
+    saveBtn.onclick = async () => {
+      saveActiveTabFields();
+      saveBtn.textContent = 'SAVING...';
+      saveBtn.disabled = true;
+      try {
+        await saveMagazineData(MAGAZINE);
+        applyMagazineUpdates();
+        editorPanel.classList.remove('open');
+        showToast('Magazine updated and saved!');
+      } catch (err) {
+        console.error('Save failed', err);
+        showToast('Error saving changes');
+      } finally {
+        saveBtn.textContent = 'SAVE & PREVIEW';
+        saveBtn.disabled = false;
+      }
+    };
+  }
+
+  const downloadBtn = document.getElementById('downloadData');
+  if (downloadBtn) {
+    downloadBtn.onclick = () => {
+      saveActiveTabFields();
+      const dataStr = JSON.stringify(MAGAZINE, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'data.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('data.json downloaded!');
+    };
+  }
+
+  const closeBtn = document.getElementById('closeEditor');
+  if (closeBtn) {
+    closeBtn.onclick = () => editorPanel.classList.remove('open');
+  }
+
+  document.querySelectorAll('.remove-ad').forEach(b => {
+    b.onclick = () => {
+      saveActiveTabFields();
+      MAGAZINE.cities[+b.dataset.ci].ads.splice(+b.dataset.ai, 1);
+      renderEditor();
+      bindEditor();
+    };
   });
 }
 
@@ -967,28 +1364,28 @@ function buildPages() {
       id: 'cover',
       cls: 'cover',
       html: () => `
-        <div class="top-tag">${MAGAZINE.cover.issueTag}</div>
-        <div class="title">${MAGAZINE.cover.mainText}<br>${MAGAZINE.cover.highlight}<span class="hi">.</span></div>
-        <div class="sub">${MAGAZINE.cover.subtitle}</div>
-        ${mediaBlock(MAGAZINE.cover.coverPhotoUrl ? {type: detectMediaType(MAGAZINE.cover.coverPhotoUrl), url: MAGAZINE.cover.coverPhotoUrl} : null, '[ COVER PHOTO / VIDEO ]', 'cover-photo')}
+        <div class="top-tag">${MAGAZINE.cover.issueTag || ''}</div>
+        <div class="title">${MAGAZINE.cover.mainText || 'The '}<br>${MAGAZINE.cover.highlight || 'Spotlight'}<span class="hi">.</span></div>
+        <div class="sub">${MAGAZINE.cover.subtitle || ''}</div>
+        ${mediaBlock(MAGAZINE.cover.coverPhotoUrl ? {type: MAGAZINE.cover.coverPhotoType || detectMediaType(MAGAZINE.cover.coverPhotoUrl), url: MAGAZINE.cover.coverPhotoUrl} : null, '[ COVER PHOTO / VIDEO ]', 'cover-photo')}
         <div class="cover-story-grid">
           <div class="cover-story-card">
             <div class="mini-label">Feature</div>
             <h3>${MAGAZINE.cover.featureTitle || 'This month’s local stories'}</h3>
             <p>${MAGAZINE.cover.featureSummary || 'Add a feature summary here.'}</p>
-            ${mediaBlock(MAGAZINE.cover.featureImageUrl ? {type: detectMediaType(MAGAZINE.cover.featureImageUrl), url: MAGAZINE.cover.featureImageUrl} : null, '[ FEATURE MEDIA ]', 'story-media')}
+            ${mediaBlock(MAGAZINE.cover.featureImageUrl ? {type: MAGAZINE.cover.featureImageType || detectMediaType(MAGAZINE.cover.featureImageUrl), url: MAGAZINE.cover.featureImageUrl} : null, '[ FEATURE MEDIA ]', 'story-media')}
           </div>
           <div class="cover-story-card">
             <div class="mini-label">Story 1</div>
             <h3>${MAGAZINE.cover.articleOneTitle || 'City Notes'}</h3>
             <p>${MAGAZINE.cover.articleOneText || 'Add the first article summary here.'}</p>
-            ${mediaBlock(MAGAZINE.cover.articleOneImageUrl ? {type: detectMediaType(MAGAZINE.cover.articleOneImageUrl), url: MAGAZINE.cover.articleOneImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
+            ${mediaBlock(MAGAZINE.cover.articleOneImageUrl ? {type: MAGAZINE.cover.articleOneImageType || detectMediaType(MAGAZINE.cover.articleOneImageUrl), url: MAGAZINE.cover.articleOneImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
           </div>
           <div class="cover-story-card">
             <div class="mini-label">Story 2</div>
             <h3>${MAGAZINE.cover.articleTwoTitle || 'Next up'}</h3>
             <p>${MAGAZINE.cover.articleTwoText || 'Add a second article summary here.'}</p>
-            ${mediaBlock(MAGAZINE.cover.articleTwoImageUrl ? {type: detectMediaType(MAGAZINE.cover.articleTwoImageUrl), url: MAGAZINE.cover.articleTwoImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
+            ${mediaBlock(MAGAZINE.cover.articleTwoImageUrl ? {type: MAGAZINE.cover.articleTwoImageType || detectMediaType(MAGAZINE.cover.articleTwoImageUrl), url: MAGAZINE.cover.articleTwoImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
           </div>
         </div>
         <div class="flip-hint">Tap or swipe to flip →</div>
@@ -1035,6 +1432,7 @@ function renderPageContent(){
 function render(){
   PAGES.forEach((p, idx) => {
     const el = document.getElementById('page-' + idx);
+    if (!el) return;
     const flipped = idx < current;
     el.classList.toggle('flipped', flipped);
     el.style.zIndex = flipped ? (idx + 1) : (total - idx + 1);
@@ -1047,6 +1445,13 @@ function render(){
 
 function nextPage(){ if(current < total - 1){ current++; render(); } }
 function prevPage(){ if(current > 0){ current--; render(); } }
+
+function applyMagazineUpdates() {
+  buildPages();
+  renderPageContent();
+  render();
+  initCustomScrollers();
+}
 
 function initCustomScrollers() {
   document.querySelectorAll('.sheet').forEach(sheet => {
@@ -1187,6 +1592,11 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') nextPage();
   if (e.key === 'ArrowLeft') prevPage();
 });
+
+async function start() {
+  MAGAZINE = await loadMagazine();
+  applyMagazineUpdates();
+}
 
 window.addEventListener('load', () => {
   editorToggle.style.display = 'block';
