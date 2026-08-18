@@ -23,8 +23,8 @@
     padding: 0;
     width: 100%;
     height: 100%;
-    overflow: hidden;               /* no scrolling on the page itself */
-    position: fixed;                 /* prevents any bounce / rubber-band */
+    overflow: hidden;
+    position: fixed;
     overscroll-behavior: none;
     background: var(--ink);
     font-family: 'Space Grotesk', sans-serif;
@@ -40,7 +40,6 @@
       radial-gradient(circle at 85% 80%, rgba(63,221,224,0.14), transparent 45%),
       var(--ink);
   }
-  /* ============================ */
 
   body > * {
     margin-left: auto !important;
@@ -123,7 +122,11 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    touch-action: pan-y;            /* tell the browser this area scrolls vertically */
+    touch-action: pan-y;
+    cursor: grab;
+  }
+  .sheet:active {
+    cursor: grabbing;
   }
   .sheet-inner{
     width: 100%;
@@ -295,7 +298,7 @@
     <button class="nav-btn" id="nextBtn" onclick="nextPage()">›</button>
   </div>
   <div class="page-count" id="pageCount"></div>
-  <div style="color:rgba(245,241,232,0.25);font-size:9px;margin-top:4px;letter-spacing:0.05em;">build v10 - scroll only inside magazine</div>
+  <div style="color:rgba(245,241,232,0.25);font-size:9px;margin-top:4px;letter-spacing:0.05em;">build v11 - mobile + desktop scroll</div>
   <button id="resetLink" onclick="if(confirm('Reset the magazine back to its default content? This clears anything edited in this browser.')) resetMagazineContent();" style="margin-top:8px;background:none;border:none;color:rgba(245,241,232,0.4);font-size:10px;letter-spacing:0.08em;text-decoration:underline;cursor:pointer;">Pages stuck? Reset content</button>
 
   <!-- Password Modal -->
@@ -898,7 +901,7 @@ function nextPage(){if(current<total-1){current++;render();}}
 function prevPage(){if(current>0){current--;render();}}
 render();
 
-/* ========== CUSTOM MOMENTUM SCROLLER (only inside the page) ========== */
+/* ========== UNIVERSAL SCROLLER (Touch + Mouse + Wheel) ========== */
 function initCustomScrollers() {
   document.querySelectorAll('.sheet').forEach(sheet => {
     if (sheet.dataset.scrollReady) return;
@@ -907,12 +910,12 @@ function initCustomScrollers() {
     const inner = sheet.querySelector('.sheet-inner');
     if (!inner) return;
 
-    let startY = 0;
     let currentY = 0;
     let velocity = 0;
     let lastY = 0;
     let lastTime = 0;
     let isDragging = false;
+    let startY = 0;
     let rafId = null;
     let maxScroll = 0;
 
@@ -935,6 +938,7 @@ function initCustomScrollers() {
       rafId = requestAnimationFrame(momentum);
     }
 
+    // ----- TOUCH (mobile) -----
     sheet.addEventListener('touchstart', e => {
       updateMax();
       if (maxScroll <= 0) return;
@@ -964,6 +968,46 @@ function initCustomScrollers() {
         rafId = requestAnimationFrame(momentum);
       }
     }, { passive: true });
+
+    // ----- MOUSE DRAG (desktop) -----
+    sheet.addEventListener('mousedown', e => {
+      updateMax();
+      if (maxScroll <= 0) return;
+      isDragging = true;
+      startY = e.clientY - currentY;
+      lastY = e.clientY;
+      lastTime = Date.now();
+      velocity = 0;
+      if (rafId) cancelAnimationFrame(rafId);
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const y = e.clientY;
+      const now = Date.now();
+      const dt = now - lastTime || 16;
+      velocity = (y - lastY) / dt * 16;
+      lastY = y;
+      lastTime = now;
+      setY(y - startY);
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      if (Math.abs(velocity) > 0.5) {
+        rafId = requestAnimationFrame(momentum);
+      }
+    });
+
+    // ----- MOUSE WHEEL (desktop) -----
+    sheet.addEventListener('wheel', e => {
+      updateMax();
+      if (maxScroll <= 0) return;
+      e.preventDefault();
+      setY(currentY - e.deltaY);
+    }, { passive: false });
   });
 }
 
@@ -980,7 +1024,7 @@ if (bookWrap) {
   bookWrap.addEventListener('touchend', e => {
     if (touchStartX === null) return;
     const dx = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(dx) > 55) {          // slightly stricter so vertical scroll doesn't flip
+    if (Math.abs(dx) > 55) {
       if (dx < -40) nextPage();
       if (dx > 40) prevPage();
     }
