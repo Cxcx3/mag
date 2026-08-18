@@ -228,7 +228,15 @@
   .ad-card .biz-blurb{ font-size: 11.5px; line-height: 1.4; margin: 0 0 6px; color: #3a3540;}
   .ad-card .biz-cta{ font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink); }
   .ad-card .biz-cta::after{ content: " →"; }
-  .ad-card .biz-cta a{ color: inherit; text-decoration: none; }
+  .ad-card .biz-cta a{ 
+    color: inherit; 
+    text-decoration: none; 
+    display: inline-block;
+    padding: 4px 0;
+  }
+  .ad-card .biz-cta a:hover {
+    text-decoration: underline;
+  }
   .back-cover{ background: var(--coral); color: var(--ink); justify-content: center; align-items: center; text-align: center;}
   .back-cover h2{ font-family: 'Anton', sans-serif; font-size: 26px; text-transform: uppercase; margin: 0 0 10px; line-height: 1.05;}
   .back-cover p{ font-size: 12px; line-height: 1.5; max-width: 260px; margin: 0 auto 18px;}
@@ -300,7 +308,7 @@
     <button class="nav-btn" id="nextBtn" onclick="nextPage()">›</button>
   </div>
   <div class="page-count" id="pageCount"></div>
-  <div style="color:rgba(245,241,232,0.25);font-size:9px;margin-top:4px;letter-spacing:0.05em;">build v12 - mobile + desktop scroll fixed</div>
+  <div style="color:rgba(245,241,232,0.25);font-size:9px;margin-top:4px;letter-spacing:0.05em;">build v13 - links fixed</div>
   <button id="resetLink" onclick="if(confirm('Reset the magazine back to its default content? This clears anything edited in this browser.')) resetMagazineContent();" style="margin-top:8px;background:none;border:none;color:rgba(245,241,232,0.4);font-size:10px;letter-spacing:0.08em;text-decoration:underline;cursor:pointer;">Pages stuck? Reset content</button>
 
   <!-- Password Modal -->
@@ -320,7 +328,7 @@ const DEFAULT_CITIES = [
     theme:'theme-slc', num:'01', name:'Salt Lake City',
     model:{ name:'Ava Sinclair', role:'Cover-Featured Model',
       bio:'Downtown-based model and content creator, bringing SLC street style to every page.',
-      media:{ type:'image', url:'file:///C:/Users/Yuri%20Silva/Desktop/vvv/slc%20vid.mp4' } },
+      media:{ type:'image', url:'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80' } },
     ads:[
       { name:'Peak & Pine Coffee Roasters', tag:'Local Roaster',
         blurb:'Small-batch beans roasted weekly in the Granary District. Try the seasonal cardamom pour-over.',
@@ -603,13 +611,18 @@ function mediaBlock(media, placeholderText, extraClass){
   return `<div class="${cls}"><img src="${media.url}" alt=""></div>`;
 }
 function standardAdHtml(a){
+  const link = (a.link && a.link !== '#' && a.link.trim() !== '') ? a.link.trim() : null;
+  const ctaContent = link 
+    ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${a.cta}</a>`
+    : a.cta;
+
   return `
     <div class="ad-card">
       ${mediaBlock(a.media, '[ '+a.name.toUpperCase()+' PHOTO / GIF / VIDEO ]', 'ad-media')}
       <div class="biz-name">${a.name}</div>
       <div class="biz-tag">${a.tag}</div>
       <div class="biz-blurb">${a.blurb}</div>
-      <div class="biz-cta"><a href="${a.link}" target="_blank" rel="noopener">${a.cta}</a></div>
+      <div class="biz-cta">${ctaContent}</div>
     </div>
   `;
 }
@@ -782,7 +795,7 @@ function renderEditor(){
           <div class="ed-field"><label>Tag</label><input data-ad="tag" value="${esc(a.tag)}"></div>
           <div class="ed-field full"><label>Description</label><textarea data-ad="blurb">${esc(a.blurb)}</textarea></div>
           <div class="ed-field"><label>Button</label><input data-ad="cta" value="${esc(a.cta)}"></div>
-          <div class="ed-field"><label>Link</label><input data-ad="link" value="${esc(a.link)}"></div>
+          <div class="ed-field"><label>Link</label><input data-ad="link" value="${esc(a.link)}" placeholder="https://..."></div>
           <div class="ed-field full">
             <label>Photo URL</label>
             <input data-ad-media="url" data-image-field="city-${ci}-ad-${ai}-photo" value="${esc(a.media?.url||'')}" placeholder="https://.../image.jpg">
@@ -940,8 +953,17 @@ function initCustomScrollers() {
       rafId = requestAnimationFrame(momentum);
     }
 
+    // Helper: check if the user clicked/tapped a real link
+    function isRealLink(target) {
+      const link = target.closest('a[href]');
+      if (!link) return false;
+      const href = link.getAttribute('href');
+      return href && href !== '#' && href.trim() !== '';
+    }
+
     // TOUCH (mobile)
     sheet.addEventListener('touchstart', e => {
+      if (isRealLink(e.target)) return; // let real links work
       updateMax();
       if (maxScroll <= 0) return;
       isDragging = true;
@@ -971,7 +993,7 @@ function initCustomScrollers() {
       }
     }, { passive: true });
 
-    // MOUSE WHEEL (desktop) - main fix
+    // MOUSE WHEEL (desktop)
     sheet.addEventListener('wheel', e => {
       updateMax();
       if (maxScroll <= 0) return;
@@ -983,6 +1005,7 @@ function initCustomScrollers() {
     // MOUSE DRAG (desktop)
     sheet.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
+      if (isRealLink(e.target)) return; // let real links work
       updateMax();
       if (maxScroll <= 0) return;
       isDragging = true;
