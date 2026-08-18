@@ -29,17 +29,23 @@
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    min-height:100vh; padding:24px 12px 80px;
+    width:100%;
+    min-height:100vh;
+    padding:24px 12px 80px;
+    margin:0 auto;
     background:
       radial-gradient(circle at 15% 20%, rgba(255,77,109,0.18), transparent 45%),
       radial-gradient(circle at 85% 80%, rgba(63,221,224,0.14), transparent 45%),
       var(--ink);
   }
   body > * {
-    text-align:center;
+    margin:0 auto;
   }
   .masthead{
-    text-align:center; margin-bottom:18px; color:var(--paper);
+    text-align:center;
+    margin:0 auto 18px;
+    width:100%;
+    color:var(--paper);
   }
   .masthead .eyebrow{
     font-size:11px; letter-spacing:0.35em; text-transform:uppercase;
@@ -55,6 +61,7 @@
   .book-wrap{
     position:relative;
     width:min(92vw, 380px);
+    margin:0 auto;
     aspect-ratio: 3 / 4.6;
     perspective:2400px;
   }
@@ -200,7 +207,12 @@
   .theme-sandy .city-band{ background:#B8860B; }
   .theme-draper .city-band{ background:#4A3F8F; }
   .controls{
-    display:flex; align-items:center; justify-content:center; gap:14px; margin-top:20px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    margin:20px auto 0;
+    width:100%;
   }
   .nav-btn{
     width:42px; height:42px; border-radius:50%; border:none; cursor:pointer;
