@@ -317,7 +317,7 @@
     <button class="nav-btn" id="nextBtn" onclick="nextPage()">›</button>
   </div>
   <div class="page-count" id="pageCount"></div>
-  <div style="color:rgba(245,241,232,0.25);font-size:9px;margin-top:4px;letter-spacing:0.05em;">build v15 - LIVE with JSONBin</div>
+  <div style="color:rgba(245,241,232,0.25);font-size:9px;margin-top:4px;letter-spacing:0.05em;">build v16 - data.json method</div>
   <button id="resetLink" onclick="if(confirm('Reset the magazine back to its default content? This clears anything edited in this browser.')) resetMagazineContent();" style="margin-top:8px;background:none;border:none;color:rgba(245,241,232,0.4);font-size:10px;letter-spacing:0.08em;text-decoration:underline;cursor:pointer;">Pages stuck? Reset content</button>
 
   <div id="passwordModal">
@@ -331,12 +331,6 @@
   </div>
 
 <script>
-/* ===================== JSONBIN CONFIG ===================== */
-const BIN_ID = '6a84aba6da38895dfef400b4';
-const MASTER_KEY = '$2a$10$8yfxBadIEryM4ln3vO0ky.eOZ8BGYgjSj05lyTSPM977jrkGGxTDu';
-const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-/* ========================================================== */
-
 const DEFAULT_CITIES = [
   {
     theme:'theme-slc', num:'01', name:'Salt Lake City',
@@ -414,6 +408,7 @@ const DEFAULT_CITIES = [
 
 const STORAGE_KEY = 'spotlightMagazineFullV2';
 const ADMIN_PASSWORD = 'spotlight2024';
+const DATA_URL = './data.json';
 
 const DEFAULT_MAGAZINE = {
   cover: {
@@ -568,52 +563,28 @@ function normalizeMagazine(saved){
   return merged;
 }
 
-/* ========== LOAD FROM JSONBIN ========== */
 async function loadMagazine() {
+  // 1. Try shared data.json
   try {
-    const res = await fetch(`${JSONBIN_URL}/latest`, {
-      headers: {
-        'X-Master-Key': MASTER_KEY
-      }
-    });
+    const res = await fetch(DATA_URL + '?t=' + Date.now());
     if (res.ok) {
-      const json = await res.json();
-      const data = json.record || json;
+      const data = await res.json();
       const normalized = normalizeMagazine(data);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       return normalized;
     }
   } catch (e) {
-    console.warn('Could not load from JSONBin, falling back...', e);
+    console.log('No data.json found, using localStorage / defaults');
   }
 
-  // fallback to localStorage
+  // 2. Try localStorage
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) return normalizeMagazine(JSON.parse(saved));
   } catch (e) {}
 
+  // 3. Defaults
   return cloneData(DEFAULT_MAGAZINE);
-}
-
-/* ========== SAVE TO JSONBIN ========== */
-async function saveToJSONBin(data) {
-  try {
-    const res = await fetch(JSONBIN_URL, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': MASTER_KEY
-      },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error('Failed to save');
-    return true;
-  } catch (err) {
-    console.error(err);
-    alert('Could not save to the cloud. Please try again.');
-    return false;
-  }
 }
 
 function resetMagazineContent(){
@@ -713,6 +684,7 @@ editorCss.textContent = `
   .editor-actions{display:flex;gap:8px;flex-wrap:wrap}
   .ed-btn{border:0;border-radius:8px;padding:10px 14px;font-weight:800;cursor:pointer;font-size:12px}
   .ed-primary{background:#FF4D6D;color:white}.ed-light{background:#F5F1E8;color:#14121A}.ed-danger{background:#b8001f;color:#fff}
+  .ed-download{background:#3FDDE0;color:#14121A}
   .editor-card{background:#f5f1e8;color:#14121A;border-radius:14px;padding:18px;margin:12px 0;border-left:5px solid #FF4D6D}
   .editor-card h3{margin:0 0 14px;font-family:'Anton',sans-serif;text-transform:uppercase;font-size:22px}
   .editor-card h4{margin:12px 0 10px;font-family:'Anton',sans-serif;font-size:16px;text-transform:uppercase}
@@ -750,7 +722,8 @@ editorPanel.innerHTML=`<div class="editor-inner">
   <div class="editor-head">
     <div><h2>SpotLIGHT Editor</h2></div>
     <div class="editor-actions">
-      <button class="ed-btn ed-primary" id="saveMagazine">SAVE LIVE</button>
+      <button class="ed-btn ed-primary" id="saveMagazine">SAVE & PREVIEW</button>
+      <button class="ed-btn ed-download" id="downloadData">DOWNLOAD data.json</button>
       <button class="ed-btn ed-light" id="closeEditor">CLOSE</button>
     </div>
   </div>
@@ -902,8 +875,7 @@ function renderEditor(){
 }
 
 function bindEditor(){
-  document.getElementById('saveMagazine').onclick = async () => {
-    // Collect data from current tab
+  document.getElementById('saveMagazine').onclick = () => {
     if(activeTab==='cover'){
       document.querySelectorAll('[data-cover]').forEach(el => MAGAZINE.cover[el.dataset.cover] = el.value || null);
       
@@ -945,25 +917,20 @@ function bindEditor(){
       });
     }
 
-    // Show saving state
-    const btn = document.getElementById('saveMagazine');
-    const originalText = btn.textContent;
-    btn.textContent = 'SAVING...';
-    btn.disabled = true;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(MAGAZINE));
+    setTimeout(() => location.reload(), 150);
+  };
 
-    // Save to JSONBin (live)
-    const success = await saveToJSONBin(MAGAZINE);
-    
-    if (success) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(MAGAZINE));
-      btn.textContent = 'SAVED ✓';
-      setTimeout(() => {
-        location.reload();
-      }, 800);
-    } else {
-      btn.textContent = originalText;
-      btn.disabled = false;
-    }
+  document.getElementById('downloadData').onclick = () => {
+    const dataStr = JSON.stringify(MAGAZINE, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'data.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    alert('data.json downloaded!\n\nNow upload this file to your GitHub repository (replace the existing data.json).\nAfter 1-2 minutes everyone will see your changes.');
   };
 
   document.getElementById('closeEditor').onclick = () => editorPanel.classList.remove('open');
