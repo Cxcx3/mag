@@ -613,9 +613,9 @@ async function saveMagazineData(data) {
 }
 
 async function loadMagazine() {
-  // 1. Try to load from server data.json first
+  // 1. Try to load from server data.json first with no-cache
   try {
-    const res = await fetch(DATA_URL + '?t=' + Date.now());
+    const res = await fetch('/data.json?t=' + Date.now(), { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data === 'object') {
@@ -818,11 +818,6 @@ function mediaBlock(media, placeholderText, extraClass){
   const type = media.type || detectMediaType(url);
 
   if(type === 'video'){
-    let mime = 'video/mp4';
-    if(/\.webm(\?|#|$)/i.test(url)) mime = 'video/webm';
-    else if(/\.ogg|\.ogv(\?|#|$)/i.test(url)) mime = 'video/ogg';
-    else if(/\.mov|\.quicktime(\?|#|$)/i.test(url)) mime = 'video/mp4';
-
     return `
       <div class="${cls} video-wrapper" style="position:relative;overflow:hidden;background:#000;">
         <video 
@@ -834,16 +829,13 @@ function mediaBlock(media, placeholderText, extraClass){
           playsinline 
           webkit-playsinline 
           x5-playsinline
-          preload="metadata"
+          preload="auto"
           style="width:100%;height:100%;object-fit:cover;display:block;"
           onclick="toggleVideoPlayback(this)"
-          onplay="const b=this.parentElement.querySelector('.video-play-badge'); if(b) b.style.display='none';"
-          onpause="const b=this.parentElement.querySelector('.video-play-badge'); if(b && !this.closest('.page.flipped')) b.style.display='flex';"
-        >
-          <source src="${url}" type="${mime}">
-          <source src="${url}">
-        </video>
-        <div class="video-play-badge" onclick="toggleVideoPlayback(this.previousElementSibling)" style="display:none;position:absolute;inset:0;margin:auto;width:44px;height:44px;border-radius:50%;background:rgba(20,18,26,0.75);color:#fff;border:2px solid #FFD23F;display:none;align-items:center;justify-content:center;font-size:16px;cursor:pointer;pointer-events:auto;z-index:4;box-shadow:0 4px 16px rgba(0,0,0,0.5);">▶</div>
+          onplay="const b=this.parentElement?.querySelector('.video-play-badge'); if(b) b.style.display='none';"
+          onpause="const b=this.parentElement?.querySelector('.video-play-badge'); if(b && !this.closest('.page.flipped')) b.style.display='flex';"
+        ></video>
+        <div class="video-play-badge" onclick="toggleVideoPlayback(this.previousElementSibling)" style="display:none;position:absolute;inset:0;margin:auto;width:44px;height:44px;border-radius:50%;background:rgba(20,18,26,0.75);color:#fff;border:2px solid #FFD23F;align-items:center;justify-content:center;font-size:16px;cursor:pointer;pointer-events:auto;z-index:4;box-shadow:0 4px 16px rgba(0,0,0,0.5);">▶</div>
       </div>
     `;
   }
@@ -853,9 +845,8 @@ function mediaBlock(media, placeholderText, extraClass){
       <img 
         src="${url}" 
         alt="" 
-        loading="lazy"
         style="width:100%;height:100%;object-fit:cover;display:block;"
-        onerror="console.warn('Image load error', '${url}'); this.parentElement.innerHTML='<div class=\\'media-box placeholder\\'><span>[ IMAGE UNAVAILABLE ]</span></div>';"
+        onerror="this.style.display='none'; if(!this.parentElement.querySelector('.placeholder-fallback')){ const d=document.createElement('div'); d.className='placeholder-fallback'; d.style.cssText='width:100%;height:100%;min-height:80px;display:flex;align-items:center;justify-content:center;padding:12px;text-align:center;font-size:9px;font-weight:700;color:rgba(255,255,255,0.85);'; d.innerText='${placeholderText}'; this.parentElement.appendChild(d); }"
       >
     </div>
   `;
@@ -1466,7 +1457,10 @@ function syncActiveVideos(){
     const videos = pageEl.querySelectorAll('video');
     videos.forEach(v => {
       v.muted = true;
+      v.defaultMuted = true;
       v.playsInline = true;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
       const badge = v.parentElement?.querySelector('.video-play-badge');
       if (isVisible) {
         const p = v.play();
@@ -1499,30 +1493,30 @@ function render(){
   syncActiveVideos();
 }
 
-// User interaction unlock for mobile browsers
-document.addEventListener('touchstart', () => {
+function unlockAndPlayVisibleVideos() {
   const activePage = document.getElementById('page-' + current);
   if (activePage) {
-    const v = activePage.querySelector('video');
-    if (v && v.paused) {
+    const videos = activePage.querySelectorAll('video');
+    videos.forEach(v => {
       v.muted = true;
+      v.defaultMuted = true;
       v.playsInline = true;
-      v.play().catch(() => {});
-    }
+      if (v.paused) {
+        const p = v.play();
+        if (p !== undefined) {
+          p.then(() => {
+            const badge = v.parentElement?.querySelector('.video-play-badge');
+            if (badge) badge.style.display = 'none';
+          }).catch(() => {});
+        }
+      }
+    });
   }
-}, { once: true, passive: true });
+}
 
-document.addEventListener('click', () => {
-  const activePage = document.getElementById('page-' + current);
-  if (activePage) {
-    const v = activePage.querySelector('video');
-    if (v && v.paused) {
-      v.muted = true;
-      v.playsInline = true;
-      v.play().catch(() => {});
-    }
-  }
-}, { once: true });
+document.addEventListener('touchstart', unlockAndPlayVisibleVideos, { passive: true });
+document.addEventListener('touchend', unlockAndPlayVisibleVideos, { passive: true });
+document.addEventListener('click', unlockAndPlayVisibleVideos);
 
 function nextPage(){ if(current < total - 1){ current++; render(); } }
 function prevPage(){ if(current > 0){ current--; render(); } }

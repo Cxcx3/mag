@@ -36,25 +36,51 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Static uploads folder with range support and proper mobile video streaming headers
-app.use('/uploads', (req, res, next) => {
-  const ext = path.extname(req.path).toLowerCase();
-  if (['.mp4', '.m4v', '.mov', '.webm', '.ogg', '.ogv'].includes(ext)) {
+app.use('/uploads', express.static(uploadsDir, {
+  acceptRanges: true,
+  maxAge: '1d',
+  setHeaders: (res, filePath) => {
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Disposition', 'inline');
-    if (ext === '.mp4' || ext === '.m4v' || ext === '.mov') {
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    const ext = path.extname(filePath).toLowerCase();
+    if (['.mp4', '.m4v', '.mov'].includes(ext)) {
       res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Disposition', 'inline');
     } else if (ext === '.webm') {
       res.setHeader('Content-Type', 'video/webm');
-    } else if (ext === '.ogg' || ext === '.ogv') {
+      res.setHeader('Content-Disposition', 'inline');
+    } else if (['.ogg', '.ogv'].includes(ext)) {
       res.setHeader('Content-Type', 'video/ogg');
+      res.setHeader('Content-Disposition', 'inline');
+    } else if (ext === '.png') {
+      res.setHeader('Content-Type', 'image/png');
+    } else if (ext === '.jpg' || ext === '.jpeg') {
+      res.setHeader('Content-Type', 'image/jpeg');
+    } else if (ext === '.webp') {
+      res.setHeader('Content-Type', 'image/webp');
     }
   }
-  next();
-}, express.static(uploadsDir, {
-  acceptRanges: true,
-  maxAge: '1d'
 }));
+
+// If an upload is not found, return 404, never fallback to index.html
+app.use('/uploads', (req, res) => {
+  res.status(404).json({ error: 'Uploaded file not found' });
+});
+
+// Explicit no-cache endpoint for data.json
+app.get(['/data.json', '/api/data'], (req, res) => {
+  const dataPath = path.join(__dirname, 'data.json');
+  if (fs.existsSync(dataPath)) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.sendFile(dataPath);
+  } else {
+    res.status(404).json({ error: 'data.json not found' });
+  }
+});
 
 // Upload endpoint for images and videos
 app.post('/api/upload', upload.single('file'), (req, res) => {
