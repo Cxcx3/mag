@@ -493,6 +493,19 @@ function sanitizeImageUrl(value){
   return trimmed;
 }
 
+function resolveMediaUrl(url){
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (/^(https?:|\/\/|data:|blob:)/i.test(trimmed)) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/')) {
+    return '.' + trimmed;
+  }
+  return trimmed;
+}
+
 function parseYouTubeId(url) {
   if (!url || typeof url !== 'string') return null;
   const trimmed = url.trim();
@@ -630,20 +643,44 @@ async function saveMagazineData(data) {
 }
 
 async function loadMagazine() {
-  // 1. Try to load from server data.json first with no-cache
-  try {
-    const res = await fetch('/data.json?t=' + Date.now(), { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && typeof data === 'object') {
-        return normalizeMagazine(data);
+  const candidateUrls = [
+    './data.json?_t=' + Date.now(),
+    'data.json?_t=' + Date.now(),
+    '/data.json?_t=' + Date.now(),
+    '/api/data?_t=' + Date.now()
+  ];
+
+  for (const url of candidateUrls) {
+    try {
+      const res = await fetch(url, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim().startsWith('{')) {
+          const data = JSON.parse(text);
+          if (data && typeof data === 'object' && (data.cover || data.cities)) {
+            console.log('Loaded magazine data from:', url);
+            const normalized = normalizeMagazine(data);
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+            } catch (e) {}
+            return normalized;
+          }
+        }
       }
+    } catch (err) {
+      // Continue to next candidate URL
     }
-  } catch (e) {
-    console.log('No server data.json found, checking local cache');
   }
 
-  // 2. Fallback to IndexedDB / localStorage if offline
+  console.log('No network data.json available, checking local storage cache');
+
+  // Fallback to IndexedDB / localStorage if offline
   try {
     const db = await openDB();
     if (db) {
@@ -668,7 +705,7 @@ async function loadMagazine() {
     }
   } catch (e) {}
 
-  // 3. Fallback to built-in default
+  // Fallback to built-in default
   return cloneData(DEFAULT_MAGAZINE);
 }
 
@@ -714,7 +751,8 @@ function normalizeMedia(media, fallback){
       if (clean) {
         return { 
           type: media.type || detectMediaType(clean), 
-          url: clean 
+          url: clean,
+          poster: media.poster ? sanitizeImageUrl(media.poster) : undefined
         };
       }
     }
@@ -735,58 +773,67 @@ function normalizeMagazine(saved){
   const base = cloneData(DEFAULT_MAGAZINE);
   if (!saved || typeof saved !== 'object') return base;
 
-  const mergedCities = (saved.cities && Array.isArray(saved.cities) ? saved.cities : base.cities).map((city, idx) => {
-    const fallbackCity = base.cities[idx] || base.cities[0];
-    const model = {
-      ...(fallbackCity?.model || {}),
-      ...(city?.model || {})
-    };
-    model.media = normalizeMedia(city?.model?.media, fallbackCity?.model?.media);
+  let cities = [];
+  if (Array.isArray(saved.cities) && saved.cities.length > 0) {
+    cities = saved.cities.map((city, idx) => {
+      const defaultCity = base.cities[idx] || base.cities[0] || {};
+      const model = {
+        name: city.model?.name ?? defaultCity.model?.name ?? '',
+        role: city.model?.role ?? defaultCity.model?.role ?? '',
+        bio: city.model?.bio ?? defaultCity.model?.bio ?? '',
+        media: normalizeMedia(city.model?.media, null)
+      };
 
-    const ads = (city?.ads && Array.isArray(city.ads) ? city.ads : fallbackCity?.ads || []).map((ad, adIdx) => {
-      const fallbackAd = (fallbackCity?.ads || [])[adIdx] || {};
+      const ads = Array.isArray(city.ads) ? city.ads.map(ad => ({
+        name: ad.name ?? '',
+        tag: ad.tag ?? '',
+        blurb: ad.blurb ?? '',
+        cta: ad.cta ?? 'Visit Website',
+        link: ad.link ?? '#',
+        media: normalizeMedia(ad.media, null)
+      })) : [];
+
       return {
-        ...fallbackAd,
-        ...(ad || {}),
-        media: normalizeMedia(ad?.media, fallbackAd?.media)
+        theme: city.theme || defaultCity.theme || `theme-c${idx+1}`,
+        num: city.num || String(idx + 1).padStart(2, '0'),
+        name: city.name || defaultCity.name || `City ${idx+1}`,
+        model,
+        ads
       };
     });
+  } else {
+    cities = cloneData(base.cities);
+  }
 
-    return {
-      ...(fallbackCity || {}),
-      ...(city || {}),
-      model,
-      ads
-    };
-  });
-
-  const merged = {
-    ...base,
-    ...(saved || {}),
-    cover: {
-      ...base.cover,
-      ...(saved.cover || {})
-    },
-    backCover: {
-      ...base.backCover,
-      ...(saved.backCover || {})
-    },
-    cities: mergedCities
+  const cover = {
+    ...base.cover,
+    ...(saved.cover || {})
   };
 
-  merged.cover.coverPhotoUrl = sanitizeImageUrl(merged.cover.coverPhotoUrl) || base.cover.coverPhotoUrl;
-  merged.cover.coverPhotoType = merged.cover.coverPhotoType || detectMediaType(merged.cover.coverPhotoUrl);
+  const backCover = {
+    ...base.backCover,
+    ...(saved.backCover || {})
+  };
 
-  merged.cover.featureImageUrl = sanitizeImageUrl(merged.cover.featureImageUrl) || base.cover.featureImageUrl;
-  merged.cover.featureImageType = merged.cover.featureImageType || detectMediaType(merged.cover.featureImageUrl);
+  cover.coverPhotoUrl = sanitizeImageUrl(cover.coverPhotoUrl);
+  cover.coverPhotoType = cover.coverPhotoType || detectMediaType(cover.coverPhotoUrl);
 
-  merged.cover.articleOneImageUrl = sanitizeImageUrl(merged.cover.articleOneImageUrl) || base.cover.articleOneImageUrl;
-  merged.cover.articleOneImageType = merged.cover.articleOneImageType || detectMediaType(merged.cover.articleOneImageUrl);
+  cover.featureImageUrl = sanitizeImageUrl(cover.featureImageUrl);
+  cover.featureImageType = cover.featureImageType || detectMediaType(cover.featureImageUrl);
 
-  merged.cover.articleTwoImageUrl = sanitizeImageUrl(merged.cover.articleTwoImageUrl) || base.cover.articleTwoImageUrl;
-  merged.cover.articleTwoImageType = merged.cover.articleTwoImageType || detectMediaType(merged.cover.articleTwoImageUrl);
+  cover.articleOneImageUrl = sanitizeImageUrl(cover.articleOneImageUrl);
+  cover.articleOneImageType = cover.articleOneImageType || detectMediaType(cover.articleOneImageUrl);
 
-  return merged;
+  cover.articleTwoImageUrl = sanitizeImageUrl(cover.articleTwoImageUrl);
+  cover.articleTwoImageType = cover.articleTwoImageType || detectMediaType(cover.articleTwoImageUrl);
+
+  return {
+    ...base,
+    ...saved,
+    cover,
+    backCover,
+    cities
+  };
 }
 
 let isEditorUnlocked = false;
@@ -831,7 +878,8 @@ function mediaBlock(media, placeholderText, extraClass){
   if(!media || !media.url || typeof media.url !== 'string' || !media.url.trim()){
     return `<div class="${cls} placeholder"><span>${placeholderText}</span></div>`;
   }
-  const url = media.url.trim();
+  const rawUrl = media.url.trim();
+  const url = resolveMediaUrl(rawUrl);
   const type = media.type || detectMediaType(url);
 
   if(type === 'video'){
@@ -867,7 +915,7 @@ function mediaBlock(media, placeholderText, extraClass){
 
     let posterAttr = '';
     if(media.poster){
-      posterAttr = `poster="${media.poster}"`;
+      posterAttr = `poster="${resolveMediaUrl(media.poster)}"`;
     } else if(url.includes('/uploads/')){
       const autoPoster = url.replace(/\.[^/.]+$/, '') + '-poster.jpg';
       posterAttr = `poster="${autoPoster}"`;

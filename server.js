@@ -190,7 +190,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 });
 
 // Save magazine data directly to data.json on server
-app.post('/api/save', async (req, res) => {
+app.post(['/api/save', '/api/data'], async (req, res) => {
   try {
     const data = req.body;
     if (!data || typeof data !== 'object') {
