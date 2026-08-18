@@ -5,16 +5,20 @@
     "highlight": "Spotlight",
     "subtitle": "Salt Lake City → Draper",
     "issueTag": "Issue 01 · August 2026",
-    "coverPhotoUrl": "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=80",
+    "coverPhotoUrl": "/uploads/slc_vid-1787087461324-236779.mp4",
+    "coverPhotoType": "video",
     "featureTitle": "This month’s local stories",
     "featureSummary": "Neighborhood culture, business wins, and the people shaping the Wasatch Front one block at a time.",
     "featureImageUrl": "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80",
+    "featureImageType": "image",
     "articleOneTitle": "City Notes",
     "articleOneText": "From coffee culture to creative studios, this issue celebrates the people and places making each valley community feel local and alive.",
     "articleOneImageUrl": "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
+    "articleOneImageType": "image",
     "articleTwoTitle": "Next up",
     "articleTwoText": "Stay tuned for the next round of profiles, businesses, and creative energy from across the mountain communities.",
-    "articleTwoImageUrl": "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80"
+    "articleTwoImageUrl": "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80",
+    "articleTwoImageType": "image"
   },
   "cities": [
     {
