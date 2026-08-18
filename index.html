@@ -17,15 +17,16 @@
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{
-    margin:0; padding:0; height:100%;
+    margin:0; padding:0; min-height:100%;
     background:var(--ink);
     font-family:'Space Grotesk', sans-serif;
     color:var(--ink);
     overflow-x:hidden;
+    overflow-y:auto;
   }
   body{
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    min-height:100vh; padding:24px 12px 40px;
+    display:block;
+    min-height:100vh; padding:24px 12px 80px;
     background:
       radial-gradient(circle at 15% 20%, rgba(255,77,109,0.18), transparent 45%),
       radial-gradient(circle at 85% 80%, rgba(63,221,224,0.14), transparent 45%),
@@ -119,9 +120,18 @@
     border:3px solid var(--yellow);
     min-height:180px;
   }
+  .cover-story-grid{ display:grid; grid-template-columns:1fr; gap:12px; margin-top:12px; }
+  .cover-story-card{
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); border-radius:10px; padding:12px;
+    color:var(--paper);
+  }
+  .cover-story-card .mini-label{ font-size:9px; letter-spacing:0.18em; text-transform:uppercase; color:var(--cyan); font-weight:700; margin-bottom:8px; }
+  .cover-story-card h3{ margin:0 0 8px; font-family:'Anton', sans-serif; font-size:20px; line-height:1; text-transform:uppercase; }
+  .cover-story-card p{ margin:0; font-size:12px; line-height:1.5; color:rgba(245,241,232,0.82); }
+  .cover-story-card .story-media{ margin-top:10px; height:120px; border-radius:8px; overflow:hidden; border:2px solid rgba(255,210,63,0.7); }
   .cover .flip-hint{
     font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--paper); opacity:0.7;
-    display:flex; align-items:center; gap:6px;
+    display:flex; align-items:center; gap:6px; margin-top:10px;
   }
   .city-page{ background:var(--paper); }
   .city-band{
@@ -203,7 +213,7 @@
   .page-count{
     color:var(--paper); opacity:0.6; font-size:11px; letter-spacing:0.1em; margin-top:10px;
   }
-  .tap-zone{ position:absolute; top:0; bottom:0; width:18%; z-index:500; cursor:pointer; }
+  .tap-zone{ position:absolute; top:0; bottom:0; width:18%; z-index:500; cursor:pointer; touch-action:pan-y; }
   .tap-zone.left{ left:0; }
   .tap-zone.right{ right:0; }
   /* Password Modal */
@@ -237,6 +247,8 @@
     <button class="nav-btn" id="nextBtn" onclick="nextPage()">›</button>
   </div>
   <div class="page-count" id="pageCount"></div>
+  <div style="color:rgba(245,241,232,0.25);font-size:9px;margin-top:4px;letter-spacing:0.05em;">build v7</div>
+  <button id="resetLink" onclick="if(confirm('Reset the magazine back to its default content? This clears anything edited in this browser.')) resetMagazineContent();" style="margin-top:8px;background:none;border:none;color:rgba(245,241,232,0.4);font-size:10px;letter-spacing:0.08em;text-decoration:underline;cursor:pointer;">Pages stuck? Reset content</button>
 
   <!-- Password Modal -->
   <div id="passwordModal">
@@ -335,6 +347,15 @@ const DEFAULT_MAGAZINE = {
     subtitle: 'Salt Lake City → Draper',
     issueTag: 'Issue 01 · August 2026',
     coverPhotoUrl: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=80',
+    featureTitle: 'This month’s local stories',
+    featureSummary: 'Neighborhood culture, business wins, and the people shaping the Wasatch Front one block at a time.',
+    featureImageUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80',
+    articleOneTitle: 'City Notes',
+    articleOneText: 'From coffee culture to creative studios, this issue celebrates the people and places making each valley community feel local and alive.',
+    articleOneImageUrl: 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+    articleTwoTitle: 'Next up',
+    articleTwoText: 'Stay tuned for the next round of profiles, businesses, and creative energy from across the mountain communities.',
+    articleTwoImageUrl: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80'
   },
   cities: cloneData(DEFAULT_CITIES),
   backCover: {
@@ -354,6 +375,69 @@ function sanitizeImageUrl(value){
   if (trimmed.startsWith('file://')) return null;
   if (trimmed.startsWith('C:/') || trimmed.startsWith('C:\\')) return null;
   return trimmed;
+}
+function readFileAsDataURL(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => resolve(event.target?.result || null);
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+function bindUploadInputs(){
+  document.querySelectorAll('input[type="file"][data-upload-target]').forEach((fileInput) => {
+    if (fileInput.dataset.bound === 'true') return;
+    fileInput.dataset.bound = 'true';
+
+    const row = fileInput.closest('.upload-row');
+    if (row && !row.querySelector('.upload-trigger')) {
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'upload-trigger';
+      trigger.textContent = 'Add image from computer';
+      trigger.addEventListener('click', () => fileInput.click());
+      row.insertBefore(trigger, fileInput);
+    }
+
+    document.querySelectorAll('[data-open-file]').forEach((openBtn) => {
+      const target = openBtn.dataset.openFile;
+      if (target === fileInput.dataset.uploadTarget) {
+        openBtn.onclick = () => fileInput.click();
+      }
+    });
+
+    fileInput.addEventListener('change', async (event) => {
+      const file = event.target?.files?.[0];
+      if (!file) return;
+      try {
+        const dataUrl = await readFileAsDataURL(file);
+        const targetName = fileInput.dataset.uploadTarget;
+        const targetInput = document.querySelector(`[data-image-field="${targetName}"]`);
+        if (targetInput) {
+          targetInput.value = dataUrl || '';
+          targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      } catch (err) {
+        console.error('Image upload failed', err);
+        alert('Could not load this image. Please try another file.');
+      }
+      fileInput.value = '';
+    });
+  });
+}
+
+function attachUploadButton(targetName, buttonText = 'Add image from computer') {
+  const fileInput = document.querySelector(`input[type="file"][data-upload-target="${targetName}"]`);
+  if (!fileInput) return;
+  const row = fileInput.closest('.upload-row');
+  if (!row) return;
+  if (row.querySelector('.upload-trigger')) return;
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'upload-trigger';
+  trigger.textContent = buttonText;
+  trigger.addEventListener('click', () => fileInput.click());
+  row.insertBefore(trigger, fileInput);
 }
 function normalizeMedia(media, fallback){
   if (media && typeof media === 'object' && media.url) {
@@ -431,12 +515,27 @@ function getMagazine(){
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     const parsed = saved ? JSON.parse(saved) : null;
-    const normalized = normalizeMagazine(parsed);
+    let normalized = normalizeMagazine(parsed);
+    // Safety net: if saved data got corrupted somehow and we ended up with
+    // zero city pages, wipe it and fall back to the full default magazine
+    // instead of leaving the reader stuck on a near-empty book.
+    if (!normalized.cities || normalized.cities.length === 0) {
+      localStorage.removeItem(STORAGE_KEY);
+      normalized = cloneData(DEFAULT_MAGAZINE);
+    }
     if (JSON.stringify(normalized) !== JSON.stringify(parsed || {})) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
     }
     return normalized;
-  } catch(e) { return cloneData(DEFAULT_MAGAZINE); }
+  } catch(e) {
+    try { localStorage.removeItem(STORAGE_KEY); } catch(e2) {}
+    return cloneData(DEFAULT_MAGAZINE);
+  }
+}
+
+function resetMagazineContent(){
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  location.reload();
 }
 
 let isEditorUnlocked = false;
@@ -449,6 +548,9 @@ function checkPassword(){
     isEditorUnlocked = true;
     document.getElementById('passwordModal').classList.remove('show');
     editorToggle.style.display = 'block';
+    editorPanel.classList.add('open');
+    renderEditor();
+    bindEditor();
     input.value = '';
   } else {
     alert('Incorrect password');
@@ -526,10 +628,22 @@ editorCss.textContent = `
   .ed-field input:focus,.ed-field textarea:focus,.ed-field select:focus{outline:none;border-color:#FF4D6D;box-shadow:0 0 0 3px rgba(255,77,109,0.1)}
   .ed-field textarea{min-height:75px;resize:vertical}
   .ed-field.full{grid-column:1/-1}
+  .upload-row{display:flex;flex-direction:column;gap:8px;margin-top:8px;border:2px dashed #d0c8be;border-radius:8px;padding:10px;background:rgba(255,255,255,0.5)}
+  .upload-row span{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#3a3540}
+  .upload-trigger{padding:10px 14px;border:0;border-radius:8px;background:#14121A;color:#f5f1e8;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:.08em;font-size:11px}
+  .upload-trigger:hover{background:#FF4D6D}
+  .upload-row input[type="file"]{display:none;padding:10px;border:1px solid #ddd;border-radius:7px;background:#fff;color:#14121A}
+  .upload-btn{padding:6px 10px;border:0;border-radius:7px;background:#14121A;color:#fff;font-size:10px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:.08em}
+  .upload-btn:hover{background:#FF4D6D}
   .editor-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
   .editor-tab{border:none;background:#f5f1e8;color:#14121A;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:12px;text-transform:uppercase;transition:all 0.2s}
   .editor-tab.active{background:#FF4D6D;color:white}.editor-tab:hover{background:#FFD23F;color:#14121A}
-  .ad-editor{border:2px solid #ddd;border-radius:10px;padding:12px;margin:12px 0}.ad-editor h4{margin:0 0 10px}
+  .ad-editor{border:2px solid #ddd;border-radius:10px;padding:12px;margin:12px 0}
+  .ad-editor-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+  .ad-editor-head h4{margin:0}
+  .ad-editor-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .upload-btn{padding:6px 10px;border:0;border-radius:7px;background:#14121A;color:#fff;font-size:10px;font-weight:800;cursor:pointer;text-transform:uppercase;letter-spacing:.08em}
+  .upload-btn:hover{background:#FF4D6D}
 `;
 document.head.appendChild(editorCss);
 
@@ -568,10 +682,48 @@ function renderEditor(){
           <div class="ed-field"><label>Highlight Word</label><input data-cover="highlight" value="${esc(c.highlight)}"></div>
           <div class="ed-field full"><label>Subtitle</label><input data-cover="subtitle" value="${esc(c.subtitle)}"></div>
           <div class="ed-field full"><label>Issue Tag</label><input data-cover="issueTag" value="${esc(c.issueTag)}"></div>
-          <div class="ed-field full"><label>Cover Photo URL</label><input data-cover="coverPhotoUrl" placeholder="https://.../photo.jpg" value="${esc(c.coverPhotoUrl||'')}"></div>
+          <div class="ed-field full"><label>Feature Title</label><input data-cover="featureTitle" value="${esc(c.featureTitle||'')}"></div>
+          <div class="ed-field full"><label>Feature Summary</label><textarea data-cover="featureSummary">${esc(c.featureSummary||'')}</textarea></div>
+          <div class="ed-field full">
+            <label>Cover Photo URL</label>
+            <input data-cover="coverPhotoUrl" data-image-field="cover-photo" placeholder="https://.../photo.jpg" value="${esc(c.coverPhotoUrl||'')}">
+            <div class="upload-row">
+              <span>Upload from computer</span>
+              <input type="file" accept="image/*" data-upload-target="cover-photo">
+            </div>
+          </div>
+          <div class="ed-field full">
+            <label>Feature Image URL</label>
+            <input data-cover="featureImageUrl" data-image-field="cover-feature-photo" placeholder="https://.../photo.jpg" value="${esc(c.featureImageUrl||'')}">
+            <div class="upload-row">
+              <span>Upload from computer</span>
+              <input type="file" accept="image/*" data-upload-target="cover-feature-photo">
+            </div>
+          </div>
+          <div class="ed-field"><label>Story 1 Title</label><input data-cover="articleOneTitle" value="${esc(c.articleOneTitle||'')}"></div>
+          <div class="ed-field"><label>Story 2 Title</label><input data-cover="articleTwoTitle" value="${esc(c.articleTwoTitle||'')}"></div>
+          <div class="ed-field full"><label>Story 1 Text</label><textarea data-cover="articleOneText">${esc(c.articleOneText||'')}</textarea></div>
+          <div class="ed-field full"><label>Story 2 Text</label><textarea data-cover="articleTwoText">${esc(c.articleTwoText||'')}</textarea></div>
+          <div class="ed-field full">
+            <label>Story 1 Image URL</label>
+            <input data-cover="articleOneImageUrl" data-image-field="cover-story-one" placeholder="https://.../photo.jpg" value="${esc(c.articleOneImageUrl||'')}">
+            <div class="upload-row">
+              <span>Upload from computer</span>
+              <input type="file" accept="image/*" data-upload-target="cover-story-one">
+            </div>
+          </div>
+          <div class="ed-field full">
+            <label>Story 2 Image URL</label>
+            <input data-cover="articleTwoImageUrl" data-image-field="cover-story-two" placeholder="https://.../photo.jpg" value="${esc(c.articleTwoImageUrl||'')}">
+            <div class="upload-row">
+              <span>Upload from computer</span>
+              <input type="file" accept="image/*" data-upload-target="cover-story-two">
+            </div>
+          </div>
         </div>
       </div>
     `;
+    bindUploadInputs();
   } else if(activeTab==='back'){
     const b = MAGAZINE.backCover;
     root.innerHTML = `
@@ -590,14 +742,28 @@ function renderEditor(){
     const ci = +activeTab.split('-')[1];
     const c = MAGAZINE.cities[ci];
     const adsHtml = (c.ads||[]).map((a,ai)=>`
-      <div class="ad-editor" data-ai="${ai}"><h4>Business ${ai+1}<button class="ed-btn ed-danger remove-ad" data-ci="${ci}" data-ai="${ai}" style="padding:6px 9px;font-size:11px">REMOVE</button></h4>
+      <div class="ad-editor" data-ai="${ai}">
+        <div class="ad-editor-head">
+          <h4>Business ${ai+1}</h4>
+          <div class="ad-editor-actions">
+            <button type="button" class="upload-btn" data-open-file="city-${ci}-ad-${ai}-photo">Add image from computer</button>
+            <button class="ed-btn ed-danger remove-ad" data-ci="${ci}" data-ai="${ai}" style="padding:6px 9px;font-size:11px">REMOVE</button>
+          </div>
+        </div>
         <div class="ed-grid">
           <div class="ed-field"><label>Name</label><input data-ad="name" value="${esc(a.name)}"></div>
           <div class="ed-field"><label>Tag</label><input data-ad="tag" value="${esc(a.tag)}"></div>
           <div class="ed-field full"><label>Description</label><textarea data-ad="blurb">${esc(a.blurb)}</textarea></div>
           <div class="ed-field"><label>Button</label><input data-ad="cta" value="${esc(a.cta)}"></div>
           <div class="ed-field"><label>Link</label><input data-ad="link" value="${esc(a.link)}"></div>
-          <div class="ed-field full"><label>Photo URL</label><input data-ad-media="url" value="${esc(a.media?.url||'')}" placeholder="https://.../image.jpg"></div>
+          <div class="ed-field full">
+            <label>Photo URL</label>
+            <input data-ad-media="url" data-image-field="city-${ci}-ad-${ai}-photo" value="${esc(a.media?.url||'')}" placeholder="https://.../image.jpg">
+            <div class="upload-row">
+              <span>Upload from computer</span>
+              <input type="file" accept="image/*" data-upload-target="city-${ci}-ad-${ai}-photo">
+            </div>
+          </div>
         </div>
       </div>`).join('');
     root.innerHTML = `
@@ -613,13 +779,21 @@ function renderEditor(){
           <div class="ed-field"><label>Name</label><input data-model="name" value="${esc(c.model?.name)}"></div>
           <div class="ed-field"><label>Role</label><input data-model="role" value="${esc(c.model?.role)}"></div>
           <div class="ed-field full"><label>Bio</label><textarea data-model="bio">${esc(c.model?.bio)}</textarea></div>
-          <div class="ed-field full"><label>Photo URL</label><input data-model-media="url" value="${esc(c.model?.media?.url||'')}"></div>
+          <div class="ed-field full">
+            <label>Photo URL</label>
+            <input data-model-media="url" data-image-field="city-${ci}-model-photo" value="${esc(c.model?.media?.url||'')}">
+            <div class="upload-row">
+              <span>Upload from computer</span>
+              <input type="file" accept="image/*" data-upload-target="city-${ci}-model-photo">
+            </div>
+          </div>
         </div>
         <h4>Businesses</h4>
         <div class="ads">${adsHtml}</div>
         <button class="ed-btn ed-primary" style="margin-top:12px" onclick="const c=MAGAZINE.cities[${ci}];c.ads.push({name:'New',tag:'Business',blurb:'',cta:'',link:'#',media:null});renderEditor();bindEditor()">+ ADD BUSINESS</button>
       </div>
     `;
+    bindUploadInputs();
     const sel = root.querySelector('select[data-key="theme"]'); if(sel) sel.value=c.theme||'theme-slc';
   }
 }
@@ -654,7 +828,7 @@ editorToggle.onclick=()=>{
   setTimeout(()=>document.getElementById('passwordInput')?.focus(), 120);
 };
 
-const PAGES=[{id:'cover',cls:'cover',html:()=>`<div class="top-tag">${MAGAZINE.cover.issueTag}</div><div class="title">${MAGAZINE.cover.mainText}<br>${MAGAZINE.cover.highlight}<span class="hi">.</span></div><div class="sub">${MAGAZINE.cover.subtitle}</div>${mediaBlock(MAGAZINE.cover.coverPhotoUrl?{type:'image',url:MAGAZINE.cover.coverPhotoUrl}:null,'[ COVER PHOTO ]','cover-photo')}<div class="flip-hint">Tap or swipe to flip →</div>`},...MAGAZINE.cities.map(cityPage),{id:'back',cls:'back-cover',html:()=>`<h2>${MAGAZINE.backCover.heading}</h2><p>${MAGAZINE.backCover.description}</p><div class="cta-box">DM <span class="handle">${MAGAZINE.backCover.handle}</span>${MAGAZINE.backCover.ctaEnd}</div>`}];
+const PAGES=[{id:'cover',cls:'cover',html:()=>`<div class="top-tag">${MAGAZINE.cover.issueTag}</div><div class="title">${MAGAZINE.cover.mainText}<br>${MAGAZINE.cover.highlight}<span class="hi">.</span></div><div class="sub">${MAGAZINE.cover.subtitle}</div>${mediaBlock(MAGAZINE.cover.coverPhotoUrl?{type:'image',url:MAGAZINE.cover.coverPhotoUrl}:null,'[ COVER PHOTO ]','cover-photo')}<div class="cover-story-grid"><div class="cover-story-card"><div class="mini-label">Feature</div><h3>${MAGAZINE.cover.featureTitle || 'This month’s local stories'}</h3><p>${MAGAZINE.cover.featureSummary || 'Add a feature summary here.'}</p>${mediaBlock(MAGAZINE.cover.featureImageUrl?{type:'image',url:MAGAZINE.cover.featureImageUrl}:null,'[ FEATURE IMAGE ]','story-media')}</div><div class="cover-story-card"><div class="mini-label">Story 1</div><h3>${MAGAZINE.cover.articleOneTitle || 'City Notes'}</h3><p>${MAGAZINE.cover.articleOneText || 'Add the first article summary here.'}</p>${mediaBlock(MAGAZINE.cover.articleOneImageUrl?{type:'image',url:MAGAZINE.cover.articleOneImageUrl}:null,'[ STORY IMAGE ]','story-media')}</div><div class="cover-story-card"><div class="mini-label">Story 2</div><h3>${MAGAZINE.cover.articleTwoTitle || 'Next up'}</h3><p>${MAGAZINE.cover.articleTwoText || 'Add a second article summary here.'}</p>${mediaBlock(MAGAZINE.cover.articleTwoImageUrl?{type:'image',url:MAGAZINE.cover.articleTwoImageUrl}:null,'[ STORY IMAGE ]','story-media')}</div></div><div class="flip-hint">Tap or swipe to flip →</div>`},...MAGAZINE.cities.map(cityPage),{id:'back',cls:'back-cover',html:()=>`<h2>${MAGAZINE.backCover.heading}</h2><p>${MAGAZINE.backCover.description}</p><div class="cta-box">DM <span class="handle">${MAGAZINE.backCover.handle}</span>${MAGAZINE.backCover.ctaEnd}</div>`}];
 
 const total=PAGES.length;
 let current=0;
@@ -681,12 +855,37 @@ function render(){
 function nextPage(){if(current<total-1){current++;render();}}
 function prevPage(){if(current>0){current--;render();}}
 
+// Run the first render immediately — don't wait on a browser timing event
+// that may or may not still be pending by the time this script runs.
+render();
+
 let touchStartX=null;
-window.addEventListener('DOMContentLoaded',()=>{
-  const bookWrap=document.querySelector('.book-wrap');
-  if(bookWrap){bookWrap.addEventListener('touchstart',e=>{touchStartX=e.touches[0].clientX;});bookWrap.addEventListener('touchend',e=>{if(touchStartX===null)return;const dx=e.changedTouches[0].clientX-touchStartX;if(dx<-40)nextPage();if(dx>40)prevPage();touchStartX=null;});}
-  render();
+const bookWrap=document.querySelector('.book-wrap');
+if(bookWrap){
+  bookWrap.addEventListener('touchstart',e=>{touchStartX=e.touches[0].clientX;});
+  bookWrap.addEventListener('touchend',e=>{if(touchStartX===null)return;const dx=e.changedTouches[0].clientX-touchStartX;if(dx<-40)nextPage();if(dx>40)prevPage();touchStartX=null;});
+}
+
+/* ---- MOBILE SCROLL FIX ----
+   iOS Safari has a known bug where native touch-drag-to-scroll doesn't
+   work inside an element that's also being 3D-rotated (our page-flip
+   effect). To work around it, we drive scrolling manually here instead
+   of relying on the browser's built-in gesture. */
+document.querySelectorAll('.sheet').forEach(sheet => {
+  let startY = 0, startScroll = 0, dragging = false;
+  sheet.addEventListener('touchstart', e => {
+    startY = e.touches[0].clientY;
+    startScroll = sheet.scrollTop;
+    dragging = true;
+  }, { passive: true });
+  sheet.addEventListener('touchmove', e => {
+    if(!dragging) return;
+    const dy = startY - e.touches[0].clientY;
+    sheet.scrollTop = startScroll + dy;
+  }, { passive: true });
+  sheet.addEventListener('touchend', () => { dragging = false; });
 });
+
 document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextPage();if(e.key==='ArrowLeft')prevPage();});
 
 window.addEventListener('load',()=>{
