@@ -208,6 +208,28 @@ app.post(['/api/save', '/api/data'], async (req, res) => {
 // Serve static assets from root
 app.use(express.static(__dirname));
 
+// Serve index.html with dynamic OG host replacement when accessed directly
+app.get(['/', '/index.html'], (req, res) => {
+  const indexPath = path.join(__dirname, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    return res.status(404).send('Not Found');
+  }
+
+  const host = req.get('host');
+  const proto = req.get('x-forwarded-proto') || req.protocol || 'https';
+  const baseUrl = `${proto}://${host}`;
+
+  // If running on Cloud Run or custom host, adapt OG image tags so previews work directly on this host too
+  if (host && !host.includes('cxcx3.github.io')) {
+    let html = fs.readFileSync(indexPath, 'utf8');
+    html = html.replace(/https:\/\/cxcx3\.github\.io\/mag\//g, `${baseUrl}/`);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  }
+
+  res.sendFile(indexPath);
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
