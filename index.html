@@ -3,7 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Spotlight Magazine — Bold Edition</title>
+<title>The SpotLIGHT</title>
+<meta name="description" content="Tap the link to check it out!">
+
+<!-- Open Graph / Facebook / iMessage / WhatsApp / Instagram Link Preview -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The SpotLIGHT">
+<meta property="og:title" content="The SpotLIGHT">
+<meta property="og:description" content="Tap the link to check it out!">
+<meta property="og:url" content="https://cxcx3.github.io/mag/">
+<meta property="og:image" content="https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=80">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The SpotLIGHT">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The SpotLIGHT">
+<meta name="twitter:description" content="Tap the link to check it out!">
+<meta name="twitter:image" content="https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1200&q=80">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -287,10 +306,83 @@
   .password-box button{width:100%;padding:12px;background:#FF4D6D;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px}
   .password-box button:hover{background:#E63A5A}
 
-  #editorToggle{position:fixed;top:14px;right:14px;z-index:9999;border:0;border-radius:999px;padding:10px 16px;background:#FFD23F;color:#14121A;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4);display:block;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
-  #editorToggle:hover{background:#FF4D6D;color:#fff;}
-  #shareToggle{position:fixed;top:14px;left:14px;z-index:9999;border:0;border-radius:999px;padding:10px 16px;background:rgba(20,18,26,0.85);color:#FFD23F;border:1.5px solid #FFD23F;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;align-items:center;gap:6px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(8px);transition:transform 0.15s, background 0.15s;}
+  #editorToggle{
+    position:fixed;
+    top:12px;
+    right:12px;
+    z-index:9999;
+    border:1px solid rgba(255,210,63,0.4);
+    border-radius:50%;
+    width:32px;
+    height:32px;
+    padding:0;
+    background:rgba(20,18,26,0.85);
+    color:#FFD23F;
+    font-size:13px;
+    cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    transition:transform 0.15s, background 0.15s;
+  }
+  #editorToggle:hover{background:#FFD23F;color:#14121A;transform:scale(1.08);}
+  #shareToggle{
+    position:fixed;
+    top:12px;
+    left:12px;
+    z-index:9999;
+    border:1px solid rgba(255,210,63,0.5);
+    border-radius:999px;
+    padding:5px 11px;
+    background:rgba(20,18,26,0.85);
+    color:#FFD23F;
+    font-weight:800;
+    font-size:11px;
+    letter-spacing:0.04em;
+    cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+    display:flex;
+    align-items:center;
+    gap:4px;
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    transition:transform 0.15s, background 0.15s;
+  }
   #shareToggle:hover{background:#FFD23F;color:#14121A;transform:scale(1.05);}
+
+  .ig-dm-action-btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    background:linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+    color:#fff !important;
+    padding:11px 20px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    text-decoration:none;
+    box-shadow:0 4px 14px rgba(220,39,67,0.35);
+    transition:transform 0.15s, box-shadow 0.15s;
+    width:100%;
+    max-width:240px;
+    margin:6px auto 0;
+  }
+  .ig-dm-action-btn:hover{
+    transform:scale(1.04);
+    box-shadow:0 6px 18px rgba(220,39,67,0.5);
+    color:#fff !important;
+    text-decoration:none;
+  }
 
   .cover-share-bar{display:flex;justify-content:center;margin:10px 0 4px;}
   .cover-share-btn{background:rgba(255,255,255,0.1);border:1px solid rgba(255,210,63,0.6);color:#FFD23F;padding:7px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s;}
@@ -318,6 +410,68 @@
   .story-card-sub{font-size:11px;color:#f5f1e8;opacity:0.85;margin-bottom:10px;}
   .story-sticker-badge{display:inline-flex;align-items:center;gap:6px;background:#FF4D6D;color:#fff;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;box-shadow:0 4px 12px rgba(255,77,109,0.4);}
   
+  .share-url-box{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:rgba(0,0,0,0.45);
+    border:1px solid rgba(255,210,63,0.4);
+    border-radius:10px;
+    padding:4px 6px 4px 10px;
+    margin-bottom:12px;
+  }
+  .share-url-input{
+    flex:1;
+    background:transparent;
+    border:none;
+    color:#FFD23F;
+    font-family:'Space Grotesk',sans-serif;
+    font-size:11px;
+    font-weight:600;
+    outline:none;
+    min-width:0;
+    -webkit-user-select:all;
+    user-select:all;
+  }
+  .share-url-btn{
+    background:#FFD23F;
+    color:#14121A;
+    border:none;
+    border-radius:6px;
+    padding:7px 12px;
+    font-size:11px;
+    font-weight:800;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:transform 0.15s, background 0.15s;
+  }
+  .share-url-btn:active{transform:scale(0.96);background:#FF4D6D;color:#fff;}
+
+  .toast-notification{
+    position:fixed;
+    bottom:28px;
+    left:50%;
+    transform:translateX(-50%) translateY(80px);
+    background:#FFD23F;
+    color:#14121A;
+    padding:10px 22px;
+    border-radius:999px;
+    font-weight:800;
+    font-size:12px;
+    letter-spacing:0.04em;
+    box-shadow:0 10px 30px rgba(0,0,0,0.6);
+    z-index:100002;
+    opacity:0;
+    pointer-events:none;
+    transition:transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+    white-space:nowrap;
+    text-align:center;
+  }
+  .toast-notification.show{
+    transform:translateX(-50%) translateY(0);
+    opacity:1;
+  }
+
   .share-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
   .share-opt-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:10px;border:none;font-weight:700;font-size:12px;cursor:pointer;transition:transform 0.15s, opacity 0.2s;}
   .share-opt-btn:active{transform:scale(0.96);}
@@ -370,15 +524,21 @@
   <div id="shareModal" onclick="if(event.target===this)closeShareModal()">
     <div class="share-card-container">
       <button class="share-close-btn" onclick="closeShareModal()" title="Close">✕</button>
-      <div style="font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:#FFD23F;font-weight:800;margin-bottom:4px;">1-Tap Social Share</div>
-      <h2 style="font-family:'Anton',sans-serif;font-size:24px;text-transform:uppercase;margin:0 0 10px;color:#fff;">Share This Feature</h2>
+      <div style="font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:#FFD23F;font-weight:800;margin-bottom:4px;">1-Tap Share</div>
+      <h2 style="font-family:'Anton',sans-serif;font-size:24px;text-transform:uppercase;margin:0 0 10px;color:#fff;">The SpotLIGHT</h2>
       
-      <!-- Live 9:16 Story Preview Card -->
+      <!-- Live Story Preview Card -->
       <div class="story-card-preview" id="storyPreviewCard">
-        <div class="story-card-tag" id="shareCardTag">The Spotlight · Wasatch Front</div>
-        <div class="story-card-title" id="shareCardTitle">Salt Lake City</div>
-        <div class="story-card-sub" id="shareCardSub">Digital Magazine Issue 01</div>
-        <div class="story-sticker-badge">🔗 Tap to Read Magazine</div>
+        <div class="story-card-tag" id="shareCardTag">The SpotLIGHT</div>
+        <div class="story-card-title" id="shareCardTitle">The SpotLIGHT</div>
+        <div class="story-card-sub" id="shareCardSub">Tap the link to check it out</div>
+        <div class="story-sticker-badge">🔗 Tap to Read</div>
+      </div>
+
+      <!-- Direct Share URL Bar with 1-Tap Copy -->
+      <div class="share-url-box">
+        <input type="text" id="shareUrlInput" class="share-url-input" readonly onclick="this.select(); copyActiveShareLink();">
+        <button id="shareCopyUrlBtn" class="share-url-btn" onclick="copyActiveShareLink()">Copy Link</button>
       </div>
 
       <!-- Quick Action Buttons -->
@@ -401,6 +561,14 @@
         <button class="share-opt-btn share-btn-native" id="nativeShareBtn" onclick="invokeNativeShare()">
           ⚡ Open Phone Share Sheet
         </button>
+      </div>
+
+      <div style="margin: 12px 0 10px; padding: 12px; background: rgba(255,210,63,0.08); border: 1px solid rgba(255,210,63,0.3); border-radius: 12px; text-align: center;">
+        <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #FFD23F; letter-spacing: 0.1em; margin-bottom: 4px;">Local Business Owners</div>
+        <div style="font-size: 11px; color: #fff; margin-bottom: 8px;">Want your brand featured in the next issue?</div>
+        <a href="https://ig.me/m/l_i_g_h__t" target="_blank" rel="noopener noreferrer" class="ig-dm-action-btn" style="padding: 8px 16px; font-size: 11px; margin: 0 auto; display: inline-flex;">
+          💬 DM to Feature Your Business
+        </a>
       </div>
       
       <div style="font-size:10px;color:rgba(245,241,232,0.6);text-align:center;line-height:1.4;">
@@ -1198,8 +1366,8 @@ function cityPage(c, idx){
 
 const editorCss = document.createElement('style');
 editorCss.textContent = `
-  #editorToggle{position:fixed;top:14px;right:14px;z-index:9999;border:0;border-radius:999px;padding:12px 18px;background:#FFD23F;color:#14121A;font-weight:800;font-size:12px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4);display:block;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
-  #editorToggle:hover{background:#FF4D6D;color:#fff;}
+  #editorToggle{position:fixed;top:12px;right:12px;z-index:9999;border:1px solid rgba(255,210,63,0.4);border-radius:50%;width:32px;height:32px;padding:0;background:rgba(20,18,26,0.85);color:#FFD23F;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:transform 0.15s, background 0.15s;}
+  #editorToggle:hover{background:#FFD23F;color:#14121A;transform:scale(1.08);}
   #editorPanel{position:fixed;inset:0;z-index:9998;background:rgba(20,18,26,.97);display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 12px 70px;color:#F5F1E8;font-family:'Space Grotesk',sans-serif}
   #editorPanel.open{display:block}
   .editor-inner{width:min(900px,100%);margin:0 auto}
@@ -1243,7 +1411,9 @@ document.head.appendChild(editorCss);
 
 const editorToggle = document.createElement('button');
 editorToggle.id = 'editorToggle';
-editorToggle.textContent = 'EDIT MAGAZINE';
+editorToggle.innerHTML = '🔒';
+editorToggle.title = 'Unlock Magazine Editor';
+editorToggle.setAttribute('aria-label', 'Editor Mode');
 document.body.appendChild(editorToggle);
 
 const editorPanel = document.createElement('div');
@@ -1731,7 +1901,7 @@ function buildPages() {
         <div class="cover-share-bar">
           <button class="cover-share-btn" onclick="event.stopPropagation(); triggerCurrentPageShare(0)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
-            <span>Share Issue & Cover</span>
+            <span>Share</span>
           </button>
         </div>
         ${mediaBlock(cover.coverPhotoUrl ? {type: cover.coverPhotoType || detectMediaType(cover.coverPhotoUrl), url: cover.coverPhotoUrl} : null, '[ COVER PHOTO / VIDEO ]', 'cover-photo')}
@@ -1765,10 +1935,17 @@ function buildPages() {
       html: () => `
         <h2>${back.heading || 'Want your business<br>in the next issue?'}</h2>
         <p>${back.description || 'Every issue reaches locals scrolling Instagram — no printing, no mailers, just one link people actually tap. New cities added every month.'}</p>
-        <div class="cta-box">DM <span class="handle">${back.handle || '@l_i_g_h__t'}</span>${back.ctaEnd || '<br>to reserve your spot'}</div>
-        <div style="margin-top:16px;">
+        <div class="cta-box" style="margin-bottom:14px;">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:#FFD23F;font-weight:800;margin-bottom:4px;">Reserve An Ad Spot</div>
+          <div style="font-size:12px;margin-bottom:10px;line-height:1.4;">DM <span class="handle" style="color:#FFD23F;font-weight:700;">${back.handle || '@l_i_g_h__t'}</span>${back.ctaEnd || ' to lock in your city spot'}</div>
+          <a href="https://ig.me/m/l_i_g_h__t" target="_blank" rel="noopener noreferrer" class="ig-dm-action-btn" onclick="event.stopPropagation();">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+            <span>💬 1-Tap Instagram DM</span>
+          </a>
+        </div>
+        <div>
           <button class="back-share-btn" onclick="event.stopPropagation(); triggerCurrentPageShare()">
-            ↗ Share The Spotlight With Friends
+            ↗ Share The SpotLIGHT
           </button>
         </div>
       `
@@ -1830,6 +2007,20 @@ function syncActiveVideos(){
   });
 }
 
+const CANONICAL_PUBLIC_URL = 'https://cxcx3.github.io/mag/';
+
+function getCanonicalBaseUrl() {
+  if (typeof window !== 'undefined' && window.location) {
+    const host = window.location.hostname;
+    // If running on user's real GitHub Pages site or custom domain
+    if (host.endsWith('github.io') || (host && host !== 'localhost' && !host.includes('run.app') && !host.includes('127.0.0.1'))) {
+      const cleanPath = window.location.pathname.endsWith('/') ? window.location.pathname : (window.location.pathname + '/');
+      return window.location.origin + cleanPath;
+    }
+  }
+  return CANONICAL_PUBLIC_URL;
+}
+
 function getPageSlug(idx) {
   if (idx === 0) return 'cover';
   if (idx === total - 1) return 'back';
@@ -1842,113 +2033,121 @@ function getPageSlug(idx) {
 
 function getPageShareInfo(idx) {
   const targetIdx = (typeof idx === 'number') ? idx : current;
-  const baseUrl = window.location.origin + window.location.pathname;
+  const baseUrl = getCanonicalBaseUrl();
   const slug = getPageSlug(targetIdx);
   const deepLink = `${baseUrl}#${slug}`;
 
-  if (targetIdx === 0) {
-    return {
-      title: 'The Spotlight Magazine · Wasatch Front Digital Edition',
-      text: 'Check out The Spotlight Digital Magazine — celebrating local stories, culture, and businesses across the Wasatch Front!',
-      url: deepLink,
-      storyTag: MAGAZINE.cover.issueTag || 'Wasatch Front · Digital Edition',
-      storyTitle: 'The Spotlight',
-      storySub: MAGAZINE.cover.subtitle || 'Salt Lake City → Draper'
-    };
-  }
+  let storyTag = 'The SpotLIGHT';
+  let storyTitle = 'The SpotLIGHT';
+  let storySub = 'Tap the link to check it out';
 
-  if (targetIdx === total - 1) {
-    return {
-      title: 'Get Featured in The Spotlight Magazine',
-      text: 'Reserve a spot for your business in the next issue of The Spotlight Magazine!',
-      url: deepLink,
-      storyTag: 'Feature Nomination · Next Issue',
-      storyTitle: 'Get Featured',
-      storySub: 'DM ' + (MAGAZINE.backCover.handle || '@thespotlight')
-    };
-  }
-
-  const city = MAGAZINE.cities[targetIdx - 1];
-  if (city) {
-    const modelName = city.model?.name ? `featuring ${city.model.name}` : '';
-    const bizCount = city.ads?.length ? `${city.ads.length} local spots` : '';
-    return {
-      title: `${city.name} Spotlight · The Spotlight Magazine`,
-      text: `Explore ${city.name} in The Spotlight Magazine ${modelName ? '(' + modelName + ')' : ''}! Discover top local businesses & culture.`,
-      url: deepLink,
-      storyTag: `City Spotlight · ${city.num || '0' + targetIdx}`,
-      storyTitle: city.name,
-      storySub: city.model?.name ? `Featured: ${city.model.name}` : 'Local Culture & Businesses'
-    };
+  if (targetIdx > 0 && targetIdx < total - 1) {
+    const city = MAGAZINE.cities[targetIdx - 1];
+    if (city && city.name) {
+      storyTag = `City Spotlight · ${city.num || '0' + targetIdx}`;
+      storyTitle = city.name;
+      storySub = 'The SpotLIGHT';
+    }
+  } else if (targetIdx === total - 1) {
+    storyTag = 'Next Issue';
+    storyTitle = 'Get Featured';
+    storySub = 'The SpotLIGHT';
   }
 
   return {
-    title: 'The Spotlight Magazine',
-    text: 'Check out The Spotlight Magazine!',
+    title: 'The SpotLIGHT',
+    text: 'Tap the link to check it out!',
     url: deepLink,
-    storyTag: 'Digital Edition',
-    storyTitle: 'The Spotlight',
-    storySub: 'Wasatch Front'
+    storyTag: storyTag,
+    storyTitle: storyTitle,
+    storySub: storySub
   };
 }
 
 let activeShareData = null;
+let toastTimer = null;
+
+function showToast(msg) {
+  let toast = document.getElementById('toastNotification');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'toastNotification';
+    toast.className = 'toast-notification';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    if (toast) toast.classList.remove('show');
+  }, 2600);
+}
+
+function fallbackCopyText(text) {
+  return new Promise((resolve, reject) => {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.top = '0';
+      textarea.style.left = '0';
+      textarea.style.width = '2em';
+      textarea.style.height = '2em';
+      textarea.style.padding = '0';
+      textarea.style.border = 'none';
+      textarea.style.outline = 'none';
+      textarea.style.boxShadow = 'none';
+      textarea.style.background = 'transparent';
+      textarea.setAttribute('readonly', '');
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, 99999);
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (successful) {
+        resolve(true);
+      } else {
+        reject(new Error('execCommand copy returned false'));
+      }
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function copyTextToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text).catch(() => {
+      return fallbackCopyText(text);
+    });
+  }
+  return fallbackCopyText(text);
+}
 
 function triggerCurrentPageShare(optIdx) {
   const targetIdx = (typeof optIdx === 'number') ? optIdx : current;
   const shareInfo = getPageShareInfo(targetIdx);
   activeShareData = shareInfo;
-
-  // If on mobile device with native share support, attempt native share first
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  if (isMobile && navigator.share) {
-    navigator.share({
-      title: shareInfo.title,
-      text: shareInfo.text,
-      url: shareInfo.url
-    }).catch(err => {
-      // If user aborted or if it failed, open the modal as fallback
-      if (err.name !== 'AbortError') {
-        openShareModal(shareInfo);
-      }
-    });
-    return;
-  }
-
   openShareModal(shareInfo);
 }
 
 function triggerAdShare(bizName, bizTag, cityPageIdx) {
   const pageIdx = (typeof cityPageIdx === 'number' && cityPageIdx > 0) ? cityPageIdx : current;
-  const baseUrl = window.location.origin + window.location.pathname;
+  const baseUrl = getCanonicalBaseUrl();
   const slug = getPageSlug(pageIdx);
   const deepLink = `${baseUrl}#${slug}`;
 
   const shareInfo = {
-    title: `${bizName} on The Spotlight Magazine`,
-    text: `Check out ${bizName} (${bizTag}) in The Spotlight Digital Magazine!`,
+    title: 'The SpotLIGHT',
+    text: `Check out ${bizName}! Tap the link: ${deepLink}`,
     url: deepLink,
     storyTag: `Featured Business · ${bizTag}`,
     storyTitle: bizName,
-    storySub: 'Read on The Spotlight Magazine'
+    storySub: 'The SpotLIGHT'
   };
 
   activeShareData = shareInfo;
-
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  if (isMobile && navigator.share) {
-    navigator.share({
-      title: shareInfo.title,
-      text: shareInfo.text,
-      url: shareInfo.url
-    }).catch(err => {
-      if (err.name !== 'AbortError') {
-        openShareModal(shareInfo);
-      }
-    });
-    return;
-  }
-
   openShareModal(shareInfo);
 }
 
@@ -1959,11 +2158,15 @@ function openShareModal(shareInfo) {
   const cardTitle = document.getElementById('shareCardTitle');
   const cardSub = document.getElementById('shareCardSub');
   const copyBtn = document.getElementById('shareCopyBtn');
+  const copyUrlBtn = document.getElementById('shareCopyUrlBtn');
+  const urlInput = document.getElementById('shareUrlInput');
 
   if (cardTag) cardTag.textContent = activeShareData.storyTag;
   if (cardTitle) cardTitle.textContent = activeShareData.storyTitle;
   if (cardSub) cardSub.textContent = activeShareData.storySub;
   if (copyBtn) copyBtn.innerHTML = '📋 Copy Direct Page Link';
+  if (copyUrlBtn) copyUrlBtn.textContent = 'Copy Link';
+  if (urlInput) urlInput.value = activeShareData.url;
 
   const modal = document.getElementById('shareModal');
   if (modal) modal.classList.add('show');
@@ -1978,59 +2181,71 @@ function copyActiveShareLink() {
   if (!activeShareData) activeShareData = getPageShareInfo(current);
   const url = activeShareData.url;
   
-  navigator.clipboard.writeText(url).then(() => {
+  const urlInput = document.getElementById('shareUrlInput');
+  if (urlInput) {
+    urlInput.value = url;
+    urlInput.focus();
+    urlInput.select();
+  }
+
+  copyTextToClipboard(url).then(() => {
     const copyBtn = document.getElementById('shareCopyBtn');
-    if (copyBtn) {
-      copyBtn.innerHTML = '✅ Link Copied to Clipboard!';
-      setTimeout(() => {
-        if (copyBtn) copyBtn.innerHTML = '📋 Copy Direct Page Link';
-      }, 2500);
-    }
+    const copyUrlBtn = document.getElementById('shareCopyUrlBtn');
+    if (copyBtn) copyBtn.innerHTML = '✅ Link Copied to Clipboard!';
+    if (copyUrlBtn) copyUrlBtn.textContent = '✅ Copied!';
+    setTimeout(() => {
+      if (copyBtn) copyBtn.innerHTML = '📋 Copy Direct Page Link';
+      if (copyUrlBtn) copyUrlBtn.textContent = 'Copy Link';
+    }, 2500);
     showToast('✨ Page Link Copied!');
   }).catch(() => {
-    prompt('Copy this link:', url);
+    showToast('Link highlighted — copy now!');
   });
 }
 
 function copyStoryCaptionAndGuide() {
   if (!activeShareData) activeShareData = getPageShareInfo(current);
-  const caption = `📖 Reading The Spotlight Magazine (${activeShareData.storyTitle})! Tap the link sticker below to check it out: ${activeShareData.url} #TheSpotlight #WasatchFront #LocalSpotlight`;
+  const caption = `The SpotLIGHT · Tap the link to check it out: ${activeShareData.url}`;
   
-  navigator.clipboard.writeText(caption).then(() => {
+  copyTextToClipboard(caption).then(() => {
     showToast('📸 Story Caption & Link Copied!');
-    alert('Caption copied!\n\n1. Open Instagram / TikTok Stories\n2. Add the "LINK" sticker with: ' + activeShareData.url + '\n3. Paste your copied caption!');
   }).catch(() => {
-    prompt('Copy your story caption:', caption);
+    showToast('Link ready to paste!');
   });
 }
 
 function shareViaSms() {
   if (!activeShareData) activeShareData = getPageShareInfo(current);
-  const msg = encodeURIComponent(`${activeShareData.text}\n${activeShareData.url}`);
-  window.open(`sms:?&body=${msg}`, '_blank');
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const msg = encodeURIComponent(`The SpotLIGHT · Tap the link to check it out: ${activeShareData.url}`);
+  const separator = isIOS ? '&' : '?';
+  window.location.href = `sms:${separator}body=${msg}`;
 }
 
 function shareViaWhatsApp() {
   if (!activeShareData) activeShareData = getPageShareInfo(current);
-  const text = encodeURIComponent(`${activeShareData.title}\n${activeShareData.text}\n${activeShareData.url}`);
+  const text = encodeURIComponent(`The SpotLIGHT · Tap the link to check it out: ${activeShareData.url}`);
   window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
 }
 
 function shareViaTwitter() {
   if (!activeShareData) activeShareData = getPageShareInfo(current);
-  const text = encodeURIComponent(`${activeShareData.title} - ${activeShareData.text}`);
-  const url = encodeURIComponent(activeShareData.url);
-  window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+  const text = encodeURIComponent(`The SpotLIGHT · Tap the link to check it out: ${activeShareData.url}`);
+  window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
 }
 
 function invokeNativeShare() {
   if (!activeShareData) activeShareData = getPageShareInfo(current);
   if (navigator.share) {
     navigator.share({
-      title: activeShareData.title,
-      text: activeShareData.text,
+      title: 'The SpotLIGHT',
+      text: 'Tap the link to check it out!',
       url: activeShareData.url
-    }).catch(() => {});
+    }).catch(err => {
+      if (err.name !== 'AbortError') {
+        copyActiveShareLink();
+      }
+    });
   } else {
     copyActiveShareLink();
   }
