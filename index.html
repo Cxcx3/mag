@@ -582,6 +582,90 @@ function readFileAsDataURL(file){
   });
 }
 
+function compressImageToDataURL(file, maxWidth = 1200, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith('image/')) {
+      readFileAsDataURL(file).then(resolve).catch(() => resolve(null));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        if (w > maxWidth || h > maxWidth) {
+          if (w > h) {
+            h = Math.round((h * maxWidth) / w);
+            w = maxWidth;
+          } else {
+            w = Math.round((w * maxWidth) / h);
+            h = maxWidth;
+          }
+        }
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl);
+        } catch (err) {
+          resolve(e.target?.result || null);
+        }
+      };
+      img.onerror = () => resolve(e.target?.result || null);
+      img.src = e.target?.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+function generateVideoPosterFromBlob(file) {
+  return new Promise((resolve) => {
+    try {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      const url = URL.createObjectURL(file);
+      video.src = url;
+      video.onloadeddata = () => {
+        try {
+          video.currentTime = Math.min(0.5, (video.duration || 1) / 2);
+        } catch (e) {}
+      };
+      video.onseeked = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.min(video.videoWidth || 640, 800);
+          canvas.height = Math.min(video.videoHeight || 640, 800);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const posterDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          URL.revokeObjectURL(url);
+          resolve(posterDataUrl);
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        }
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      }, 4000);
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
+
 // Open IndexedDB for local media persistence backup
 function openDB() {
   return new Promise((resolve) => {
@@ -1091,6 +1175,7 @@ function renderMediaPreview(url, type) {
 
 function mediaFieldHTML(label, fieldName, currentMedia, typeName) {
   const url = currentMedia?.url || '';
+  const poster = currentMedia?.poster || '';
   const type = currentMedia?.type || detectMediaType(url);
   return `
     <div class="ed-field full" data-media-container="${fieldName}">
@@ -1099,13 +1184,13 @@ function mediaFieldHTML(label, fieldName, currentMedia, typeName) {
         <label><input type="radio" name="${typeName}" value="image" ${type === 'image' ? 'checked' : ''}> Image</label>
         <label><input type="radio" name="${typeName}" value="video" ${type === 'video' ? 'checked' : ''}> Video</label>
       </div>
-      <input data-media-url="${fieldName}" data-image-field="${fieldName}" data-type-name="${typeName}" placeholder="Upload file below or paste web URL" value="${esc(url)}">
+      <input data-media-url="${fieldName}" data-image-field="${fieldName}" data-type-name="${typeName}" data-poster="${esc(poster)}" placeholder="Upload file below, or paste YouTube / Vimeo / Image URL" value="${esc(url)}">
       <div class="upload-box">
         <label class="upload-label-btn">
           <input type="file" accept="image/*,video/*,video/mp4,video/webm,video/quicktime,video/mov" class="upload-native-input" data-upload-target="${fieldName}" data-type-name="${typeName}">
           <span class="upload-btn-text" id="status-text-${fieldName}">📁 Tap to Choose Photo / Video</span>
         </label>
-        <span class="upload-hint">Works on iPhone, Android, and Laptop (MP4, WebM, MOV, JPG, PNG, WEBP)</span>
+        <span class="upload-hint">📸 Photos automatically embed into data.json. 🎥 For videos, you can also paste any YouTube (including Shorts) or Vimeo link!</span>
       </div>
       <div class="media-preview-box" id="preview-${fieldName}">
         ${renderMediaPreview(url, type)}
@@ -1251,22 +1336,26 @@ function saveActiveTabFields() {
       c[el.dataset.cover] = el.value || '';
     });
     
-    const coverUrl = document.querySelector('[data-media-url="cover-photo"]')?.value.trim();
+    const coverInput = document.querySelector('[data-media-url="cover-photo"]');
+    const coverUrl = coverInput?.value.trim();
     const coverType = document.querySelector('input[name="cover-type"]:checked')?.value || detectMediaType(coverUrl);
     c.coverPhotoUrl = sanitizeImageUrl(coverUrl);
     c.coverPhotoType = coverType;
     
-    const featUrl = document.querySelector('[data-media-url="cover-feature"]')?.value.trim();
+    const featInput = document.querySelector('[data-media-url="cover-feature"]');
+    const featUrl = featInput?.value.trim();
     const featType = document.querySelector('input[name="feature-type"]:checked')?.value || detectMediaType(featUrl);
     c.featureImageUrl = sanitizeImageUrl(featUrl);
     c.featureImageType = featType;
     
-    const s1Url = document.querySelector('[data-media-url="story-one"]')?.value.trim();
+    const s1Input = document.querySelector('[data-media-url="story-one"]');
+    const s1Url = s1Input?.value.trim();
     const s1Type = document.querySelector('input[name="story1-type"]:checked')?.value || detectMediaType(s1Url);
     c.articleOneImageUrl = sanitizeImageUrl(s1Url);
     c.articleOneImageType = s1Type;
     
-    const s2Url = document.querySelector('[data-media-url="story-two"]')?.value.trim();
+    const s2Input = document.querySelector('[data-media-url="story-two"]');
+    const s2Url = s2Input?.value.trim();
     const s2Type = document.querySelector('input[name="story2-type"]:checked')?.value || detectMediaType(s2Url);
     c.articleTwoImageUrl = sanitizeImageUrl(s2Url);
     c.articleTwoImageType = s2Type;
@@ -1284,20 +1373,24 @@ function saveActiveTabFields() {
       c.model = c.model || {};
       document.querySelectorAll('[data-model]').forEach(el => c.model[el.dataset.model] = el.value);
       
-      const modelUrl = document.querySelector(`[data-media-url="city-${ci}-model"]`)?.value.trim();
+      const modelInput = document.querySelector(`[data-media-url="city-${ci}-model"]`);
+      const modelUrl = modelInput?.value.trim();
+      const modelPoster = modelInput?.dataset.poster?.trim();
       const modelType = document.querySelector(`input[name="model-${ci}-type"]:checked`)?.value || detectMediaType(modelUrl);
       const cleanModel = sanitizeImageUrl(modelUrl);
-      c.model.media = cleanModel ? { type: modelType, url: cleanModel } : null;
+      c.model.media = cleanModel ? { type: modelType, url: cleanModel, poster: modelPoster || undefined } : null;
       
       document.querySelectorAll('.ad-editor[data-ai]').forEach(adEl => {
         const ai = +adEl.dataset.ai;
         const a = c.ads[ai];
         if (!a) return;
         adEl.querySelectorAll('[data-ad]').forEach(el => a[el.dataset.ad] = el.value);
-        const u = adEl.querySelector(`[data-media-url="city-${ci}-ad-${ai}"]`)?.value.trim();
+        const adInput = adEl.querySelector(`[data-media-url="city-${ci}-ad-${ai}"]`);
+        const u = adInput?.value.trim();
+        const adPoster = adInput?.dataset.poster?.trim();
         const type = adEl.querySelector(`input[name="ad-${ci}-${ai}-type"]:checked`)?.value || detectMediaType(u);
         const clean = sanitizeImageUrl(u);
-        a.media = clean ? { type, url: clean } : null;
+        a.media = clean ? { type, url: clean, poster: adPoster || undefined } : null;
       });
     }
   }
@@ -1315,39 +1408,57 @@ function bindUploadInputs(){
       const targetName = fileInput.dataset.uploadTarget;
       const typeName = fileInput.dataset.typeName;
       const statusLabel = document.getElementById('status-text-' + targetName);
-      const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|ogg|mov|m4v)$/i.test(file.name);
+      const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|ogg|mov|m4v|avi|mkv|3gp)$/i.test(file.name);
 
       if (statusLabel) {
-        statusLabel.textContent = `⏳ Uploading ${isVideo ? 'video' : 'photo'}...`;
+        statusLabel.textContent = `⏳ Processing ${isVideo ? 'video' : 'photo'}...`;
       }
 
       try {
         let finalUrl = '';
         let finalType = isVideo ? 'video' : 'image';
+        let posterUrl = '';
 
-        try {
-          // Upload to server
-          const uploadRes = await uploadMediaFile(file, (percent) => {
-            if (statusLabel) {
-              statusLabel.textContent = `⏳ Uploading ${isVideo ? 'video' : 'photo'} (${percent}%)...`;
+        if (!isVideo) {
+          // Photos: Compress to Base64 data URL so it embeds directly into data.json
+          // This makes photos work 100% reliably on mobile, GitHub Pages, and anywhere without needing server storage!
+          if (statusLabel) statusLabel.textContent = `⏳ Optimizing photo for mobile...`;
+          finalUrl = await compressImageToDataURL(file, 1200, 0.82);
+          finalType = 'image';
+        } else {
+          // Video: Generate poster thumbnail for instant mobile preview
+          if (statusLabel) statusLabel.textContent = `⏳ Generating video preview...`;
+          posterUrl = await generateVideoPosterFromBlob(file);
+
+          try {
+            // Upload to server if backend is present
+            const uploadRes = await uploadMediaFile(file, (percent) => {
+              if (statusLabel) {
+                statusLabel.textContent = `⏳ Uploading video (${percent}%)...`;
+              }
+            });
+            if (uploadRes && uploadRes.url) {
+              finalUrl = uploadRes.url;
+              finalType = uploadRes.type || 'video';
+              if (uploadRes.posterUrl) posterUrl = uploadRes.posterUrl;
             }
-          });
-          if (uploadRes && uploadRes.url) {
-            finalUrl = uploadRes.url;
-            finalType = uploadRes.type || finalType;
-          }
-        } catch (serverErr) {
-          console.warn('Server upload failed, using local object URL fallback', serverErr);
-          if (isVideo) {
-            finalUrl = URL.createObjectURL(file);
-          } else {
-            finalUrl = await readFileAsDataURL(file);
+          } catch (serverErr) {
+            console.warn('Server upload unavailable, using client fallback', serverErr);
+            if (file.size <= 4 * 1024 * 1024) {
+              finalUrl = await readFileAsDataURL(file);
+            } else {
+              finalUrl = URL.createObjectURL(file);
+              showToast('Note: Large videos need YouTube/Vimeo links or upload to your GitHub repo to show on mobile.');
+            }
           }
         }
 
         const targetInput = document.querySelector(`[data-image-field="${targetName}"]`);
         if (targetInput) {
           targetInput.value = finalUrl || '';
+          if (posterUrl) {
+            targetInput.dataset.poster = posterUrl;
+          }
           targetInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
 
@@ -1362,7 +1473,7 @@ function bindUploadInputs(){
         }
 
         if (statusLabel) {
-          statusLabel.textContent = `✅ ${isVideo ? 'Video' : 'Photo'} Added! Tap to change`;
+          statusLabel.textContent = `✅ ${isVideo ? 'Video' : 'Photo'} Ready! Tap to change`;
         }
       } catch (err) {
         console.error('File load failed', err);
