@@ -1129,20 +1129,22 @@ function mediaBlock(media, placeholderText, extraClass){
 }
 
 function standardAdHtml(a, cityIdx){
+  if (!a || typeof a !== 'object') a = {};
   const link = (a.link && a.link !== '#' && a.link.trim() !== '') ? a.link.trim() : null;
   const ctaContent = link 
-    ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${a.cta}</a>`
-    : a.cta;
+    ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${a.cta || 'Visit Website'}</a>`
+    : (a.cta || 'Visit Website');
 
-  const safeBizName = (a.name || '').replace(/'/g, "\\'");
-  const safeBizTag = (a.tag || '').replace(/'/g, "\\'");
+  const safeBizName = (a.name || 'Featured Spot').replace(/'/g, "\\'");
+  const safeBizTag = (a.tag || 'Local Spot').replace(/'/g, "\\'");
+  const placeholderLabel = (a.name || 'BUSINESS').toUpperCase();
 
   return `
     <div class="ad-card">
-      ${mediaBlock(a.media, '[ '+a.name.toUpperCase()+' PHOTO / VIDEO ]', 'ad-media')}
-      <div class="biz-name">${a.name}</div>
-      <div class="biz-tag">${a.tag}</div>
-      <div class="biz-blurb">${a.blurb}</div>
+      ${mediaBlock(a.media, '[ '+placeholderLabel+' PHOTO / VIDEO ]', 'ad-media')}
+      <div class="biz-name">${a.name || 'Local Business'}</div>
+      <div class="biz-tag">${a.tag || 'Special Offer'}</div>
+      <div class="biz-blurb">${a.blurb || ''}</div>
       <div class="biz-footer-row">
         <div class="biz-cta">${ctaContent}</div>
         <button class="ad-share-btn" onclick="event.stopPropagation(); triggerAdShare('${safeBizName}', '${safeBizTag}', ${cityIdx || 0})" title="Share this business">
@@ -1154,30 +1156,37 @@ function standardAdHtml(a, cityIdx){
 }
 
 function cityPage(c, idx){
-  const total = MAGAZINE.cities.length;
+  if (!c || typeof c !== 'object') c = {};
+  const total = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities.length : 1;
   const pageNumber = idx + 1;
-  const adsHtml = c.ads.map(a => standardAdHtml(a, pageNumber)).join('');
+  const ads = Array.isArray(c.ads) ? c.ads : [];
+  const adsHtml = ads.map(a => standardAdHtml(a, pageNumber)).join('');
+  const model = c.model || { name: '', role: '', bio: '', media: null };
+  const cityName = c.name || `City ${pageNumber}`;
+  const cityNum = c.num || String(pageNumber).padStart(2, '0');
+  const cityTheme = c.theme || `theme-c${pageNumber}`;
+
   return {
-    id: 'city-' + c.num,
-    cls: 'city-page ' + c.theme,
+    id: 'city-' + cityNum,
+    cls: 'city-page ' + cityTheme,
     html: `
       <div class="city-band">
-        <span class="cname">${c.name}</span>
+        <span class="cname">${cityName}</span>
         <div style="display:flex;align-items:center;gap:8px;">
-          <button class="city-share-pill" onclick="event.stopPropagation(); triggerCurrentPageShare(${pageNumber})" title="Share ${c.name}">
+          <button class="city-share-pill" onclick="event.stopPropagation(); triggerCurrentPageShare(${pageNumber})" title="Share ${cityName}">
             ↗ Share
           </button>
-          <span class="cnum">${c.num} / ${String(total).padStart(2,'0')}</span>
+          <span class="cnum">${cityNum} / ${String(total).padStart(2,'0')}</span>
         </div>
       </div>
       <div class="stamp">Local Spotlight</div>
       <div class="section-label">Featured Face</div>
       <div class="spotlight-card">
-        ${mediaBlock(c.model.media, '[ MODEL PHOTO / VIDEO ]', 'spotlight-photo')}
+        ${mediaBlock(model.media, '[ MODEL PHOTO / VIDEO ]', 'spotlight-photo')}
         <div class="spotlight-info">
-          <p class="name">${c.model.name}</p>
-          <p class="role">${c.model.role}</p>
-          <p class="bio">${c.model.bio}</p>
+          <p class="name">${model.name || ''}</p>
+          <p class="role">${model.role || ''}</p>
+          <p class="bio">${model.bio || ''}</p>
         </div>
       </div>
       <div class="section-label">This Month's Businesses</div>
@@ -1707,52 +1716,56 @@ const nextBtn = document.getElementById('nextBtn');
 const pageCountEl = document.getElementById('pageCount');
 
 function buildPages() {
+  const cover = MAGAZINE?.cover || DEFAULT_MAGAZINE.cover;
+  const back = MAGAZINE?.backCover || DEFAULT_MAGAZINE.backCover;
+  const cities = Array.isArray(MAGAZINE?.cities) ? MAGAZINE.cities : DEFAULT_MAGAZINE.cities;
+
   PAGES = [
     {
       id: 'cover',
       cls: 'cover',
       html: () => `
-        <div class="top-tag">${MAGAZINE.cover.issueTag || ''}</div>
-        <div class="title">${MAGAZINE.cover.mainText || 'The '}<br>${MAGAZINE.cover.highlight || 'Spotlight'}<span class="hi">.</span></div>
-        <div class="sub">${MAGAZINE.cover.subtitle || ''}</div>
+        <div class="top-tag">${cover.issueTag || 'Wasatch Front · Digital Edition'}</div>
+        <div class="title">${cover.mainText || 'The '}<br>${cover.highlight || 'Spotlight'}<span class="hi">.</span></div>
+        <div class="sub">${cover.subtitle || 'Salt Lake City → Draper'}</div>
         <div class="cover-share-bar">
           <button class="cover-share-btn" onclick="event.stopPropagation(); triggerCurrentPageShare(0)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
             <span>Share Issue & Cover</span>
           </button>
         </div>
-        ${mediaBlock(MAGAZINE.cover.coverPhotoUrl ? {type: MAGAZINE.cover.coverPhotoType || detectMediaType(MAGAZINE.cover.coverPhotoUrl), url: MAGAZINE.cover.coverPhotoUrl} : null, '[ COVER PHOTO / VIDEO ]', 'cover-photo')}
+        ${mediaBlock(cover.coverPhotoUrl ? {type: cover.coverPhotoType || detectMediaType(cover.coverPhotoUrl), url: cover.coverPhotoUrl} : null, '[ COVER PHOTO / VIDEO ]', 'cover-photo')}
         <div class="cover-story-grid">
           <div class="cover-story-card">
             <div class="mini-label">Feature</div>
-            <h3>${MAGAZINE.cover.featureTitle || 'This month’s local stories'}</h3>
-            <p>${MAGAZINE.cover.featureSummary || 'Add a feature summary here.'}</p>
-            ${mediaBlock(MAGAZINE.cover.featureImageUrl ? {type: MAGAZINE.cover.featureImageType || detectMediaType(MAGAZINE.cover.featureImageUrl), url: MAGAZINE.cover.featureImageUrl} : null, '[ FEATURE MEDIA ]', 'story-media')}
+            <h3>${cover.featureTitle || 'This month’s local stories'}</h3>
+            <p>${cover.featureSummary || 'Add a feature summary here.'}</p>
+            ${mediaBlock(cover.featureImageUrl ? {type: cover.featureImageType || detectMediaType(cover.featureImageUrl), url: cover.featureImageUrl} : null, '[ FEATURE MEDIA ]', 'story-media')}
           </div>
           <div class="cover-story-card">
             <div class="mini-label">Story 1</div>
-            <h3>${MAGAZINE.cover.articleOneTitle || 'City Notes'}</h3>
-            <p>${MAGAZINE.cover.articleOneText || 'Add the first article summary here.'}</p>
-            ${mediaBlock(MAGAZINE.cover.articleOneImageUrl ? {type: MAGAZINE.cover.articleOneImageType || detectMediaType(MAGAZINE.cover.articleOneImageUrl), url: MAGAZINE.cover.articleOneImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
+            <h3>${cover.articleOneTitle || 'City Notes'}</h3>
+            <p>${cover.articleOneText || 'Add the first article summary here.'}</p>
+            ${mediaBlock(cover.articleOneImageUrl ? {type: cover.articleOneImageType || detectMediaType(cover.articleOneImageUrl), url: cover.articleOneImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
           </div>
           <div class="cover-story-card">
             <div class="mini-label">Story 2</div>
-            <h3>${MAGAZINE.cover.articleTwoTitle || 'Next up'}</h3>
-            <p>${MAGAZINE.cover.articleTwoText || 'Add a second article summary here.'}</p>
-            ${mediaBlock(MAGAZINE.cover.articleTwoImageUrl ? {type: MAGAZINE.cover.articleTwoImageType || detectMediaType(MAGAZINE.cover.articleTwoImageUrl), url: MAGAZINE.cover.articleTwoImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
+            <h3>${cover.articleTwoTitle || 'Next up'}</h3>
+            <p>${cover.articleTwoText || 'Add a second article summary here.'}</p>
+            ${mediaBlock(cover.articleTwoImageUrl ? {type: cover.articleTwoImageType || detectMediaType(cover.articleTwoImageUrl), url: cover.articleTwoImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
           </div>
         </div>
         <div class="flip-hint">Tap or swipe to flip →</div>
       `
     },
-    ...MAGAZINE.cities.map((city, idx) => cityPage(city, idx)),
+    ...cities.map((city, idx) => cityPage(city, idx)),
     {
       id: 'back',
       cls: 'back-cover',
       html: () => `
-        <h2>${MAGAZINE.backCover.heading}</h2>
-        <p>${MAGAZINE.backCover.description}</p>
-        <div class="cta-box">DM <span class="handle">${MAGAZINE.backCover.handle}</span>${MAGAZINE.backCover.ctaEnd}</div>
+        <h2>${back.heading || 'Want your business<br>in the next issue?'}</h2>
+        <p>${back.description || 'Every issue reaches locals scrolling Instagram — no printing, no mailers, just one link people actually tap. New cities added every month.'}</p>
+        <div class="cta-box">DM <span class="handle">${back.handle || '@l_i_g_h__t'}</span>${back.ctaEnd || '<br>to reserve your spot'}</div>
         <div style="margin-top:16px;">
           <button class="back-share-btn" onclick="event.stopPropagation(); triggerCurrentPageShare()">
             ↗ Share The Spotlight With Friends
@@ -2270,6 +2283,14 @@ function boot() {
   if (typeof editorToggle !== 'undefined' && editorToggle) {
     editorToggle.style.display = 'block';
   }
+  // Render default content synchronously immediately so the screen is NEVER blank
+  try {
+    applyMagazineUpdates();
+  } catch (e) {
+    console.warn('Initial synchronous render notice:', e);
+  }
+
+  // Load custom saved / data.json data
   start().catch(err => {
     console.error('Error starting magazine:', err);
     MAGAZINE = cloneData(DEFAULT_MAGAZINE);
