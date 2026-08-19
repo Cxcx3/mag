@@ -213,4 +213,15 @@
     "handle": "@l_i_g_h__t",
     "ctaEnd": "<br>to reserve your spot"
   }
+} 
+{
+  "name": "text ",
+  "tag": "C & B",
+  "blurb": "Fresh  in downtown.",
+  "cta": "Order Online Now",
+  "link": "https://www.youtube.com/",
+  "media": {
+    "type": "image",
+    "url": "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb"
+  }
 }
