@@ -212,6 +212,7 @@
     "ctaText": "DM ",
     "handle": "@l_i_g_h__t",
     "ctaEnd": "<br>to reserve your spot"
+    "ctaEnd": "<br><br><div style='display:flex;flex-direction:column;gap:10px;'><a href='https://instagram.com/yourhandle' target='_blank' style='background:#FFD23F;color:#14121A;padding:10px;border-radius:8px;text-decoration:none;font-weight:bold;">📸 Follow on Instagram</a><a
   }
 } 
 {
