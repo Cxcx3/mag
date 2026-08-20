@@ -110,8 +110,8 @@
     margin-right: auto !important;
     align-self: center;
     aspect-ratio: 3 / 4.6;
-    perspective: 2000px;
-    -webkit-perspective: 2000px;
+    perspective: 2200px;
+    -webkit-perspective: 2200px;
     touch-action: pan-y;
   }
   .book{
@@ -125,20 +125,18 @@
     -webkit-transform-origin: left center;
     -webkit-transform-style: preserve-3d;
     transform-style: preserve-3d;
-    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-    -webkit-transition: -webkit-transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-    transform: rotateY(0deg) translateZ(0);
-    -webkit-transform: rotateY(0deg) translateZ(0);
+    transition: transform 0.52s cubic-bezier(0.25, 1, 0.5, 1);
+    -webkit-transition: -webkit-transform 0.52s cubic-bezier(0.25, 1, 0.5, 1);
+    transform: rotateY(0deg);
+    -webkit-transform: rotateY(0deg);
     border-radius: 8px;
     box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.18);
     will-change: transform;
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
     pointer-events: none;
   }
   .page.flipped{
-    transform: rotateY(-180deg) translateZ(0);
-    -webkit-transform: rotateY(-180deg) translateZ(0);
+    transform: rotateY(-180deg);
+    -webkit-transform: rotateY(-180deg);
     pointer-events: none;
   }
   .page.active-page{
@@ -151,10 +149,12 @@
     border-radius: 8px;
     overflow: hidden;
     display: flex; flex-direction: column;
+    transform: rotateY(0deg);
+    -webkit-transform: rotateY(0deg);
   }
   .face.back{
-    transform: rotateY(180deg) translateZ(0);
-    -webkit-transform: rotateY(180deg) translateZ(0);
+    transform: rotateY(180deg);
+    -webkit-transform: rotateY(180deg);
     background:
       repeating-linear-gradient(135deg, rgba(0,0,0,0.04) 0 2px, transparent 2px 14px),
       var(--paper);
@@ -2461,21 +2461,45 @@ function invokeNativeShare() {
   }
 }
 
+const flipTimeouts = {};
+
 function render(){
   PAGES.forEach((p, idx) => {
     const el = document.getElementById('page-' + idx);
     if (!el) return;
-    const flipped = idx < current;
+    const wasFlipped = el.classList.contains('flipped');
+    const isFlipped = idx < current;
     const isActive = (idx === current);
-    el.classList.toggle('flipped', flipped);
+
+    if (flipTimeouts[idx]) {
+      clearTimeout(flipTimeouts[idx]);
+      delete flipTimeouts[idx];
+    }
+
+    if (wasFlipped !== isFlipped) {
+      // Elevate the moving page during 3D flip animation so it never clips under the rest of the book
+      el.style.zIndex = (total + 20);
+      el.classList.add('is-flipping');
+      flipTimeouts[idx] = setTimeout(() => {
+        el.classList.remove('is-flipping');
+        el.style.zIndex = isFlipped ? (idx + 1) : (total - idx + 1);
+        delete flipTimeouts[idx];
+      }, 540);
+    } else if (!el.classList.contains('is-flipping')) {
+      el.style.zIndex = isFlipped ? (idx + 1) : (total - idx + 1);
+    }
+
+    el.classList.toggle('flipped', isFlipped);
     el.classList.toggle('active-page', isActive);
-    el.style.zIndex = flipped ? (idx + 1) : (total - idx + 1);
   });
+
   [...dotsEl.children].forEach((d, idx) => d.classList.toggle('active', idx === current));
   prevBtn.disabled = current === 0;
   nextBtn.disabled = current === total - 1;
   pageCountEl.textContent = `Page ${current + 1} of ${total}`;
-  syncActiveVideos();
+  
+  // Smoothly sync videos after transition begins to prevent GPU frame stutter
+  setTimeout(syncActiveVideos, 120);
 
   const activePage = document.getElementById('page-' + current);
   if (activePage) {
