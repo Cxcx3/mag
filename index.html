@@ -134,10 +134,15 @@
     will-change: transform;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
+    pointer-events: none;
   }
   .page.flipped{
     transform: rotateY(-180deg) translateZ(0);
     -webkit-transform: rotateY(-180deg) translateZ(0);
+    pointer-events: none;
+  }
+  .page.active-page{
+    pointer-events: auto;
   }
   .face{
     position: absolute; inset: 0;
@@ -146,8 +151,6 @@
     border-radius: 8px;
     overflow: hidden;
     display: flex; flex-direction: column;
-    -webkit-transform: translate3d(0,0,0);
-    transform: translate3d(0,0,0);
   }
   .face.back{
     transform: rotateY(180deg) translateZ(0);
@@ -165,30 +168,39 @@
   .sheet{
     width: 100%;
     height: 100%;
-    padding: 20px 16px;
+    padding: 20px 16px 32px;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     overscroll-behavior-x: none;
+    touch-action: pan-y;
     position: relative;
-    display: flex;
-    flex-direction: column;
+    display: block;
+    box-sizing: border-box;
     scrollbar-width: thin;
-    scrollbar-color: rgba(20,18,26,0.18) transparent;
+    scrollbar-color: rgba(255, 210, 63, 0.4) transparent;
   }
   .sheet::-webkit-scrollbar {
-    width: 3px;
+    width: 4px;
   }
   .sheet::-webkit-scrollbar-thumb {
+    background: rgba(255, 210, 63, 0.4);
+    border-radius: 4px;
+  }
+  .city-page .sheet {
+    scrollbar-color: rgba(20,18,26,0.2) transparent;
+  }
+  .city-page .sheet::-webkit-scrollbar-thumb {
     background: rgba(20,18,26,0.2);
-    border-radius: 3px;
   }
   .sheet-inner{
     width: 100%;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
     min-height: 100%;
+    padding-bottom: 24px;
   }
 
   .media-box{
@@ -205,10 +217,11 @@
   .media-box.placeholder span{
     font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.85); font-weight: 700; padding: 0 12px; line-height: 1.4;
   }
-  .cover{ background: var(--ink); color: var(--paper); justify-content: space-between; position: relative;}
+  .cover{ background: var(--ink); color: var(--paper); position: relative;}
   .cover::before{
     content: ""; position: absolute; top: -40px; right: -60px; width: 220px; height: 220px;
     background: var(--coral); border-radius: 50%; filter: blur(10px); opacity: 0.35;
+    pointer-events: none;
   }
   .cover .top-tag{
     font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--cyan); font-weight: 600;
@@ -218,24 +231,21 @@
     text-transform: uppercase; margin: 10px 0 4px; position: relative; z-index: 1;
   }
   .cover .title .hi{color: var(--coral);}
-  .cover .sub{ font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--yellow); font-weight: 600; margin-bottom: 16px;}
+  .cover .sub{ font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--yellow); font-weight: 600; margin-bottom: 12px;}
   .cover-photo{
-    flex: 1; margin: 6px 0 14px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 8px 0 14px;
     border: 3px solid var(--yellow);
-    min-height: 180px;
+    flex: 1;
+    min-height: 240px;
+    border-radius: 8px;
+    overflow: hidden;
   }
-  .cover-story-grid{ display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
-  .cover-story-card{
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; padding: 12px;
-    color: var(--paper);
-  }
-  .cover-story-card .mini-label{ font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--cyan); font-weight: 700; margin-bottom: 8px; }
-  .cover-story-card h3{ margin: 0 0 8px; font-family: 'Anton', sans-serif; font-size: 20px; line-height: 1; text-transform: uppercase; }
-  .cover-story-card p{ margin: 0; font-size: 12px; line-height: 1.5; color: rgba(245,241,232,0.82); }
-  .cover-story-card .story-media{ margin-top: 10px; height: 120px; border-radius: 8px; overflow: hidden; border: 2px solid rgba(255,210,63,0.7); }
   .cover .flip-hint{
     font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--paper); opacity: 0.7;
-    display: flex; align-items: center; gap: 6px; margin-top: 10px;
+    display: flex; align-items: center; gap: 6px; margin-top: 8px; margin-bottom: 4px;
   }
   .city-page{ background: var(--paper); }
   .city-band{
@@ -2035,26 +2045,6 @@ function buildPages() {
           </button>
         </div>
         ${mediaBlock(cover.coverPhotoUrl ? {type: cover.coverPhotoType || detectMediaType(cover.coverPhotoUrl), url: cover.coverPhotoUrl} : null, '[ COVER PHOTO / VIDEO ]', 'cover-photo')}
-        <div class="cover-story-grid">
-          <div class="cover-story-card">
-            <div class="mini-label">Feature</div>
-            <h3>${cover.featureTitle || 'This month’s local stories'}</h3>
-            <p>${cover.featureSummary || 'Add a feature summary here.'}</p>
-            ${mediaBlock(cover.featureImageUrl ? {type: cover.featureImageType || detectMediaType(cover.featureImageUrl), url: cover.featureImageUrl} : null, '[ FEATURE MEDIA ]', 'story-media')}
-          </div>
-          <div class="cover-story-card">
-            <div class="mini-label">Story 1</div>
-            <h3>${cover.articleOneTitle || 'City Notes'}</h3>
-            <p>${cover.articleOneText || 'Add the first article summary here.'}</p>
-            ${mediaBlock(cover.articleOneImageUrl ? {type: cover.articleOneImageType || detectMediaType(cover.articleOneImageUrl), url: cover.articleOneImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
-          </div>
-          <div class="cover-story-card">
-            <div class="mini-label">Story 2</div>
-            <h3>${cover.articleTwoTitle || 'Next up'}</h3>
-            <p>${cover.articleTwoText || 'Add a second article summary here.'}</p>
-            ${mediaBlock(cover.articleTwoImageUrl ? {type: cover.articleTwoImageType || detectMediaType(cover.articleTwoImageUrl), url: cover.articleTwoImageUrl} : null, '[ STORY MEDIA ]', 'story-media')}
-          </div>
-        </div>
         <div class="flip-hint">Tap or swipe to flip →</div>
       `
     },
@@ -2476,7 +2466,9 @@ function render(){
     const el = document.getElementById('page-' + idx);
     if (!el) return;
     const flipped = idx < current;
+    const isActive = (idx === current);
     el.classList.toggle('flipped', flipped);
+    el.classList.toggle('active-page', isActive);
     el.style.zIndex = flipped ? (idx + 1) : (total - idx + 1);
   });
   [...dotsEl.children].forEach((d, idx) => d.classList.toggle('active', idx === current));
@@ -2545,70 +2537,134 @@ function applyMagazineUpdates() {
   render();
 }
 
-// Ultra-Smooth 120fps Gesture Engine with Direction-Aware Axis Locking
+// Direction-Aware Gesture & Sheet Scrolling Engine
 let gestureStartX = 0;
 let gestureStartY = 0;
 let gestureStartTime = 0;
+let gestureStartScrollTop = 0;
 let isHorizontalSwipe = false;
 let isVerticalScroll = false;
 let gestureMoved = false;
 
-function isInteractiveTarget(target) {
-  if (!target) return false;
-  return !!target.closest('a, button, input, textarea, select, .like-interactive-btn, .ig-dm-action-btn, .biz-link, .back-share-btn');
+function getActiveSheet() {
+  const activePage = document.getElementById('page-' + current);
+  return activePage ? activePage.querySelector('.sheet') : null;
 }
 
 const bookWrap = document.querySelector('.book-wrap');
 if (bookWrap) {
+  // Mobile Touch Gestures
   bookWrap.addEventListener('touchstart', e => {
     if (e.touches.length !== 1) return;
-    gestureStartX = e.touches[0].clientX;
-    gestureStartY = e.touches[0].clientY;
+    const t = e.touches[0];
+    gestureStartX = t.clientX;
+    gestureStartY = t.clientY;
     gestureStartTime = performance.now();
+    const sheet = getActiveSheet();
+    gestureStartScrollTop = sheet ? sheet.scrollTop : 0;
     isHorizontalSwipe = false;
     isVerticalScroll = false;
     gestureMoved = false;
   }, { passive: true });
 
   bookWrap.addEventListener('touchmove', e => {
-    if (e.touches.length !== 1 || isVerticalScroll) return;
-    const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
-    const dx = currentX - gestureStartX;
-    const dy = currentY - gestureStartY;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - gestureStartX;
+    const dy = t.clientY - gestureStartY;
 
     if (!gestureMoved) {
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 7) {
+      const dist = Math.hypot(dx, dy);
+      if (dist > 6) {
         gestureMoved = true;
-        // Direction locking: If horizontal movement dominates, lock to page flip!
-        if (Math.abs(dx) > Math.abs(dy) * 1.15 && Math.abs(dx) > 8) {
+        if (Math.abs(dx) > Math.abs(dy) * 1.25) {
           isHorizontalSwipe = true;
         } else {
           isVerticalScroll = true;
         }
       }
     }
-  }, { passive: true });
+
+    if (isHorizontalSwipe) {
+      if (e.cancelable) e.preventDefault();
+    } else if (isVerticalScroll) {
+      const sheet = getActiveSheet();
+      if (sheet && sheet.scrollHeight > sheet.clientHeight) {
+        sheet.scrollTop = gestureStartScrollTop - dy;
+      }
+    }
+  }, { passive: false });
 
   bookWrap.addEventListener('touchend', e => {
-    if (!isHorizontalSwipe) return;
-    const endX = e.changedTouches[0].clientX;
-    const endY = e.changedTouches[0].clientY;
-    const dx = endX - gestureStartX;
-    const dt = Math.max(1, performance.now() - gestureStartTime);
-    const speed = Math.abs(dx) / dt;
+    if (isHorizontalSwipe && e.changedTouches.length === 1) {
+      const endX = e.changedTouches[0].clientX;
+      const dx = endX - gestureStartX;
+      const dt = Math.max(1, performance.now() - gestureStartTime);
+      const speed = Math.abs(dx) / dt;
 
-    // Fast flick or distinct swipe threshold
-    if (dx < -32 || (dx < -18 && speed > 0.28)) {
-      nextPage();
-    } else if (dx > 32 || (dx > 18 && speed > 0.28)) {
-      prevPage();
+      if (dx < -30 || (dx < -16 && speed > 0.25)) {
+        nextPage();
+      } else if (dx > 30 || (dx > 16 && speed > 0.25)) {
+        prevPage();
+      }
     }
     isHorizontalSwipe = false;
     isVerticalScroll = false;
     gestureMoved = false;
   }, { passive: true });
+
+  // Mouse wheel & trackpad scroll
+  bookWrap.addEventListener('wheel', e => {
+    const sheet = getActiveSheet();
+    if (sheet) {
+      sheet.scrollTop += e.deltaY;
+      if (sheet.scrollHeight > sheet.clientHeight) {
+        e.preventDefault();
+      }
+    }
+  }, { passive: false });
+
+  // Desktop click & drag scroll
+  let isMouseDown = false;
+  let mouseStartX = 0;
+  let mouseStartY = 0;
+  let mouseStartScrollTop = 0;
+  let mouseMoved = false;
+
+  bookWrap.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.closest('a, button, input, textarea, select, .like-interactive-btn, .ig-dm-action-btn, .biz-link, .back-share-btn')) return;
+    isMouseDown = true;
+    mouseMoved = false;
+    mouseStartX = e.clientX;
+    mouseStartY = e.clientY;
+    const sheet = getActiveSheet();
+    mouseStartScrollTop = sheet ? sheet.scrollTop : 0;
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!isMouseDown) return;
+    const dx = e.clientX - mouseStartX;
+    const dy = e.clientY - mouseStartY;
+    if (Math.hypot(dx, dy) > 5) mouseMoved = true;
+    if (mouseMoved) {
+      const sheet = getActiveSheet();
+      if (sheet && Math.abs(dy) >= Math.abs(dx)) {
+        sheet.scrollTop = mouseStartScrollTop - dy;
+      }
+    }
+  });
+
+  window.addEventListener('mouseup', e => {
+    if (!isMouseDown) return;
+    isMouseDown = false;
+    const dx = e.clientX - mouseStartX;
+    const dy = e.clientY - mouseStartY;
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 45) {
+      if (dx < 0) nextPage();
+      else prevPage();
+    }
+  });
 }
 
 document.addEventListener('keydown', e => {
