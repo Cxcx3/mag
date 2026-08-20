@@ -166,29 +166,82 @@
     width: 100%;
     height: 100%;
     padding: 20px 16px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
-    overscroll-behavior-x: none;
+    overflow: hidden;
     position: relative;
     display: flex;
     flex-direction: column;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(20,18,26,0.18) transparent;
+    touch-action: none;
+    cursor: grab;
+    -webkit-user-select: none;
+    user-select: none;
   }
-  .sheet::-webkit-scrollbar {
-    width: 3px;
-  }
-  .sheet::-webkit-scrollbar-thumb {
-    background: rgba(20,18,26,0.2);
-    border-radius: 3px;
+  .sheet:active {
+    cursor: grabbing;
   }
   .sheet-inner{
     width: 100%;
     display: flex;
     flex-direction: column;
     min-height: 100%;
+    will-change: transform;
+    transform: translate3d(0, 0px, 0);
+  }
+  .sheet-scrollbar {
+    position: absolute;
+    right: 4px;
+    top: 10px;
+    bottom: 10px;
+    width: 4px;
+    border-radius: 4px;
+    background: rgba(20, 18, 26, 0.08);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 100;
+  }
+  .sheet-scrollbar.visible {
+    opacity: 1;
+  }
+  .sheet-scroll-thumb {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 30px;
+    border-radius: 4px;
+    background: rgba(20, 18, 26, 0.4);
+    will-change: transform;
+    transform: translate3d(0, 0px, 0);
+  }
+  .scroll-down-hint {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 18, 26, 0.88);
+    color: #FFD23F;
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    pointer-events: none;
+    z-index: 120;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    animation: bounceHint 1.8s infinite ease-in-out;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .scroll-down-hint.show {
+    opacity: 1;
+  }
+  @keyframes bounceHint {
+    0%, 100% { transform: translate(-50%, 0); }
+    50% { transform: translate(-50%, -4px); }
   }
 
   .media-box{
@@ -2109,8 +2162,10 @@ function renderPageContent(){
     const html = typeof p.html === 'function' ? p.html() : p.html;
     pageEl.innerHTML = `
       <div class="face front ${p.cls}">
-        <div class="sheet">
+        <div class="sheet" data-page-idx="${idx}">
           <div class="sheet-inner">${html}</div>
+          <div class="sheet-scrollbar"><div class="sheet-scroll-thumb"></div></div>
+          <div class="scroll-down-hint">↓ Scroll to read</div>
         </div>
       </div>
       <div class="face back"><div class="mark">Spotlight</div></div>`;
@@ -2471,6 +2526,51 @@ function invokeNativeShare() {
   }
 }
 
+const pageScrolls = {};
+
+function setPageScroll(pageIdx, targetY) {
+  if (typeof pageScrolls[pageIdx] !== 'number') pageScrolls[pageIdx] = 0;
+  const pageEl = document.getElementById('page-' + pageIdx);
+  if (!pageEl) return;
+  const sheet = pageEl.querySelector('.sheet');
+  const inner = pageEl.querySelector('.sheet-inner');
+  const scrollbar = pageEl.querySelector('.sheet-scrollbar');
+  const thumb = pageEl.querySelector('.sheet-scroll-thumb');
+  const hint = pageEl.querySelector('.scroll-down-hint');
+  if (!sheet || !inner) return;
+
+  const sheetH = sheet.clientHeight || 1;
+  const innerH = inner.scrollHeight || 1;
+  const maxScroll = Math.max(0, innerH - sheetH + 16);
+  
+  const clampedY = Math.max(-maxScroll, Math.min(0, targetY));
+  pageScrolls[pageIdx] = clampedY;
+
+  inner.style.transform = `translate3d(0, ${clampedY}px, 0)`;
+
+  if (maxScroll > 15) {
+    if (scrollbar) scrollbar.classList.add('visible');
+    if (thumb) {
+      const trackH = Math.max(10, sheetH - 20);
+      const thumbH = Math.max(24, Math.min(trackH * 0.75, trackH * (sheetH / innerH)));
+      thumb.style.height = thumbH + 'px';
+      const progress = maxScroll > 0 ? (-clampedY / maxScroll) : 0;
+      const thumbY = progress * (trackH - thumbH);
+      thumb.style.transform = `translate3d(0, ${thumbY}px, 0)`;
+    }
+    if (hint) {
+      if (clampedY < -15) {
+        hint.classList.remove('show');
+      } else {
+        hint.classList.add('show');
+      }
+    }
+  } else {
+    if (scrollbar) scrollbar.classList.remove('visible');
+    if (hint) hint.classList.remove('show');
+  }
+}
+
 function render(){
   PAGES.forEach((p, idx) => {
     const el = document.getElementById('page-' + idx);
@@ -2485,13 +2585,8 @@ function render(){
   pageCountEl.textContent = `Page ${current + 1} of ${total}`;
   syncActiveVideos();
 
-  const activePage = document.getElementById('page-' + current);
-  if (activePage) {
-    const sheet = activePage.querySelector('.sheet');
-    if (sheet && sheet.scrollTop > 0) {
-      sheet.scrollTop = 0;
-    }
-  }
+  // Reset scroll position to top when navigating pages
+  setPageScroll(current, 0);
 
   // Update URL hash for deep-linking seamlessly without history pollution
   if (window.history && window.history.replaceState) {
@@ -2543,72 +2638,176 @@ function applyMagazineUpdates() {
   buildPages();
   renderPageContent();
   render();
+  initUnifiedGestureEngine();
 }
 
-// Ultra-Smooth 120fps Gesture Engine with Direction-Aware Axis Locking
-let gestureStartX = 0;
-let gestureStartY = 0;
-let gestureStartTime = 0;
-let isHorizontalSwipe = false;
-let isVerticalScroll = false;
-let gestureMoved = false;
+function initUnifiedGestureEngine() {
+  const bookWrap = document.querySelector('.book-wrap');
+  if (!bookWrap || bookWrap.dataset.engineReady) return;
+  bookWrap.dataset.engineReady = '1';
 
-function isInteractiveTarget(target) {
-  if (!target) return false;
-  return !!target.closest('a, button, input, textarea, select, .like-interactive-btn, .ig-dm-action-btn, .biz-link, .back-share-btn');
-}
+  let startX = 0;
+  let startY = 0;
+  let lastY = 0;
+  let lastTime = 0;
+  let gestureMode = 'none'; // 'none' | 'scroll' | 'swipe'
+  let velocityY = 0;
+  let scrollRafId = null;
+  let isDraggingMouse = false;
 
-const bookWrap = document.querySelector('.book-wrap');
-if (bookWrap) {
+  function stopMomentum() {
+    if (scrollRafId) {
+      cancelAnimationFrame(scrollRafId);
+      scrollRafId = null;
+    }
+  }
+
+  function runMomentum(startVel, pageIdx) {
+    stopMomentum();
+    let v = startVel;
+    function step() {
+      if (Math.abs(v) < 0.25 || current !== pageIdx) {
+        stopMomentum();
+        return;
+      }
+      v *= 0.92;
+      const curY = pageScrolls[pageIdx] || 0;
+      setPageScroll(pageIdx, curY + v);
+      scrollRafId = requestAnimationFrame(step);
+    }
+    scrollRafId = requestAnimationFrame(step);
+  }
+
+  // --- TOUCH HANDLERS (Mobile) ---
   bookWrap.addEventListener('touchstart', e => {
     if (e.touches.length !== 1) return;
-    gestureStartX = e.touches[0].clientX;
-    gestureStartY = e.touches[0].clientY;
-    gestureStartTime = performance.now();
-    isHorizontalSwipe = false;
-    isVerticalScroll = false;
-    gestureMoved = false;
+    stopMomentum();
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+    lastY = t.clientY;
+    lastTime = performance.now();
+    gestureMode = 'none';
+    velocityY = 0;
   }, { passive: true });
 
   bookWrap.addEventListener('touchmove', e => {
-    if (e.touches.length !== 1 || isVerticalScroll) return;
-    const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
-    const dx = currentX - gestureStartX;
-    const dy = currentY - gestureStartY;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    const now = performance.now();
+    const dt = Math.max(1, now - lastTime);
 
-    if (!gestureMoved) {
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > 7) {
-        gestureMoved = true;
-        // Direction locking: If horizontal movement dominates, lock to page flip!
-        if (Math.abs(dx) > Math.abs(dy) * 1.15 && Math.abs(dx) > 8) {
-          isHorizontalSwipe = true;
+    if (gestureMode === 'none') {
+      const dist = Math.hypot(dx, dy);
+      if (dist > 6) {
+        if (Math.abs(dy) >= Math.abs(dx) * 0.85) {
+          gestureMode = 'scroll';
         } else {
-          isVerticalScroll = true;
+          gestureMode = 'swipe';
         }
       }
+    }
+
+    if (gestureMode === 'scroll') {
+      const deltaY = t.clientY - lastY;
+      velocityY = (deltaY / dt) * 16;
+      lastY = t.clientY;
+      lastTime = now;
+
+      const pageIdx = current;
+      const curY = pageScrolls[pageIdx] || 0;
+      setPageScroll(pageIdx, curY + deltaY);
     }
   }, { passive: true });
 
   bookWrap.addEventListener('touchend', e => {
-    if (!isHorizontalSwipe) return;
-    const endX = e.changedTouches[0].clientX;
-    const endY = e.changedTouches[0].clientY;
-    const dx = endX - gestureStartX;
-    const dt = Math.max(1, performance.now() - gestureStartTime);
-    const speed = Math.abs(dx) / dt;
-
-    // Fast flick or distinct swipe threshold
-    if (dx < -32 || (dx < -18 && speed > 0.28)) {
-      nextPage();
-    } else if (dx > 32 || (dx > 18 && speed > 0.28)) {
-      prevPage();
+    if (gestureMode === 'swipe') {
+      const endX = e.changedTouches[0].clientX;
+      const dx = endX - startX;
+      const dt = Math.max(1, performance.now() - (lastTime || performance.now()));
+      const speed = Math.abs(dx) / dt;
+      if (dx < -30 || (dx < -16 && speed > 0.25)) {
+        nextPage();
+      } else if (dx > 30 || (dx > 18 && speed > 0.25)) {
+        prevPage();
+      }
+    } else if (gestureMode === 'scroll') {
+      if (Math.abs(velocityY) > 0.5) {
+        runMomentum(velocityY, current);
+      }
     }
-    isHorizontalSwipe = false;
-    isVerticalScroll = false;
-    gestureMoved = false;
+    gestureMode = 'none';
   }, { passive: true });
+
+  // --- DESKTOP WHEEL HANDLER ---
+  bookWrap.addEventListener('wheel', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    stopMomentum();
+    const pageIdx = current;
+    const curY = pageScrolls[pageIdx] || 0;
+    setPageScroll(pageIdx, curY - e.deltaY * 0.85);
+  }, { passive: false });
+
+  // --- DESKTOP MOUSE DRAG HANDLER ---
+  bookWrap.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.closest('a, button, input, textarea, select, .like-interactive-btn, .ig-dm-action-btn, .biz-link, .back-share-btn')) return;
+    stopMomentum();
+    isDraggingMouse = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    lastY = e.clientY;
+    lastTime = performance.now();
+    gestureMode = 'none';
+    velocityY = 0;
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!isDraggingMouse) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const now = performance.now();
+    const dt = Math.max(1, now - lastTime);
+
+    if (gestureMode === 'none') {
+      const dist = Math.hypot(dx, dy);
+      if (dist > 5) {
+        if (Math.abs(dy) >= Math.abs(dx) * 0.85) {
+          gestureMode = 'scroll';
+        } else {
+          gestureMode = 'swipe';
+        }
+      }
+    }
+
+    if (gestureMode === 'scroll') {
+      const deltaY = e.clientY - lastY;
+      velocityY = (deltaY / dt) * 16;
+      lastY = e.clientY;
+      lastTime = now;
+      const pageIdx = current;
+      const curY = pageScrolls[pageIdx] || 0;
+      setPageScroll(pageIdx, curY + deltaY);
+    }
+  });
+
+  window.addEventListener('mouseup', e => {
+    if (!isDraggingMouse) return;
+    isDraggingMouse = false;
+    if (gestureMode === 'swipe') {
+      const dx = e.clientX - startX;
+      if (dx < -35) nextPage();
+      if (dx > 35) prevPage();
+    } else if (gestureMode === 'scroll') {
+      if (Math.abs(velocityY) > 0.5) {
+        runMomentum(velocityY, current);
+      }
+    }
+    gestureMode = 'none';
+  });
 }
 
 document.addEventListener('keydown', e => {
