@@ -110,33 +110,50 @@
     margin-right: auto !important;
     align-self: center;
     aspect-ratio: 3 / 4.6;
-    perspective: 2400px;
+    perspective: 2000px;
+    -webkit-perspective: 2000px;
+    touch-action: pan-y;
   }
   .book{
     position: absolute; inset: 0;
+    -webkit-transform-style: preserve-3d;
+    transform-style: preserve-3d;
   }
   .page{
     position: absolute; inset: 0;
     transform-origin: left center;
+    -webkit-transform-origin: left center;
+    -webkit-transform-style: preserve-3d;
     transform-style: preserve-3d;
-    transition: transform 0.85s cubic-bezier(.45,.05,.15,1);
-    transform: rotateY(0deg);
-    border-radius: 6px;
-    box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    -webkit-transition: -webkit-transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    transform: rotateY(0deg) translateZ(0);
+    -webkit-transform: rotateY(0deg) translateZ(0);
+    border-radius: 8px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.18);
     will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
-  .page.flipped{ transform: rotateY(-178deg); }
+  .page.flipped{
+    transform: rotateY(-180deg) translateZ(0);
+    -webkit-transform: rotateY(-180deg) translateZ(0);
+  }
   .face{
     position: absolute; inset: 0;
+    -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
-    border-radius: 6px;
+    border-radius: 8px;
     overflow: hidden;
     display: flex; flex-direction: column;
+    -webkit-transform: translate3d(0,0,0);
+    transform: translate3d(0,0,0);
   }
   .face.back{
-    transform: rotateY(180deg);
+    transform: rotateY(180deg) translateZ(0);
+    -webkit-transform: rotateY(180deg) translateZ(0);
     background:
-      repeating-linear-gradient(135deg, rgba(0,0,0,0.05) 0 2px, transparent 2px 14px),
+      repeating-linear-gradient(135deg, rgba(0,0,0,0.04) 0 2px, transparent 2px 14px),
       var(--paper);
     display: flex; align-items: center; justify-content: center;
   }
@@ -148,23 +165,30 @@
   .sheet{
     width: 100%;
     height: 100%;
-    padding: 22px 18px;
-    overflow: hidden;
+    padding: 20px 16px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    overscroll-behavior-x: none;
     position: relative;
     display: flex;
     flex-direction: column;
-    touch-action: pan-y;
-    cursor: grab;
-    -webkit-user-select: none;
-    user-select: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(20,18,26,0.18) transparent;
   }
-  .sheet:active {
-    cursor: grabbing;
+  .sheet::-webkit-scrollbar {
+    width: 3px;
+  }
+  .sheet::-webkit-scrollbar-thumb {
+    background: rgba(20,18,26,0.2);
+    border-radius: 3px;
   }
   .sheet-inner{
     width: 100%;
-    will-change: transform;
-    transform: translate3d(0,0,0);
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
   }
 
   .media-box{
@@ -394,9 +418,7 @@
   .page-count{
     color: var(--paper); opacity: 0.6; font-size: 11px; letter-spacing: 0.1em; margin-top: 10px; text-align: center;
   }
-  .tap-zone{ position: absolute; top: 0; bottom: 0; width: 18%; z-index: 500; cursor: pointer; touch-action: pan-y; }
-  .tap-zone.left{ left: 0; }
-  .tap-zone.right{ right: 0; }
+  .tap-zone{ display: none; }
 
   #passwordModal{position:fixed;inset:0;background:rgba(20,18,26,0.95);display:none;z-index:10000;align-items:center;justify-content:center}
   #passwordModal.show{display:flex}
@@ -2463,6 +2485,14 @@ function render(){
   pageCountEl.textContent = `Page ${current + 1} of ${total}`;
   syncActiveVideos();
 
+  const activePage = document.getElementById('page-' + current);
+  if (activePage) {
+    const sheet = activePage.querySelector('.sheet');
+    if (sheet && sheet.scrollTop > 0) {
+      sheet.scrollTop = 0;
+    }
+  }
+
   // Update URL hash for deep-linking seamlessly without history pollution
   if (window.history && window.history.replaceState) {
     const slug = getPageSlug(current);
@@ -2513,141 +2543,71 @@ function applyMagazineUpdates() {
   buildPages();
   renderPageContent();
   render();
-  initCustomScrollers();
 }
 
-function initCustomScrollers() {
-  document.querySelectorAll('.sheet').forEach(sheet => {
-    if (sheet.dataset.scrollReady) return;
-    sheet.dataset.scrollReady = '1';
+// Ultra-Smooth 120fps Gesture Engine with Direction-Aware Axis Locking
+let gestureStartX = 0;
+let gestureStartY = 0;
+let gestureStartTime = 0;
+let isHorizontalSwipe = false;
+let isVerticalScroll = false;
+let gestureMoved = false;
 
-    const inner = sheet.querySelector('.sheet-inner');
-    if (!inner) return;
-
-    let currentY = 0;
-    let velocity = 0;
-    let lastY = 0;
-    let lastTime = 0;
-    let isDragging = false;
-    let startY = 0;
-    let rafId = null;
-    let maxScroll = 0;
-
-    function updateMax() {
-      maxScroll = Math.max(0, inner.scrollHeight - sheet.clientHeight);
-    }
-
-    function setY(y) {
-      currentY = Math.max(-maxScroll, Math.min(0, y));
-      inner.style.transform = `translate3d(0, ${currentY}px, 0)`;
-    }
-
-    function momentum() {
-      if (Math.abs(velocity) < 0.2) {
-        velocity = 0;
-        return;
-      }
-      velocity *= 0.94;
-      setY(currentY + velocity);
-      rafId = requestAnimationFrame(momentum);
-    }
-
-    function isRealLink(target) {
-      const link = target.closest('a[href]');
-      if (!link) return false;
-      const href = link.getAttribute('href');
-      return href && href !== '#' && href.trim() !== '';
-    }
-
-    sheet.addEventListener('touchstart', e => {
-      if (isRealLink(e.target)) return;
-      updateMax();
-      if (maxScroll <= 0) return;
-      isDragging = true;
-      startY = e.touches[0].clientY - currentY;
-      lastY = e.touches[0].clientY;
-      lastTime = performance.now();
-      velocity = 0;
-      if (rafId) cancelAnimationFrame(rafId);
-    }, { passive: true });
-
-    sheet.addEventListener('touchmove', e => {
-      if (!isDragging) return;
-      const y = e.touches[0].clientY;
-      const now = performance.now();
-      const dt = Math.max(1, now - lastTime);
-      velocity = (y - lastY) / dt * 16;
-      lastY = y;
-      lastTime = now;
-      setY(y - startY);
-    }, { passive: true });
-
-    sheet.addEventListener('touchend', () => {
-      if (!isDragging) return;
-      isDragging = false;
-      if (Math.abs(velocity) > 0.8) {
-        rafId = requestAnimationFrame(momentum);
-      }
-    }, { passive: true });
-
-    sheet.addEventListener('wheel', e => {
-      updateMax();
-      if (maxScroll <= 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setY(currentY - e.deltaY * 0.9);
-    }, { passive: false });
-
-    sheet.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      if (isRealLink(e.target)) return;
-      updateMax();
-      if (maxScroll <= 0) return;
-      isDragging = true;
-      startY = e.clientY - currentY;
-      lastY = e.clientY;
-      lastTime = performance.now();
-      velocity = 0;
-      if (rafId) cancelAnimationFrame(rafId);
-      sheet.style.cursor = 'grabbing';
-    });
-
-    window.addEventListener('mousemove', e => {
-      if (!isDragging) return;
-      const y = e.clientY;
-      const now = performance.now();
-      const dt = Math.max(1, now - lastTime);
-      velocity = (y - lastY) / dt * 16;
-      lastY = y;
-      lastTime = now;
-      setY(y - startY);
-    });
-
-    window.addEventListener('mouseup', () => {
-      if (!isDragging) return;
-      isDragging = false;
-      sheet.style.cursor = 'grab';
-      if (Math.abs(velocity) > 0.8) {
-        rafId = requestAnimationFrame(momentum);
-      }
-    });
-  });
+function isInteractiveTarget(target) {
+  if (!target) return false;
+  return !!target.closest('a, button, input, textarea, select, .like-interactive-btn, .ig-dm-action-btn, .biz-link, .back-share-btn');
 }
 
-let touchStartX = null;
 const bookWrap = document.querySelector('.book-wrap');
 if (bookWrap) {
   bookWrap.addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
+    if (e.touches.length !== 1) return;
+    gestureStartX = e.touches[0].clientX;
+    gestureStartY = e.touches[0].clientY;
+    gestureStartTime = performance.now();
+    isHorizontalSwipe = false;
+    isVerticalScroll = false;
+    gestureMoved = false;
   }, { passive: true });
-  bookWrap.addEventListener('touchend', e => {
-    if (touchStartX === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(dx) > 55) {
-      if (dx < -40) nextPage();
-      if (dx > 40) prevPage();
+
+  bookWrap.addEventListener('touchmove', e => {
+    if (e.touches.length !== 1 || isVerticalScroll) return;
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const dx = currentX - gestureStartX;
+    const dy = currentY - gestureStartY;
+
+    if (!gestureMoved) {
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 7) {
+        gestureMoved = true;
+        // Direction locking: If horizontal movement dominates, lock to page flip!
+        if (Math.abs(dx) > Math.abs(dy) * 1.15 && Math.abs(dx) > 8) {
+          isHorizontalSwipe = true;
+        } else {
+          isVerticalScroll = true;
+        }
+      }
     }
-    touchStartX = null;
+  }, { passive: true });
+
+  bookWrap.addEventListener('touchend', e => {
+    if (!isHorizontalSwipe) return;
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const dx = endX - gestureStartX;
+    const dt = Math.max(1, performance.now() - gestureStartTime);
+    const speed = Math.abs(dx) / dt;
+
+    // Fast flick or distinct swipe threshold
+    if (dx < -32 || (dx < -18 && speed > 0.28)) {
+      nextPage();
+    } else if (dx > 32 || (dx > 18 && speed > 0.28)) {
+      prevPage();
+    }
+    isHorizontalSwipe = false;
+    isVerticalScroll = false;
+    gestureMoved = false;
   }, { passive: true });
 }
 
