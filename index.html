@@ -2529,7 +2529,7 @@ function renderEditor(){
           <div class="ed-field full"><label>Feature Title</label><input data-cover="featureTitle" value="${esc(c.featureTitle || '')}"></div>
           <div class="ed-field full"><label>Feature Summary</label><textarea data-cover="featureSummary">${esc(c.featureSummary || '')}</textarea></div>
           
-          ${mediaFieldHTML('Cover Photo / Video', 'cover-photo', c.coverPhotoUrl ? {type: c.coverPhotoType || detectMediaType(coverPhotoUrl), url: c.coverPhotoUrl} : null, 'cover-type')}
+          ${mediaFieldHTML('Cover Photo / Video', 'cover-photo', c.coverPhotoUrl ? {type: c.coverPhotoType ||detectMediaType(c.coverPhotoUrl), url: c.coverPhotoUrl} : null, 'cover-type')}
           
           ${mediaFieldHTML('Feature Image / Video', 'cover-feature', c.featureImageUrl ? {type: c.featureImageType || detectMediaType(c.featureImageUrl), url: c.featureImageUrl} : null, 'feature-type')}
           
@@ -4710,5 +4710,6 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
   window.addEventListener('load', boot);
 }
 </script>
+  <script src="media-upload-fix.js"></script>
 </body>
 </html>
