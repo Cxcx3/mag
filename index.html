@@ -1524,6 +1524,27 @@
     </div>
   </div>
 
+  <!-- Custom Delete Spot Confirmation Modal (Reliable on iOS & WebViews) -->
+  <div id="deleteSpotConfirmModal" class="comm-modal-overlay" onclick="if(event.target===this)closeDeleteSpotModal()">
+    <div class="comm-modal-card" style="max-width:380px;text-align:center;">
+      <button class="comm-modal-close" onclick="closeDeleteSpotModal()" title="Close">✕</button>
+      <div style="font-size:38px;margin-bottom:6px;">🗑️</div>
+      <div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#FF4D6D;font-weight:800;margin-bottom:4px;">Permanent Removal</div>
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:0.02em;margin:0 0 8px;color:#fff;" id="deleteModalSpotTitle">Delete Spot</h2>
+      <p style="font-size:12px;color:rgba(245,241,232,0.8);margin:0 0 16px;line-height:1.45;">
+        Are you sure you want to permanently remove this spot from The SpotLIGHT? This cannot be undone.
+      </p>
+      <div style="display:flex;gap:10px;">
+        <button type="button" id="confirmDeleteSpotBtn" class="ed-btn ed-danger" style="flex:1;min-height:44px;font-size:12px;" onclick="executeDeleteCommunityPost()">
+          YES, DELETE SPOT
+        </button>
+        <button type="button" class="ed-btn ed-light" style="min-height:44px;" onclick="closeDeleteSpotModal()">
+          CANCEL
+        </button>
+      </div>
+    </div>
+  </div>
+
 <script>
 const DEFAULT_CITIES = [
   {
@@ -2137,6 +2158,52 @@ function checkPassword(){
   }
 }
 
+function syncActiveVideos() {
+  const activePage = document.getElementById('page-' + current);
+  if (!activePage) return;
+
+  // 1. Play active HTML5 videos
+  const videos = activePage.querySelectorAll('video');
+  videos.forEach(v => {
+    v.muted = true;
+    v.defaultMuted = true;
+    v.volume = 0;
+    v.playsInline = true;
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
+    const badge = v.parentElement?.querySelector('.video-play-badge');
+    if (v.paused) {
+      const p = v.play();
+      if (p !== undefined) {
+        p.then(() => {
+          if (badge) badge.style.display = 'none';
+        }).catch(() => {
+          if (badge) badge.style.display = 'flex';
+        });
+      }
+    }
+  });
+
+  // 2. Autoplay YouTube iframes via postMessage and ensure muted autoplay
+  const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
+  ytIframes.forEach(iframe => {
+    try {
+      iframe.contentWindow?.postMessage('{"event":"command","func":"mute","args":""}', '*');
+      iframe.contentWindow?.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+    } catch (e) {}
+  });
+
+  // 3. Pause background / flipped videos
+  document.querySelectorAll('.page:not(.active-page) video').forEach(v => {
+    try { v.pause(); } catch (e) {}
+  });
+  document.querySelectorAll('.page:not(.active-page) .yt-embed-wrapper iframe').forEach(iframe => {
+    try {
+      iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+    } catch (e) {}
+  });
+}
+
 function toggleVideoPlayback(videoEl) {
   if (!videoEl) return;
   const badge = videoEl.parentElement?.querySelector('.video-play-badge');
@@ -2169,10 +2236,11 @@ function mediaBlock(media, placeholderText, extraClass){
       return `
         <div class="${cls} video-wrapper yt-embed-wrapper" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
           <iframe 
-            src="https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1"
+            src="https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&muted=1&loop=1&playlist=${ytId}&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}"
             title="Video"
             style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
-            allow="autoplay; encrypted-media; picture-in-picture"
+            allow="autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
+            allowfullscreen
             loading="eager"
           ></iframe>
         </div>
@@ -2497,7 +2565,7 @@ function renderEditor(){
                   🛡️ CLEAR REPORTS (${reports.length})
                 </button>
               ` : ''}
-              <button class="ed-btn ed-danger" style="padding:6px 10px;font-size:11px;min-height:34px;" onclick="handleAdminModeratePost('${p.id}', 'delete', event)">
+              <button class="ed-btn ed-danger" style="padding:6px 10px;font-size:11px;min-height:34px;" onclick="openDeleteConfirmModal('${p.id}', event)">
                 🗑️ DELETE
               </button>
             </div>
@@ -3059,19 +3127,28 @@ function getCategoryBadgeClass(cat) {
   return 'cat-businesses';
 }
 
-async function loadCommunityPosts() {
+async function loadCommunityPosts(isBackgroundPoll = false) {
   try {
-    const res = await fetch(`/api/community?category=${encodeURIComponent(activeCommCategory)}&sort=${activeCommSort}`);
+    const res = await fetch(`/api/community?category=${encodeURIComponent(activeCommCategory)}&sort=${activeCommSort}&_t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
       if (data.posts && Array.isArray(data.posts)) {
+        // Check if there are changes before rebuilding DOM to avoid jumpy scrolling
+        const currentIdsAndVotes = COMMUNITY_POSTS.map(p => `${p.id}:${p.votes || 0}:${p.isPinned}`).join(',');
+        const newIdsAndVotes = data.posts.map(p => `${p.id}:${p.votes || 0}:${p.isPinned}`).join(',');
+        
         COMMUNITY_POSTS = data.posts;
-        updateCommunityFeedUI();
+        if (!isBackgroundPoll || currentIdsAndVotes !== newIdsAndVotes) {
+          updateCommunityFeedUI();
+          if (activeTab === 'community') {
+            renderEditor();
+          }
+        }
         return;
       }
     }
   } catch (e) {
-    console.warn('API fetch warning:', e);
+    if (!isBackgroundPoll) console.warn('API fetch warning:', e);
   }
 
   // Fallback to local / default list
@@ -3080,6 +3157,15 @@ async function loadCommunityPosts() {
   }
   filterAndSortLocalPosts();
   updateCommunityFeedUI();
+}
+
+// Live real-time polling interval for instant votes and new posts
+let communityPollTimer = null;
+function startCommunityPolling() {
+  if (communityPollTimer) clearInterval(communityPollTimer);
+  communityPollTimer = setInterval(() => {
+    loadCommunityPosts(true);
+  }, 4000); // Check for new posts/votes every 4 seconds
 }
 
 function filterAndSortLocalPosts() {
@@ -3153,7 +3239,7 @@ function renderCommunityCardHtml(p, rank) {
               🚩 Report Violation
             </button>
             ${isMyPost ? `
-              <button class="comm-dropdown-item delete" style="color:#FF4D6D;font-weight:700;" onclick="handleDeleteCommunityPost('${p.id}', event)">
+              <button class="comm-dropdown-item delete" style="color:#FF4D6D;font-weight:700;" onclick="openDeleteConfirmModal('${p.id}', event)">
                 🗑️ Delete Spot
               </button>
             ` : ''}
@@ -3566,48 +3652,69 @@ function triggerSpotShare(postId, title, event) {
   openShareModal(shareInfo);
 }
 
-function handleDeleteCommunityPost(postId, event) {
+let pendingDeletePostId = null;
+
+function openDeleteConfirmModal(postId, event) {
   if (event) {
     event.stopPropagation();
     event.preventDefault();
   }
+  // Close any open dropdown menus
+  document.querySelectorAll('.comm-card-dropdown').forEach(d => d.classList.remove('show'));
 
-  const post = COMMUNITY_POSTS.find(p => p.id === postId);
-  const postTitle = post ? `"${post.title}"` : 'this spot';
-
-  if (!confirm(`Are you sure you want to delete ${postTitle}? This action cannot be undone.`)) {
-    return;
+  pendingDeletePostId = postId;
+  const post = COMMUNITY_POSTS.find(p => String(p.id) === String(postId));
+  const titleEl = document.getElementById('deleteModalSpotTitle');
+  if (titleEl) {
+    titleEl.textContent = post ? `Delete "${post.title}"?` : 'Delete This Spot?';
   }
 
+  const modal = document.getElementById('deleteSpotConfirmModal');
+  if (modal) modal.classList.add('show');
+}
+
+function closeDeleteSpotModal() {
+  pendingDeletePostId = null;
+  const modal = document.getElementById('deleteSpotConfirmModal');
+  if (modal) modal.classList.remove('show');
+}
+
+async function executeDeleteCommunityPost(targetPostId) {
+  const idToDelete = targetPostId || pendingDeletePostId;
+  if (!idToDelete) return;
+
+  closeDeleteSpotModal();
+
   // 1. Instant optimistic update
-  COMMUNITY_POSTS = COMMUNITY_POSTS.filter(p => p.id !== postId);
-  mySubmittedPostIds.delete(postId);
+  COMMUNITY_POSTS = COMMUNITY_POSTS.filter(p => String(p.id) !== String(idToDelete));
+  mySubmittedPostIds.delete(idToDelete);
   localStorage.setItem('spotlight_my_posts', JSON.stringify([...mySubmittedPostIds]));
+  
   updateCommunityFeedUI();
   if (activeTab === 'community') {
     renderEditor();
   }
-  showToast('🗑️ Spot deleted.');
+  showToast('🗑️ Spot permanently removed.');
 
-  // 2. Call backend moderation endpoint
-  fetch('/api/admin/community/moderate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: postId, action: 'delete' })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      loadCommunityPosts().then(() => {
-        if (activeTab === 'community') renderEditor();
-      });
-    } else {
-      console.warn('Backend delete returned non-success:', data);
+  // 2. Call backend deletion endpoints
+  try {
+    const res = await fetch('/api/community/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: idToDelete })
+    });
+    const data = await res.json();
+    if (data && data.success) {
+      await loadCommunityPosts(true);
+      if (activeTab === 'community') renderEditor();
     }
-  })
-  .catch(err => {
+  } catch (err) {
     console.error('Delete network error:', err);
-  });
+  }
+}
+
+function handleDeleteCommunityPost(postId, event) {
+  openDeleteConfirmModal(postId, event);
 }
 
 function handleAdminModeratePost(postId, action, event) {
@@ -3617,7 +3724,7 @@ function handleAdminModeratePost(postId, action, event) {
   }
 
   if (action === 'delete') {
-    handleDeleteCommunityPost(postId, event);
+    openDeleteConfirmModal(postId, event);
     return;
   }
 
@@ -4404,6 +4511,7 @@ async function start() {
   MAGAZINE = await loadMagazine();
   applyMagazineUpdates();
   loadCommunityPosts();
+  startCommunityPolling();
 
   // Parse deep-link URL hash only if an explicit non-cover city deep-link was requested
   const rawHash = (window.location.hash || '').replace('#', '').trim().toLowerCase();

@@ -377,6 +377,29 @@ app.post('/api/community/report', async (req, res) => {
   }
 });
 
+// POST Delete Community Spot (Author or Admin)
+app.post(['/api/community/delete', '/api/admin/community/delete'], async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      return res.status(400).json({ error: 'Post ID is required' });
+    }
+
+    let posts = await getCommunityPosts();
+    const initialLen = posts.length;
+    posts = posts.filter(p => String(p.id) !== String(id));
+
+    if (posts.length !== initialLen) {
+      await saveCommunityPosts(posts);
+    }
+
+    return res.json({ success: true, id, removed: posts.length !== initialLen });
+  } catch (err) {
+    console.error('Delete community post error:', err);
+    return res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
 // POST Admin Community Moderation (Pin, Delete, Clear Reports)
 app.post('/api/admin/community/moderate', async (req, res) => {
   try {
@@ -388,17 +411,19 @@ app.post('/api/admin/community/moderate', async (req, res) => {
     let posts = await getCommunityPosts();
     const postIdx = posts.findIndex(p => String(p.id) === String(id));
 
-    if (postIdx === -1) {
-      // If already deleted or not found, return success for idempotent deletes
-      if (action === 'delete') {
-        return res.json({ success: true, action, id, message: 'Post was already removed' });
+    if (action === 'delete') {
+      if (postIdx !== -1) {
+        posts.splice(postIdx, 1);
+        await saveCommunityPosts(posts);
       }
+      return res.json({ success: true, action: 'delete', id });
+    }
+
+    if (postIdx === -1) {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    if (action === 'delete') {
-      posts.splice(postIdx, 1);
-    } else if (action === 'pin') {
+    if (action === 'pin') {
       posts[postIdx].isPinned = true;
     } else if (action === 'unpin') {
       posts[postIdx].isPinned = false;
