@@ -323,7 +323,7 @@
     margin: 6px 0 8px;
     border: 3px solid var(--yellow);
     flex: 1;
-    min-height: 170px;
+    min-height: 200px;
     border-radius: 8px;
     overflow: hidden;
     background: #111;
@@ -362,24 +362,24 @@
     margin: 4px 0 8px;
   }
   .spotlight-card{
-    display: flex; gap: 12px; align-items: center; margin-bottom: 18px;
-    background: #fff; border: 2px solid var(--ink); border-radius: 10px; padding: 10px;
+    display: flex; gap: 14px; align-items: center; margin-bottom: 18px;
+    background: #fff; border: 2px solid var(--ink); border-radius: 12px; padding: 12px;
   }
   .spotlight-photo{
-    width: 64px; height: 64px; border-radius: 8px; flex-shrink: 0;
-    min-height: 64px;
+    width: 90px; height: 90px; border-radius: 10px; flex-shrink: 0;
+    min-height: 90px;
   }
   .spotlight-photo span{ font-size: 8px; }
   .spotlight-info .name{ font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.02em; margin: 0 0 2px; color: var(--ink); line-height: 1.2;}
   .spotlight-info .role{ font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--coral); font-weight: 700; margin: 0 0 4px;}
   .spotlight-info .bio{ font-size: 11px; line-height: 1.4; margin: 0; color: #3a3540;}
   .ad-card{
-    background: #fff; border-radius: 10px; padding: 12px; margin-bottom: 12px;
+    background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 14px;
     border-left: 5px solid var(--coral); box-shadow: 0 3px 0 rgba(20,18,26,0.08);
   }
   .ad-card:nth-of-type(2n){ border-left-color: var(--cyan); }
   .ad-card:nth-of-type(3n){ border-left-color: var(--yellow); }
-  .ad-card .ad-media{ height: 110px; margin-bottom: 8px; min-height: 110px; }
+  .ad-card .ad-media{ height: 165px; margin-bottom: 10px; min-height: 165px; border-radius: 8px; }
   .ad-card .biz-name{ font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.02em; margin: 0 0 3px; color: var(--ink); line-height: 1.25;}
   .ad-card .biz-tag{ font-size: 10px; color: var(--violet); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px;}
   .ad-card .biz-blurb{ font-size: 11.5px; line-height: 1.45; margin: 0 0 6px; color: #3a3540;}
@@ -3115,10 +3115,10 @@ function renderCommunityCardHtml(p, rank) {
   const safeDesc = esc(p.description || '');
 
   let mediaBoxHtml = '';
-  if (p.mediaUrl) {
+  if (p.mediaUrl && p.mediaUrl.trim()) {
     mediaBoxHtml = `
       <div class="comm-card-media-box">
-        ${renderMediaPreview(p.mediaUrl, p.mediaType || detectMediaType(p.mediaUrl))}
+        ${mediaBlock({ url: p.mediaUrl, type: p.mediaType || detectMediaType(p.mediaUrl) }, '[ COMMUNITY SPOT MEDIA ]', 'comm-card-media')}
       </div>
     `;
   }
