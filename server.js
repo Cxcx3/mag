@@ -377,6 +377,54 @@ app.post('/api/community/report', async (req, res) => {
   }
 });
 
+// POST Edit / Update Community Spot (Author or Admin)
+app.post(['/api/community/edit', '/api/community/update'], async (req, res) => {
+  try {
+    const {
+      id,
+      title,
+      author,
+      handle,
+      category,
+      location,
+      description,
+      mediaUrl,
+      mediaType,
+      link,
+      linkText
+    } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Post ID is required' });
+    }
+
+    const posts = await getCommunityPosts();
+    const post = posts.find(p => String(p.id) === String(id));
+
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (title && String(title).trim()) post.title = String(title).trim().slice(0, 100);
+    if (author && String(author).trim()) post.author = String(author).trim().slice(0, 50);
+    if (handle !== undefined) post.handle = String(handle || '').trim().slice(0, 40);
+    if (category && String(category).trim()) post.category = String(category).trim();
+    if (location && String(location).trim()) post.location = String(location).trim().slice(0, 60);
+    if (description && String(description).trim()) post.description = String(description).trim().slice(0, 500);
+    if (mediaUrl !== undefined) post.mediaUrl = String(mediaUrl || '').trim();
+    if (mediaType !== undefined) post.mediaType = String(mediaType || 'image').trim();
+    if (link !== undefined) post.link = String(link || '').trim();
+    if (linkText !== undefined) post.linkText = String(linkText || 'Learn More').trim().slice(0, 40);
+
+    await saveCommunityPosts(posts);
+
+    return res.json({ success: true, post });
+  } catch (err) {
+    console.error('Edit community post error:', err);
+    return res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
 // POST Delete Community Spot (Author or Admin)
 app.post(['/api/community/delete', '/api/admin/community/delete'], async (req, res) => {
   try {
