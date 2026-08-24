@@ -38,7 +38,7 @@
 <meta name="msapplication-TileImage" content="https://iili.io/CLtdnkB.jpg">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#14121A;
@@ -113,14 +113,15 @@
     text-overflow: ellipsis;
   }
   .masthead h1{
-    font-family: 'Anton', sans-serif;
-    font-weight: 400;
-    font-size: clamp(20px, 4.5vw, 40px);
-    letter-spacing: 0.02em;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: clamp(16px, 3.8vw, 26px);
+    letter-spacing: 0.04em;
     margin: 0;
-    line-height: 1.05;
+    line-height: 1.2;
     text-transform: uppercase;
     white-space: nowrap;
+    word-spacing: 0.06em;
   }
   .masthead h1 span{ color: var(--coral); }
   .book-wrap{
@@ -209,7 +210,7 @@
     display: flex; align-items: center; justify-content: center;
   }
   .face.back .mark{
-    font-family: 'Anton', sans-serif; font-size: 13px; letter-spacing: 0.3em;
+    font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 0.35em;
     color: rgba(20,18,26,0.35); text-transform: uppercase; transform: rotate(-90deg);
   }
 
@@ -296,22 +297,23 @@
     font-weight: 600;
   }
   .cover .title{
-    font-family: 'Anton', sans-serif;
-    font-size: clamp(26px, 5.5vw, 44px);
-    line-height: 0.92;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: clamp(20px, 4.2vw, 30px);
+    line-height: 1.15;
     text-transform: uppercase;
-    margin: 6px 0 2px;
+    margin: 4px 0 2px;
     position: relative;
     z-index: 1;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
   }
   .cover .title .hi{color: var(--coral);}
   .cover .sub{
-    font-size: clamp(10.5px, 2.4vw, 12px);
+    font-size: clamp(10px, 2.2vw, 11.5px);
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: var(--yellow);
-    font-weight: 600;
+    font-weight: 700;
     margin-bottom: 4px;
   }
   .cover-photo{
@@ -344,10 +346,10 @@
     padding: 10px 14px; margin: -22px -18px 16px;
   }
   .city-band .cnum{
-    font-family: 'Anton', sans-serif; font-size: 11px; letter-spacing: 0.2em; color: rgba(255,255,255,0.85);
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 0.18em; color: rgba(255,255,255,0.9);
   }
   .city-band .cname{
-    font-family: 'Anton', sans-serif; font-size: 22px; text-transform: uppercase; color: #fff; letter-spacing: 0.01em;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; text-transform: uppercase; color: #fff; letter-spacing: 0.04em;
   }
   .stamp{
     align-self: flex-end; margin: -6px 4px 14px 0;
@@ -368,7 +370,7 @@
     min-height: 64px;
   }
   .spotlight-photo span{ font-size: 8px; }
-  .spotlight-info .name{ font-family: 'Anton', sans-serif; font-size: 16px; text-transform: uppercase; margin: 0 0 2px;}
+  .spotlight-info .name{ font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.02em; margin: 0 0 2px; color: var(--ink); line-height: 1.2;}
   .spotlight-info .role{ font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--coral); font-weight: 700; margin: 0 0 4px;}
   .spotlight-info .bio{ font-size: 11px; line-height: 1.4; margin: 0; color: #3a3540;}
   .ad-card{
@@ -378,9 +380,9 @@
   .ad-card:nth-of-type(2n){ border-left-color: var(--cyan); }
   .ad-card:nth-of-type(3n){ border-left-color: var(--yellow); }
   .ad-card .ad-media{ height: 110px; margin-bottom: 8px; min-height: 110px; }
-  .ad-card .biz-name{ font-family: 'Anton', sans-serif; font-size: 14px; text-transform: uppercase; margin: 0 0 3px;}
+  .ad-card .biz-name{ font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.02em; margin: 0 0 3px; color: var(--ink); line-height: 1.25;}
   .ad-card .biz-tag{ font-size: 10px; color: var(--violet); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px;}
-  .ad-card .biz-blurb{ font-size: 11.5px; line-height: 1.4; margin: 0 0 6px; color: #3a3540;}
+  .ad-card .biz-blurb{ font-size: 11.5px; line-height: 1.45; margin: 0 0 6px; color: #3a3540;}
   .ad-card .biz-cta{ font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink); }
   .ad-card .biz-cta::after{ content: " →"; }
   .ad-card .biz-cta a{ 
@@ -393,7 +395,7 @@
     text-decoration: underline;
   }
   .back-cover{ background: var(--coral); color: var(--ink); justify-content: center; align-items: center; text-align: center;}
-  .back-cover h2{ font-family: 'Anton', sans-serif; font-size: 26px; text-transform: uppercase; margin: 0 0 8px; line-height: 1.05;}
+  .back-cover h2{ font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 19px; text-transform: uppercase; letter-spacing: 0.03em; margin: 0 0 8px; line-height: 1.2;}
   .back-cover p{ font-size: 11.5px; line-height: 1.45; max-width: 260px; margin: 0 auto 12px;}
   .back-cover .cta-box{
     background: var(--ink); color: var(--paper); border-radius: 10px; padding: 12px 16px;
@@ -413,10 +415,11 @@
     box-sizing: border-box;
   }
   .like-headline {
-    font-family: 'Anton', sans-serif;
-    font-size: 15px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
     color: var(--ink);
     margin-bottom: 2px;
   }
@@ -524,7 +527,7 @@
   #passwordModal{position:fixed;inset:0;background:rgba(20,18,26,0.95);display:none;z-index:10000;align-items:center;justify-content:center}
   #passwordModal.show{display:flex}
   .password-box{background:#f5f1e8;border-radius:16px;padding:40px;text-align:center;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
-  .password-box h2{font-family:'Anton',sans-serif;font-size:28px;margin:0 0 12px;color:#14121A}
+  .password-box h2{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;letter-spacing:0.03em;margin:0 0 12px;color:#14121A}
   .password-box p{font-size:14px;color:#666;margin:0 0 24px}
   .password-box input{width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:16px;margin-bottom:16px}
   .password-box input:focus{outline:none;border-color:#FF4D6D}
@@ -706,6 +709,507 @@
   .share-btn-wa{background:#25D366;color:#fff;}
   .share-btn-x{background:#000;color:#fff;border:1px solid rgba(255,255,255,0.2);}
   .share-btn-native{background:#4ECDC4;color:#14121A;grid-column:span 2;font-size:13px;padding:12px;margin-top:2px;}
+
+  /* ==========================================================================
+     COMMUNITY FEED & DISCOVERY LEADERBOARD STYLING
+     ========================================================================== */
+  .theme-community{
+    background: linear-gradient(180deg, #181424 0%, #0d0a14 100%);
+    color: #f5f1e8;
+  }
+  .theme-community .city-band{
+    background: linear-gradient(90deg, #FF4D6D 0%, #7928CA 50%, #3FDDE0 100%);
+    color: #fff;
+  }
+  .comm-hero{
+    padding: 12px 14px 10px;
+    background: rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,210,63,0.25);
+    text-align: center;
+  }
+  .comm-hero-tag{
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #FFD23F;
+    margin-bottom: 4px;
+  }
+  .comm-hero h2{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    margin: 0 0 4px;
+    color: #fff;
+    line-height: 1.25;
+  }
+  .comm-hero-sub{
+    font-size: 11px;
+    color: rgba(245,241,232,0.8);
+    line-height: 1.35;
+    margin-bottom: 10px;
+  }
+  .comm-hero-actions{
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .comm-action-btn{
+    border: none;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-weight: 800;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    touch-action: manipulation;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .comm-action-btn:active{ transform: scale(0.96); }
+  .comm-btn-submit{
+    background: #FF4D6D;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255,77,109,0.4);
+  }
+  .comm-btn-rules{
+    background: rgba(255,255,255,0.12);
+    color: #FFD23F;
+    border: 1px solid rgba(255,210,63,0.4);
+  }
+
+  /* Sticky category filter bar */
+  .comm-controls-sticky{
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(20,18,26,0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .comm-cat-pills{
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .comm-cat-pills::-webkit-scrollbar{ display: none; }
+  .comm-cat-pill{
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(245,241,232,0.85);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .comm-cat-pill:hover{ background: rgba(255,255,255,0.18); }
+  .comm-cat-pill.active{
+    background: #FFD23F;
+    color: #14121A;
+    border-color: #FFD23F;
+    font-weight: 800;
+  }
+  .comm-meta-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 10px;
+    color: rgba(245,241,232,0.7);
+  }
+  .comm-sort-select{
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,210,63,0.4);
+    color: #FFD23F;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 2px 6px;
+    outline: none;
+  }
+
+  /* Feed list and cards */
+  .comm-feed-list{
+    padding: 10px 10px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .comm-card{
+    background: #1e1a29;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .comm-card.is-pinned{
+    border: 1.5px solid #A78BFA;
+    box-shadow: 0 6px 24px rgba(167,139,250,0.25);
+  }
+  .comm-card-rank-bar{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: rgba(0,0,0,0.4);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .comm-rank-badge{
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .comm-rank-1{ color: #FFD23F; }
+  .comm-rank-2{ color: #E2E8F0; }
+  .comm-rank-3{ color: #F97316; }
+  .comm-rank-pinned{ color: #C4B5FD; }
+  .comm-rank-default{ color: rgba(245,241,232,0.6); }
+
+  .comm-cat-tag{
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .cat-businesses{ background: rgba(78,205,196,0.2); color: #4ECDC4; border: 1px solid rgba(78,205,196,0.4); }
+  .cat-creators{ background: rgba(255,77,109,0.2); color: #FF4D6D; border: 1px solid rgba(255,77,109,0.4); }
+  .cat-events{ background: rgba(255,210,63,0.2); color: #FFD23F; border: 1px solid rgba(255,210,63,0.4); }
+  .cat-art{ background: rgba(167,139,250,0.2); color: #C4B5FD; border: 1px solid rgba(167,139,250,0.4); }
+  .cat-music{ background: rgba(52,211,153,0.2); color: #34D399; border: 1px solid rgba(52,211,153,0.4); }
+  .cat-fashion{ background: rgba(244,114,182,0.2); color: #F472B6; border: 1px solid rgba(244,114,182,0.4); }
+  .cat-news{ background: rgba(96,165,250,0.2); color: #60A5FA; border: 1px solid rgba(96,165,250,0.4); }
+  .cat-discussions{ background: rgba(251,146,60,0.2); color: #FB923C; border: 1px solid rgba(251,146,60,0.4); }
+
+  .comm-card-head{
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .comm-author-meta{
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .comm-author-name{
+    font-size: 11px;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .comm-author-loc{
+    font-size: 9px;
+    color: rgba(245,241,232,0.6);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .comm-more-wrap{ position: relative; }
+  .comm-more-btn{
+    background: none;
+    border: none;
+    color: rgba(245,241,232,0.6);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    touch-action: manipulation;
+  }
+  .comm-more-btn:hover{ color: #fff; background: rgba(255,255,255,0.1); }
+  .comm-dropdown-menu{
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: #14121A;
+    border: 1px solid rgba(255,210,63,0.4);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    z-index: 20;
+    min-width: 140px;
+    display: none;
+    overflow: hidden;
+  }
+  .comm-dropdown-menu.show{ display: block; }
+  .comm-dropdown-item{
+    width: 100%;
+    padding: 9px 12px;
+    background: none;
+    border: none;
+    color: #f5f1e8;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .comm-dropdown-item:hover{ background: rgba(255,255,255,0.1); color: #FFD23F; }
+  .comm-dropdown-item.danger{ color: #FF4D6D; }
+  .comm-dropdown-item.danger:hover{ background: rgba(255,77,109,0.15); }
+
+  .comm-card-media{
+    width: 100%;
+    height: 180px;
+    background: #0d0a14;
+    position: relative;
+    overflow: hidden;
+  }
+  .comm-card-media img,
+  .comm-card-media video{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .comm-card-body{
+    padding: 10px 12px 12px;
+  }
+  .comm-card-title{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    color: #fff;
+    margin: 0 0 5px;
+    line-height: 1.3;
+  }
+  .comm-card-desc{
+    font-size: 11px;
+    color: rgba(245,241,232,0.85);
+    line-height: 1.4;
+    margin-bottom: 10px;
+  }
+  .comm-card-footer{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* Upvote interactive button */
+  .comm-upvote-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,210,63,0.3);
+    color: #FFD23F;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    position: relative;
+  }
+  .comm-upvote-btn:hover{
+    background: rgba(255,210,63,0.15);
+    border-color: #FFD23F;
+    transform: translateY(-1px);
+  }
+  .comm-upvote-btn:active{ transform: scale(0.92); }
+  .comm-upvote-btn.upvoted{
+    background: #FFD23F;
+    color: #14121A;
+    border-color: #FFD23F;
+    box-shadow: 0 2px 12px rgba(255,210,63,0.4);
+  }
+
+  .comm-link-btn{
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #3FDDE0;
+    color: #14121A;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: transform 0.15s, background 0.15s;
+  }
+  .comm-link-btn:hover{ background: #FFD23F; transform: scale(1.02); }
+
+  /* Submit Modal, Report Modal, Guidelines Modal */
+  .comm-modal-overlay{
+    position: fixed;
+    inset: 0;
+    background: rgba(14,12,18,0.94);
+    display: none;
+    z-index: 10002;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    overflow-y: auto;
+  }
+  .comm-modal-overlay.show{ display: flex; }
+  .comm-modal-card{
+    background: #1a1724;
+    border: 1.5px solid rgba(255,210,63,0.35);
+    border-radius: 20px;
+    padding: 24px 20px;
+    max-width: 480px;
+    width: 100%;
+    color: #f5f1e8;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.8);
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .comm-modal-close{
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .comm-modal-close:hover{ background: rgba(255,255,255,0.25); }
+
+  .comm-form-grid{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .comm-form-field{
+    display: flex;
+    flex-direction: column;
+  }
+  .comm-form-field.full{ grid-column: span 2; }
+  .comm-form-field label{
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #FFD23F;
+    margin-bottom: 4px;
+  }
+  .comm-form-field input,
+  .comm-form-field select,
+  .comm-form-field textarea{
+    background: rgba(255,255,255,0.06);
+    border: 1.5px solid rgba(255,255,255,0.18);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+  }
+  .comm-form-field input:focus,
+  .comm-form-field select:focus,
+  .comm-form-field textarea:focus{
+    border-color: #FF4D6D;
+    background: rgba(255,255,255,0.1);
+  }
+  .comm-form-field textarea{ min-height: 70px; resize: vertical; }
+
+  /* Report Reason Options */
+  .comm-report-reasons{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 14px 0;
+  }
+  .comm-report-option{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .comm-report-option:hover{ background: rgba(255,255,255,0.1); border-color: #FF4D6D; }
+  .comm-report-option input[type="radio"]{ accent-color: #FF4D6D; width: 16px; height: 16px; }
+
+  .comm-guidelines-box{
+    background: rgba(0,0,0,0.4);
+    border-radius: 12px;
+    padding: 14px;
+    margin: 12px 0;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .comm-rules-col{
+    margin-bottom: 12px;
+  }
+  .comm-rules-col h4{
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .comm-rules-allowed h4{ color: #34D399; }
+  .comm-rules-banned h4{ color: #FF4D6D; }
+  .comm-rules-list{
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(245,241,232,0.85);
+  }
+  .comm-rules-list li{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 </style>
 </head>
 <body>
@@ -797,6 +1301,226 @@
       <div style="font-size:10px;color:rgba(245,241,232,0.6);text-align:center;line-height:1.4;">
         Tip: Paste link into Instagram Stories using the <b>Link Sticker</b>!
       </div>
+    </div>
+  </div>
+
+  <!-- Submit Community Spot Modal -->
+  <div id="submitSpotModal" class="comm-modal-overlay" onclick="if(event.target===this)closeSubmitSpotModal()">
+    <div class="comm-modal-card">
+      <button class="comm-modal-close" onclick="closeSubmitSpotModal()" title="Close">✕</button>
+      <div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#FFD23F;font-weight:800;margin-bottom:4px;">Get Featured & Go Viral</div>
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:0.03em;margin:0 0 4px;color:#fff;">Post Your Spot</h2>
+      <p style="font-size:11px;color:rgba(245,241,232,0.75);margin:0 0 14px;line-height:1.4;">
+        Share your Utah business, creative project, music, event, or announcement. The more upvotes you get from locals, the higher you rank in the magazine!
+      </p>
+
+      <form id="submitSpotForm" onsubmit="handleSpotSubmit(event)">
+        <div class="comm-form-grid">
+          <div class="comm-form-field full">
+            <label>Spot / Project / Business Title *</label>
+            <input type="text" id="spotTitle" placeholder="e.g. Neon Sunset Roasters or New Single 'Alta Glow'" required maxlength="100">
+          </div>
+
+          <div class="comm-form-field">
+            <label>Your Name / Brand *</label>
+            <input type="text" id="spotAuthor" placeholder="e.g. Marcus Vance" required maxlength="50">
+          </div>
+
+          <div class="comm-form-field">
+            <label>Instagram / Handle</label>
+            <input type="text" id="spotHandle" placeholder="e.g. @neonsunset_slc" maxlength="40">
+          </div>
+
+          <div class="comm-form-field">
+            <label>Category *</label>
+            <select id="spotCategory" required>
+              <option value="Businesses">Businesses</option>
+              <option value="Creators">Creators</option>
+              <option value="Events">Events</option>
+              <option value="Art">Art</option>
+              <option value="Music">Music</option>
+              <option value="Fashion">Fashion</option>
+              <option value="News/announcements">News/announcements</option>
+              <option value="Community discussions">Community discussions</option>
+            </select>
+          </div>
+
+          <div class="comm-form-field">
+            <label>City / Location *</label>
+            <input type="text" id="spotLocation" placeholder="e.g. Salt Lake City, UT" required maxlength="60">
+          </div>
+
+          <div class="comm-form-field full">
+            <label>Photo / Video URL or Upload</label>
+            <input type="text" id="spotMediaUrl" placeholder="Paste image URL or YouTube/Vimeo link, or choose file below">
+            <div style="margin-top:6px;">
+              <label class="upload-label-btn" style="padding:8px 14px;font-size:11px;min-height:36px;">
+                <input type="file" accept="image/*,video/*" class="upload-native-input" onchange="handleSpotFileUpload(this)">
+                <span id="spotUploadLabel">📁 Tap to Upload Photo or Video</span>
+              </label>
+            </div>
+            <div id="spotMediaPreview" style="margin-top:6px;"></div>
+          </div>
+
+          <div class="comm-form-field full">
+            <label>Description / Story / Offer *</label>
+            <textarea id="spotDescription" placeholder="Tell the city what makes this spot special, what's happening, or any special offer for magazine readers..." required maxlength="500"></textarea>
+          </div>
+
+          <div class="comm-form-field">
+            <label>Website or Link</label>
+            <input type="url" id="spotLink" placeholder="https://instagram.com/...">
+          </div>
+
+          <div class="comm-form-field">
+            <label>Button Label</label>
+            <input type="text" id="spotLinkText" placeholder="e.g. Visit Website / Listen" maxlength="40" value="Learn More">
+          </div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;gap:10px;">
+          <button type="submit" id="spotSubmitBtn" class="ed-btn ed-primary" style="flex:1;min-height:44px;font-size:12px;">
+            🚀 PUBLISH & START GETTING VOTES
+          </button>
+          <button type="button" class="ed-btn ed-light" onclick="closeSubmitSpotModal()">
+            CANCEL
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Report Violation Modal -->
+  <div id="reportModal" class="comm-modal-overlay" onclick="if(event.target===this)closeReportModal()">
+    <div class="comm-modal-card">
+      <button class="comm-modal-close" onclick="closeReportModal()" title="Close">✕</button>
+      <div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#FF4D6D;font-weight:800;margin-bottom:4px;">Safety & Community Standards</div>
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:0.03em;margin:0 0 6px;color:#fff;">Report Post</h2>
+      <p style="font-size:11px;color:rgba(245,241,232,0.75);margin:0 0 10px;line-height:1.4;">
+        Help keep The SpotLIGHT safe, authentic, and local. Select the violation reason below:
+      </p>
+
+      <form id="reportForm" onsubmit="handleReportSubmit(event)">
+        <input type="hidden" id="reportPostId" value="">
+        <div class="comm-report-reasons">
+          <label class="comm-report-option">
+            <input type="radio" name="reportReason" value="Spam" checked>
+            <div>
+              <div style="color:#fff;font-weight:700;">Spam</div>
+              <div style="font-size:10px;color:rgba(245,241,232,0.6);">Unsolicited bot posts, repetitive advertising, or misleading links</div>
+            </div>
+          </label>
+
+          <label class="comm-report-option">
+            <input type="radio" name="reportReason" value="Scams">
+            <div>
+              <div style="color:#fff;font-weight:700;">Scams</div>
+              <div style="font-size:10px;color:rgba(245,241,232,0.6);">Fraud, phishing, fake businesses, or financial schemes</div>
+            </div>
+          </label>
+
+          <label class="comm-report-option">
+            <input type="radio" name="reportReason" value="Illegal content">
+            <div>
+              <div style="color:#fff;font-weight:700;">Illegal content</div>
+              <div style="font-size:10px;color:rgba(245,241,232,0.6);">Illegal activities, unauthorized goods, or piracy</div>
+            </div>
+          </label>
+
+          <label class="comm-report-option">
+            <input type="radio" name="reportReason" value="Harassment">
+            <div>
+              <div style="color:#fff;font-weight:700;">Harassment</div>
+              <div style="font-size:10px;color:rgba(245,241,232,0.6);">Bullying, targeted abuse, doxxing, or personal threats</div>
+            </div>
+          </label>
+
+          <label class="comm-report-option">
+            <input type="radio" name="reportReason" value="Hate">
+            <div>
+              <div style="color:#fff;font-weight:700;">Hate</div>
+              <div style="font-size:10px;color:rgba(245,241,232,0.6);">Hate speech, discrimination, or derogatory slurs</div>
+            </div>
+          </label>
+
+          <label class="comm-report-option">
+            <input type="radio" name="reportReason" value="Explicit sexual content">
+            <div>
+              <div style="color:#fff;font-weight:700;">Explicit sexual content</div>
+              <div style="font-size:10px;color:rgba(245,241,232,0.6);">Pornography, explicit imagery, or non-consensual content</div>
+            </div>
+          </label>
+
+          <label class="comm-report-option">
+            <input type="radio" name="reportReason" value="Dangerous/violent content">
+            <div>
+              <div style="color:#fff;font-weight:700;">Dangerous/violent content</div>
+              <div style="font-size:10px;color:rgba(245,241,232,0.6);">Violence, self-harm, weapons, or dangerous physical threats</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="comm-form-field full" style="margin-top:8px;">
+          <label>Additional details (optional)</label>
+          <textarea id="reportDetails" placeholder="Provide any extra context for our moderation team..." style="min-height:55px;"></textarea>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:10px;">
+          <button type="submit" id="submitReportBtn" class="ed-btn ed-danger" style="flex:1;min-height:42px;font-size:12px;">
+            🚩 SUBMIT REPORT
+          </button>
+          <button type="button" class="ed-btn ed-light" onclick="closeReportModal()">
+            CANCEL
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Community Standards & Guidelines Modal -->
+  <div id="guidelinesModal" class="comm-modal-overlay" onclick="if(event.target===this)closeGuidelinesModal()">
+    <div class="comm-modal-card">
+      <button class="comm-modal-close" onclick="closeGuidelinesModal()" title="Close">✕</button>
+      <div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#3FDDE0;font-weight:800;margin-bottom:4px;">The SpotLIGHT Standards</div>
+      <h2 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:0.03em;margin:0 0 10px;color:#fff;">Community Rules</h2>
+      
+      <div class="comm-guidelines-box">
+        <div class="comm-rules-col comm-rules-allowed">
+          <h4>✅ Allowed Content</h4>
+          <ul class="comm-rules-list">
+            <li><span>🏔️</span> <b>Utah & local content:</b> Wasatch Front culture, neighborhoods, spots</li>
+            <li><span>☕</span> <b>Businesses:</b> Local shops, cafes, gyms, dining & services</li>
+            <li><span>📸</span> <b>Creators:</b> Photographers, filmmakers, influencers, podcasters</li>
+            <li><span>🎟️</span> <b>Events:</b> Concerts, pop-ups, markets, nightlife & gatherings</li>
+            <li><span>🎨</span> <b>Art:</b> Murals, galleries, tattoo artists, ceramics, sculptors</li>
+            <li><span>🎵</span> <b>Music:</b> Local bands, releases, producers & DJs</li>
+            <li><span>👗</span> <b>Fashion:</b> Boutiques, vintage drops, street style & designers</li>
+            <li><span>📢</span> <b>News & announcements:</b> Local updates & openings</li>
+            <li><span>💬</span> <b>Community discussions:</b> Local recommendations & questions</li>
+          </ul>
+        </div>
+
+        <div class="comm-rules-col comm-rules-banned" style="margin-bottom:0;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08);">
+          <h4>❌ Strictly Prohibited</h4>
+          <ul class="comm-rules-list">
+            <li><span>🚫</span> <b>Spam:</b> Bots, repetitive spam, or fake links</li>
+            <li><span>⚠️</span> <b>Scams:</b> Fraud, impersonation, or financial schemes</li>
+            <li><span>⚖️</span> <b>Illegal content:</b> Unlawful activity, piracy or contraband</li>
+            <li><span>🛑</span> <b>Harassment:</b> Bullying, threats, or defamation</li>
+            <li><span>🛑</span> <b>Hate:</b> Hate speech, slurs, or discrimination</li>
+            <li><span>🔞</span> <b>Explicit sexual content:</b> Adult or NSFW media</li>
+            <li><span>🚨</span> <b>Dangerous/violent content:</b> Violence or physical threats</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="font-size:11px;color:rgba(245,241,232,0.8);line-height:1.4;text-align:center;margin-top:12px;">
+        💡 <b>How Ranking Works:</b> Every user gets to upvote their favorite spots. The higher your vote count, the higher you climb to the top of the magazine feed!
+      </div>
+      
+      <button class="ed-btn ed-primary" style="width:100%;margin-top:14px;" onclick="closeGuidelinesModal()">
+        GOT IT — BACK TO FEED
+      </button>
     </div>
   </div>
 
@@ -1551,26 +2275,27 @@ function standardAdHtml(a, cityIdx){
 
 function cityPage(c, idx){
   if (!c || typeof c !== 'object') c = {};
-  const total = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities.length : 1;
-  const pageNumber = idx + 1;
+  const totalCities = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities.length : 1;
+  const pageIndexInPages = idx + 2; // Cover is 0, Community Discovery is 1, City 1 is 2
   const ads = Array.isArray(c.ads) ? c.ads : [];
-  const adsHtml = ads.map(a => standardAdHtml(a, pageNumber)).join('');
+  const adsHtml = ads.map(a => standardAdHtml(a, pageIndexInPages)).join('');
   const model = c.model || { name: '', role: '', bio: '', media: null };
-  const cityName = c.name || `City ${pageNumber}`;
-  const cityNum = c.num || String(pageNumber).padStart(2, '0');
-  const cityTheme = c.theme || `theme-c${pageNumber}`;
+  const cityName = c.name || `City ${idx + 1}`;
+  const cityNum = c.num || String(idx + 1).padStart(2, '0');
+  const cityTheme = c.theme || `theme-c${idx + 1}`;
 
   return {
     id: 'city-' + cityNum,
+    cityIndex: idx,
     cls: 'city-page ' + cityTheme,
     html: `
       <div class="city-band">
         <span class="cname">${cityName}</span>
         <div style="display:flex;align-items:center;gap:8px;">
-          <button class="city-share-pill" onclick="event.stopPropagation(); triggerCurrentPageShare(${pageNumber})" title="Share ${cityName}">
+          <button class="city-share-pill" onclick="event.stopPropagation(); triggerCurrentPageShare(${pageIndexInPages})" title="Share ${cityName}">
             ↗ Share
           </button>
-          <span class="cnum">${cityNum} / ${String(total).padStart(2,'0')}</span>
+          <span class="cnum">${cityNum} / ${String(totalCities).padStart(2,'0')}</span>
         </div>
       </div>
       <div class="stamp">Local Spotlight</div>
@@ -1598,14 +2323,14 @@ editorCss.textContent = `
   #editorPanel.open{display:block}
   .editor-inner{width:min(900px,100%);margin:0 auto}
   .editor-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
-  .editor-head h2{margin:0;font-family:'Anton',sans-serif;font-size:28px;text-transform:uppercase;letter-spacing:0.04em}
+  .editor-head h2{margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;text-transform:uppercase;letter-spacing:0.04em}
   .editor-actions{display:flex;gap:8px;flex-wrap:wrap}
   .ed-btn{border:0;border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer;font-size:12px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
   .ed-primary{background:#FF4D6D;color:white}.ed-light{background:#F5F1E8;color:#14121A}.ed-danger{background:#b8001f;color:#fff}
   .ed-download{background:#3FDDE0;color:#14121A}
   .editor-card{background:#f5f1e8;color:#14121A;border-radius:14px;padding:16px;margin:12px 0;border-left:6px solid #FF4D6D}
-  .editor-card h3{margin:0 0 12px;font-family:'Anton',sans-serif;text-transform:uppercase;font-size:22px}
-  .editor-card h4{margin:16px 0 10px;font-family:'Anton',sans-serif;font-size:16px;text-transform:uppercase}
+  .editor-card h3{margin:0 0 12px;font-family:'Space Grotesk',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;font-size:17px}
+  .editor-card h4{margin:16px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:0.02em;font-size:14px;text-transform:uppercase}
   .ed-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
   .ed-field{display:flex;flex-direction:column}
   .ed-field label{display:block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;color:#3a3540}
@@ -1709,8 +2434,8 @@ function mediaFieldHTML(label, fieldName, currentMedia, typeName) {
 function renderEditor(){
   const tabs = document.getElementById('editorTabs');
   const root = document.getElementById('editorContent');
-  const tabList = ['cover', ...MAGAZINE.cities.map((c,i)=>'city-'+i), 'back'];
-  const tabLabels = ['COVER', ...MAGAZINE.cities.map(c=>c.name.toUpperCase()), 'BACK COVER'];
+  const tabList = ['cover', 'community', ...MAGAZINE.cities.map((c,i)=>'city-'+i), 'back'];
+  const tabLabels = ['COVER', 'COMMUNITY MODERATION', ...MAGAZINE.cities.map(c=>c.name.toUpperCase()), 'BACK COVER'];
   
   tabs.innerHTML = tabList.map((t,i)=>`<button class="editor-tab ${t===activeTab?'active':''}" data-tab="${t}">${tabLabels[i]}</button>`).join('');
   tabs.querySelectorAll('.editor-tab').forEach(btn => {
@@ -1736,7 +2461,7 @@ function renderEditor(){
           <div class="ed-field full"><label>Feature Title</label><input data-cover="featureTitle" value="${esc(c.featureTitle || '')}"></div>
           <div class="ed-field full"><label>Feature Summary</label><textarea data-cover="featureSummary">${esc(c.featureSummary || '')}</textarea></div>
           
-          ${mediaFieldHTML('Cover Photo / Video', 'cover-photo', c.coverPhotoUrl ? {type: c.coverPhotoType || detectMediaType(c.coverPhotoUrl), url: c.coverPhotoUrl} : null, 'cover-type')}
+          ${mediaFieldHTML('Cover Photo / Video', 'cover-photo', c.coverPhotoUrl ? {type: c.coverPhotoType || detectMediaType(coverPhotoUrl), url: c.coverPhotoUrl} : null, 'cover-type')}
           
           ${mediaFieldHTML('Feature Image / Video', 'cover-feature', c.featureImageUrl ? {type: c.featureImageType || detectMediaType(c.featureImageUrl), url: c.featureImageUrl} : null, 'feature-type')}
           
@@ -1747,6 +2472,62 @@ function renderEditor(){
           
           ${mediaFieldHTML('Story 1 Image / Video', 'story-one', c.articleOneImageUrl ? {type: c.articleOneImageType || detectMediaType(c.articleOneImageUrl), url: c.articleOneImageUrl} : null, 'story1-type')}
           ${mediaFieldHTML('Story 2 Image / Video', 'story-two', c.articleTwoImageUrl ? {type: c.articleTwoImageType || detectMediaType(c.articleTwoImageUrl), url: c.articleTwoImageUrl} : null, 'story2-type')}
+        </div>
+      </div>
+    `;
+  } else if(activeTab === 'community'){
+    const postsHtml = COMMUNITY_POSTS.map(p => {
+      const reports = Array.isArray(p.reports) ? p.reports : [];
+      const reportReasons = reports.map(r => typeof r === 'string' ? r : (r.reason || 'Flagged')).join(', ');
+      return `
+        <div class="ad-editor" style="border-left:4px solid ${reports.length > 0 ? '#FF4D6D' : (p.isPinned ? '#A78BFA' : '#FFD23F')}">
+          <div class="ad-editor-head">
+            <div>
+              <h4 style="margin:0 0 2px;">${esc(p.title)} ${p.isPinned ? '📌 [PINNED]' : ''}</h4>
+              <div style="font-size:11px;color:#666;">
+                <b>${esc(p.author)}</b> (${esc(p.handle || '@local')}) · <b>${esc(p.category)}</b> · 📍 ${esc(p.location)}
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <button class="ed-btn ed-light" style="padding:6px 10px;font-size:11px;min-height:34px;" onclick="handleAdminModeratePost('${p.id}', '${p.isPinned ? 'unpin' : 'pin'}', event)">
+                ${p.isPinned ? '📌 UNPIN' : '📌 PIN TO TOP'}
+              </button>
+              ${reports.length > 0 ? `
+                <button class="ed-btn ed-download" style="padding:6px 10px;font-size:11px;min-height:34px;" onclick="handleAdminModeratePost('${p.id}', 'clear_reports', event)">
+                  🛡️ CLEAR REPORTS (${reports.length})
+                </button>
+              ` : ''}
+              <button class="ed-btn ed-danger" style="padding:6px 10px;font-size:11px;min-height:34px;" onclick="handleAdminModeratePost('${p.id}', 'delete', event)">
+                🗑️ DELETE
+              </button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:#444;margin:6px 0;line-height:1.4;">${esc(p.description)}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;color:#14121A;margin-top:6px;border-top:1px solid #ddd;padding-top:6px;">
+            <span>▲ ${p.votes || 0} Upvotes</span>
+            ${reports.length > 0 ? `<span style="color:#b8001f;">⚠️ Flagged: ${esc(reportReasons)}</span>` : '<span style="color:#2e7d32;">✅ Clean (No reports)</span>'}
+            ${p.link ? `<a href="${esc(p.link)}" target="_blank" style="color:#3FDDE0;font-weight:800;">${esc(p.linkText || 'Link')} ↗</a>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    root.innerHTML = `
+      <div class="editor-card">
+        <h3>Community Feed Moderation</h3>
+        <p style="font-size:12px;color:#555;margin:0 0 14px;line-height:1.4;">
+          Manage, pin, or moderate user submissions to keep the discovery feed safe, authentic, and local.
+        </p>
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+          <button class="ed-btn ed-primary" style="font-size:11px;" onclick="openSubmitSpotModal()">
+            ➕ ADD OFFICIAL SPOT
+          </button>
+          <button class="ed-btn ed-light" style="font-size:11px;" onclick="loadCommunityPosts().then(() => renderEditor())">
+            🔄 REFRESH FEED DATA
+          </button>
+        </div>
+        <div class="ads">
+          ${COMMUNITY_POSTS.length === 0 ? '<div style="padding:20px;text-align:center;color:#666;">No community posts yet. Click "+ ADD OFFICIAL SPOT" to add one!</div>' : postsHtml}
         </div>
       </div>
     `;
@@ -2105,6 +2886,780 @@ editorToggle.onclick = () => {
   setTimeout(() => document.getElementById('passwordInput')?.focus(), 120);
 };
 
+// Community Feed System - Data, Category Filtering, Upvoting, Reporting, and Moderation
+let COMMUNITY_POSTS = [];
+let activeCommCategory = 'All';
+let activeCommSort = 'votes';
+let userUpvotedPosts = new Set(JSON.parse(localStorage.getItem('spotlight_upvoted_posts') || '[]'));
+let mySubmittedPostIds = new Set(JSON.parse(localStorage.getItem('spotlight_my_posts') || '[]'));
+let activeReportPostId = null;
+
+const COMMUNITY_CATEGORIES = [
+  'All',
+  'Businesses',
+  'Creators',
+  'Events',
+  'Art',
+  'Music',
+  'Fashion',
+  'News/announcements',
+  'Community discussions'
+];
+
+const DEFAULT_COMMUNITY_POSTS = [
+  {
+    id: "post-1",
+    title: "Neon Sunset Roasters · New Pour-Over Bar",
+    author: "Marcus & Elena",
+    handle: "@neonsunset_slc",
+    category: "Businesses",
+    location: "Downtown Salt Lake City",
+    description: "Just opened our downtown tasting bar on 300 South! Handcrafted single-origin roasts, vinyl spinning all day, and fresh gluten-free pastries. Vote us up to support local coffee culture!",
+    mediaUrl: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1000&q=80",
+    mediaType: "image",
+    link: "https://ig.me/m/l_i_g_h__t",
+    linkText: "Visit Instagram @neonsunset_slc",
+    votes: 384,
+    createdAt: "2026-08-23T10:00:00.000Z",
+    isPinned: true,
+    reports: []
+  },
+  {
+    id: "post-2",
+    title: "Echoes of the Wasatch · New Single 'Alta Glow'",
+    author: "The Canyon Collective",
+    handle: "@canyoncollective_music",
+    category: "Music",
+    location: "Millcreek / SLC",
+    description: "Our brand new indie-rock anthem capturing late-night drives through Big Cottonwood Canyon just dropped on Spotify & Apple Music. Streaming everywhere now!",
+    mediaUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1000&q=80",
+    mediaType: "image",
+    link: "https://spotify.com",
+    linkText: "Listen on Spotify",
+    votes: 312,
+    createdAt: "2026-08-22T16:20:00.000Z",
+    isPinned: false,
+    reports: []
+  },
+  {
+    id: "post-3",
+    title: "Sugarhouse Night Market & Creator Fair",
+    author: "SLC Night Markets",
+    handle: "@sugarhousenightmarket",
+    category: "Events",
+    location: "Sugar House Park",
+    description: "This Friday 6PM - 10PM! Over 45 local food trucks, vintage vendors, live DJs, and handmade crafts under the string lights. Free entry for all ages!",
+    mediaUrl: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1000&q=80",
+    mediaType: "image",
+    link: "https://instagram.com",
+    linkText: "RSVP / Event Details",
+    votes: 278,
+    createdAt: "2026-08-22T12:00:00.000Z",
+    isPinned: false,
+    reports: []
+  },
+  {
+    id: "post-4",
+    title: "Mountain Grit Vintage · Autumn Collection Drop",
+    author: "Devon Miller",
+    handle: "@mountaingrit_vtg",
+    category: "Fashion",
+    location: "West Jordan, UT",
+    description: "Curated 90s outdoor gear, heavy flannel workwear, and one-of-one reworked denim jackets. Shop in-store or online starting Saturday at 10 AM.",
+    mediaUrl: "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=1000&q=80",
+    mediaType: "image",
+    link: "https://instagram.com",
+    linkText: "Shop Collection",
+    votes: 245,
+    createdAt: "2026-08-21T18:45:00.000Z",
+    isPinned: false,
+    reports: []
+  },
+  {
+    id: "post-5",
+    title: "Street Level Salt Lake · 35mm Photo Series",
+    author: "Jordan K.",
+    handle: "@jordank_visuals",
+    category: "Creators",
+    location: "Salt Lake City",
+    description: "Documenting the raw skate, architecture, and nightlife culture across Utah on analog 35mm film. Prints available with 10% donated to local youth arts.",
+    mediaUrl: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1000&q=80",
+    mediaType: "image",
+    link: "https://instagram.com",
+    linkText: "View Full Gallery",
+    votes: 219,
+    createdAt: "2026-08-21T09:15:00.000Z",
+    isPinned: false,
+    reports: []
+  },
+  {
+    id: "post-6",
+    title: "New 40-Foot Community Mural on 9th & 9th",
+    author: "Maya Morales Art",
+    handle: "@mayamorales_art",
+    category: "Art",
+    location: "9th & 9th District",
+    description: "Finished my biggest public mural yet celebrating Wasatch wildflowers and local biodiversity! Come snap a photo and tag @mayamorales_art.",
+    mediaUrl: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=1000&q=80",
+    mediaType: "image",
+    link: "https://instagram.com",
+    linkText: "See Mural Location",
+    votes: 194,
+    createdAt: "2026-08-20T11:30:00.000Z",
+    isPinned: false,
+    reports: []
+  },
+  {
+    id: "post-7",
+    title: "Front Runner Extension & Late-Night Transit Update",
+    author: "Wasatch Front Transit Watch",
+    handle: "@wasatchtransit",
+    category: "News/announcements",
+    location: "Utah County → Salt Lake",
+    description: "Weekend service frequency is officially increasing starting next month, with extended midnight trains for Friday & Saturday night events.",
+    mediaUrl: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
+    mediaType: "image",
+    link: "https://instagram.com",
+    linkText: "Read Transit Update",
+    votes: 167,
+    createdAt: "2026-08-19T14:00:00.000Z",
+    isPinned: false,
+    reports: []
+  },
+  {
+    id: "post-8",
+    title: "What's the #1 Underrated Ramen or Taco Spot in the Valley?",
+    author: "The SpotLIGHT Editors",
+    handle: "@l_i_g_h__t",
+    category: "Community discussions",
+    location: "Wasatch Front",
+    description: "We are compiling the definitive 'Locals Only' dining guide for Issue 02. Drop your favorite hidden gem and upvote the best recommendations!",
+    mediaUrl: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=1000&q=80",
+    mediaType: "image",
+    link: "https://ig.me/m/l_i_g_h__t",
+    linkText: "Send Your Pick via DM",
+    votes: 152,
+    createdAt: "2026-08-18T17:00:00.000Z",
+    isPinned: false,
+    reports: []
+  }
+];
+
+function getCategoryBadgeClass(cat) {
+  if (!cat) return 'cat-businesses';
+  const c = cat.toLowerCase();
+  if (c.includes('business')) return 'cat-businesses';
+  if (c.includes('creator')) return 'cat-creators';
+  if (c.includes('event')) return 'cat-events';
+  if (c.includes('art')) return 'cat-art';
+  if (c.includes('music')) return 'cat-music';
+  if (c.includes('fashion')) return 'cat-fashion';
+  if (c.includes('news') || c.includes('announce')) return 'cat-news';
+  if (c.includes('discuss') || c.includes('community')) return 'cat-discussions';
+  return 'cat-businesses';
+}
+
+async function loadCommunityPosts() {
+  try {
+    const res = await fetch(`/api/community?category=${encodeURIComponent(activeCommCategory)}&sort=${activeCommSort}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.posts && Array.isArray(data.posts)) {
+        COMMUNITY_POSTS = data.posts;
+        updateCommunityFeedUI();
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('API fetch warning:', e);
+  }
+
+  // Fallback to local / default list
+  if (COMMUNITY_POSTS.length === 0) {
+    COMMUNITY_POSTS = [...DEFAULT_COMMUNITY_POSTS];
+  }
+  filterAndSortLocalPosts();
+  updateCommunityFeedUI();
+}
+
+function filterAndSortLocalPosts() {
+  let filtered = [...COMMUNITY_POSTS];
+  if (activeCommCategory && activeCommCategory !== 'All') {
+    filtered = filtered.filter(p => p.category && p.category.toLowerCase() === activeCommCategory.toLowerCase());
+  }
+  if (activeCommSort === 'newest') {
+    filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  } else {
+    filtered.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return (b.votes || 0) - (a.votes || 0);
+    });
+  }
+  return filtered;
+}
+
+function renderCommunityCardHtml(p, rank) {
+  const isUpvoted = userUpvotedPosts.has(p.id);
+  const isMyPost = mySubmittedPostIds.has(p.id) || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked);
+  const catClass = getCategoryBadgeClass(p.category);
+  const rankLabel = p.isPinned 
+    ? '⭐ PINNED SPOTLIGHT' 
+    : (rank === 1 ? '#1 TRENDING' : (rank === 2 ? '#2 TOP SPOT' : (rank === 3 ? '#3 HOT' : `#${rank} RANKED`)));
+
+  const rankBadgeCls = p.isPinned ? 'comm-rank-pinned' : (rank <= 3 ? 'comm-rank-top' : '');
+  const safeTitle = esc(p.title);
+  const safeAuthor = esc(p.author || 'Local Contributor');
+  const safeHandle = esc(p.handle || '');
+  const safeLocation = esc(p.location || 'Wasatch Front, UT');
+  const safeDesc = esc(p.description || '');
+
+  let mediaBoxHtml = '';
+  if (p.mediaUrl) {
+    mediaBoxHtml = `
+      <div class="comm-card-media-box">
+        ${renderMediaPreview(p.mediaUrl, p.mediaType || detectMediaType(p.mediaUrl))}
+      </div>
+    `;
+  }
+
+  return `
+    <article class="comm-card ${p.isPinned ? 'is-pinned' : ''}" id="comm-card-${p.id}">
+      <div class="comm-card-rank-bar">
+        <span class="comm-rank-badge ${rankBadgeCls}">${rankLabel}</span>
+        <span class="comm-cat-tag ${catClass}">${esc(p.category || 'Spotlight')}</span>
+      </div>
+
+      <div class="comm-card-header">
+        <div class="comm-card-author-info">
+          <div class="comm-card-author-name">
+            ${safeAuthor}
+            ${safeHandle ? `<span class="comm-card-author-handle">${safeHandle}</span>` : ''}
+          </div>
+          <div class="comm-card-author-meta">
+            <span>📍 ${safeLocation}</span>
+          </div>
+        </div>
+
+        <div class="comm-card-menu-wrap">
+          <button class="comm-card-menu-btn" title="More options" onclick="togglePostDropdown('${p.id}', event)">
+            •••
+          </button>
+          <div class="comm-card-dropdown" id="comm-dropdown-${p.id}">
+            <button class="comm-dropdown-item" onclick="triggerSpotShare('${p.id}', '${safeTitle.replace(/'/g, "\\'")}', event)">
+              ↗ Share This Spot
+            </button>
+            <button class="comm-dropdown-item report" onclick="openReportModal('${p.id}', event)">
+              🚩 Report Violation
+            </button>
+            ${isMyPost ? `
+              <button class="comm-dropdown-item delete" style="color:#FF4D6D;font-weight:700;" onclick="handleDeleteCommunityPost('${p.id}', event)">
+                🗑️ Delete Spot
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+
+      ${mediaBoxHtml}
+
+      <div class="comm-card-body">
+        <h3 class="comm-card-title">${safeTitle}</h3>
+        <p class="comm-card-desc">${safeDesc}</p>
+      </div>
+
+      <div class="comm-card-footer">
+        <div class="comm-card-footer-actions">
+          <button class="comm-upvote-btn ${isUpvoted ? 'upvoted' : ''}" id="upvote-btn-${p.id}" onclick="handleCommunityUpvote('${p.id}', event)">
+            <span class="upvote-arrow">▲</span>
+            <span class="upvote-text">${isUpvoted ? 'Voted' : 'Upvote'}</span>
+            <span class="upvote-count" id="upvote-count-${p.id}">${p.votes || 0}</span>
+          </button>
+
+          ${p.link ? `
+            <a href="${esc(p.link)}" target="_blank" rel="noopener noreferrer" class="comm-link-btn" onclick="event.stopPropagation();">
+              ${esc(p.linkText || 'Learn More')} ↗
+            </a>
+          ` : ''}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderCommunityPageHtml() {
+  const posts = filterAndSortLocalPosts();
+  const cardsHtml = posts.length === 0
+    ? `<div class="comm-empty-state">
+        <div class="comm-empty-icon">📍</div>
+        <div class="comm-empty-title">No spots in this category yet!</div>
+        <div class="comm-empty-sub">Be the first to submit your business, band, art, or event and get voted to the top.</div>
+        <button class="comm-action-btn comm-btn-submit" style="margin-top:12px;" onclick="event.stopPropagation(); openSubmitSpotModal()">
+          + Submit First Spot
+        </button>
+      </div>`
+    : posts.map((p, idx) => renderCommunityCardHtml(p, idx + 1)).join('');
+
+  const categoryPillsHtml = COMMUNITY_CATEGORIES.map(cat => `
+    <button class="comm-cat-pill ${activeCommCategory === cat ? 'active' : ''}" onclick="event.stopPropagation(); setCommunityCategory('${cat}')">
+      ${cat === 'All' ? '✨ All' : cat}
+    </button>
+  `).join('');
+
+  return `
+    <div class="city-band">
+      <span class="cname">COMMUNITY DISCOVERY</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="city-share-pill" onclick="event.stopPropagation(); triggerCommunityShare()">↗ Share</button>
+        <span class="cnum">FEED</span>
+      </div>
+    </div>
+
+    <div class="comm-feed-wrapper">
+      <div class="comm-hero">
+        <div class="comm-hero-tag">🔥 LIVE DISCOVERY FEED</div>
+        <h2>THE SPOTLIGHT COMMUNITY</h2>
+        <div class="comm-hero-sub">
+          Utah's official endless discovery scroll. Upvote local businesses, creators, events & music to push them to #1!
+        </div>
+        <div class="comm-hero-actions">
+          <button class="comm-action-btn comm-btn-submit" onclick="event.stopPropagation(); openSubmitSpotModal()">
+            + Submit Your Spot
+          </button>
+          <button class="comm-action-btn comm-btn-rules" onclick="event.stopPropagation(); openGuidelinesModal()">
+            📜 Rules & Safety
+          </button>
+        </div>
+      </div>
+
+      <div class="comm-feed-controls">
+        <div class="comm-category-pills">
+          ${categoryPillsHtml}
+        </div>
+        <div class="comm-sort-row">
+          <div class="comm-sort-label">RANKED BY:</div>
+          <select class="comm-sort-select" onchange="handleCommSortChange(this.value)" onclick="event.stopPropagation();">
+            <option value="votes" ${activeCommSort === 'votes' ? 'selected' : ''}>🔥 Highest Votes (Ranked)</option>
+            <option value="newest" ${activeCommSort === 'newest' ? 'selected' : ''}>✨ Newest Submissions</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="comm-feed-list" id="communityFeedList">
+        ${cardsHtml}
+      </div>
+      
+      <div class="comm-end-box">
+        <div class="comm-end-title">Want your spot at #1?</div>
+        <div class="comm-end-sub">Share your link with your followers and ask them to vote you up!</div>
+        <button class="comm-action-btn comm-btn-submit" style="margin-top:10px;" onclick="event.stopPropagation(); openSubmitSpotModal()">
+          + Submit Your Spot Now
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function updateCommunityFeedUI() {
+  const feedList = document.getElementById('communityFeedList');
+  if (feedList) {
+    const posts = filterAndSortLocalPosts();
+    feedList.innerHTML = posts.length === 0
+      ? `<div class="comm-empty-state">
+          <div class="comm-empty-icon">📍</div>
+          <div class="comm-empty-title">No spots in this category yet!</div>
+          <div class="comm-empty-sub">Be the first to submit your business, band, art, or event and get voted to the top.</div>
+          <button class="comm-action-btn comm-btn-submit" style="margin-top:12px;" onclick="event.stopPropagation(); openSubmitSpotModal()">
+            + Submit First Spot
+          </button>
+        </div>`
+      : posts.map((p, idx) => renderCommunityCardHtml(p, idx + 1)).join('');
+  }
+
+  // Sync category pills active state
+  document.querySelectorAll('.comm-cat-pill').forEach(btn => {
+    const text = btn.textContent.trim().replace(/^✨\s*/, '');
+    btn.classList.toggle('active', text === activeCommCategory);
+  });
+}
+
+function setCommunityCategory(cat) {
+  activeCommCategory = cat;
+  loadCommunityPosts();
+}
+
+function handleCommSortChange(sort) {
+  activeCommSort = sort;
+  loadCommunityPosts();
+}
+
+function togglePostDropdown(postId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  document.querySelectorAll('.comm-card-dropdown').forEach(d => {
+    if (d.id !== `comm-dropdown-${postId}`) {
+      d.classList.remove('show');
+    }
+  });
+  const menu = document.getElementById(`comm-dropdown-${postId}`);
+  if (menu) {
+    menu.classList.toggle('show');
+  }
+}
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.comm-card-dropdown').forEach(d => d.classList.remove('show'));
+});
+
+function handleCommunityUpvote(postId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  const post = COMMUNITY_POSTS.find(p => p.id === postId);
+  if (!post) return;
+
+  const btn = document.getElementById(`upvote-btn-${postId}`) || (event && event.currentTarget);
+  const countEl = document.getElementById(`upvote-count-${postId}`);
+
+  if (userUpvotedPosts.has(postId)) {
+    // Already upvoted — trigger appreciation animation again
+    if (btn) createHeartBurst(btn);
+    showToast('✨ You already upvoted this spot!');
+    return;
+  }
+
+  // Optimistic UI update
+  userUpvotedPosts.add(postId);
+  localStorage.setItem('spotlight_upvoted_posts', JSON.stringify([...userUpvotedPosts]));
+  post.votes = (post.votes || 0) + 1;
+
+  if (btn) {
+    btn.classList.add('upvoted');
+    const txt = btn.querySelector('.upvote-text');
+    if (txt) txt.textContent = 'Voted';
+    createHeartBurst(btn);
+  }
+  if (countEl) {
+    countEl.textContent = post.votes;
+  }
+
+  showToast(`▲ Upvoted! "${post.title.slice(0, 24)}..." +1`);
+
+  // Call API in background
+  fetch('/api/community/upvote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: postId })
+  }).catch(err => {
+    console.warn('Vote sync error:', err);
+  });
+}
+
+function openSubmitSpotModal() {
+  const modal = document.getElementById('submitSpotModal');
+  if (modal) modal.classList.add('show');
+}
+
+function closeSubmitSpotModal() {
+  const modal = document.getElementById('submitSpotModal');
+  if (modal) modal.classList.remove('show');
+}
+
+let pendingSpotMediaUrl = '';
+let pendingSpotMediaType = 'image';
+
+function handleSpotFileUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const statusEl = document.getElementById('spotUploadStatus');
+  if (statusEl) statusEl.textContent = '⏳ Uploading & transcoding...';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  fetch('/api/upload', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.url) {
+      pendingSpotMediaUrl = data.url;
+      pendingSpotMediaType = data.type || (file.type.startsWith('video/') ? 'video' : 'image');
+      const urlInput = document.getElementById('spotMediaUrl');
+      if (urlInput) urlInput.value = data.url;
+      const preview = document.getElementById('spotMediaPreview');
+      if (preview) {
+        preview.innerHTML = renderMediaPreview(data.url, pendingSpotMediaType);
+      }
+      if (statusEl) statusEl.textContent = '✅ File Uploaded!';
+      showToast('📸 Media Uploaded!');
+    }
+  })
+  .catch(err => {
+    console.error('Spot upload failed:', err);
+    if (statusEl) statusEl.textContent = '❌ Upload failed. Please try again.';
+  });
+}
+
+function handleSpotSubmit(event) {
+  if (event) event.preventDefault();
+
+  const title = document.getElementById('spotTitle')?.value.trim();
+  const author = document.getElementById('spotAuthor')?.value.trim();
+  const handle = document.getElementById('spotHandle')?.value.trim();
+  const category = document.getElementById('spotCategory')?.value;
+  const location = document.getElementById('spotLocation')?.value.trim();
+  const description = document.getElementById('spotDescription')?.value.trim();
+  const mediaUrl = document.getElementById('spotMediaUrl')?.value.trim() || pendingSpotMediaUrl;
+  const link = document.getElementById('spotLink')?.value.trim();
+  const linkText = document.getElementById('spotLinkText')?.value.trim();
+
+  if (!title || !description) {
+    alert('Please enter a title and description for your spot.');
+    return;
+  }
+
+  const payload = {
+    title,
+    author: author || 'Local Contributor',
+    handle: handle || '',
+    category: category || 'Businesses',
+    location: location || 'Wasatch Front, UT',
+    description,
+    mediaUrl: mediaUrl || '',
+    mediaType: pendingSpotMediaType || detectMediaType(mediaUrl),
+    link: link || '',
+    linkText: linkText || 'Learn More'
+  };
+
+  fetch('/api/community/post', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success && data.post) {
+      COMMUNITY_POSTS.unshift(data.post);
+      mySubmittedPostIds.add(data.post.id);
+      localStorage.setItem('spotlight_my_posts', JSON.stringify([...mySubmittedPostIds]));
+      updateCommunityFeedUI();
+      closeSubmitSpotModal();
+      showToast('🎉 Spot Submitted to Community Feed!');
+      // Reset form
+      document.getElementById('spotSubmitForm')?.reset();
+      const preview = document.getElementById('spotMediaPreview');
+      if (preview) preview.innerHTML = '';
+      pendingSpotMediaUrl = '';
+    } else {
+      showToast('Error submitting spot.');
+    }
+  })
+  .catch(err => {
+    console.error('Error submitting spot:', err);
+    // Fallback local addition
+    const localPost = {
+      id: 'post-' + Date.now(),
+      ...payload,
+      votes: 1,
+      createdAt: new Date().toISOString(),
+      isPinned: false,
+      reports: []
+    };
+    COMMUNITY_POSTS.unshift(localPost);
+    mySubmittedPostIds.add(localPost.id);
+    localStorage.setItem('spotlight_my_posts', JSON.stringify([...mySubmittedPostIds]));
+    updateCommunityFeedUI();
+    closeSubmitSpotModal();
+    showToast('🎉 Spot Posted Locally!');
+  });
+}
+
+function openReportModal(postId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  activeReportPostId = postId;
+  const modal = document.getElementById('reportModal');
+  if (modal) modal.classList.add('show');
+}
+
+function closeReportModal() {
+  activeReportPostId = null;
+  const modal = document.getElementById('reportModal');
+  if (modal) modal.classList.remove('show');
+}
+
+function handleReportSubmit(event) {
+  if (event) event.preventDefault();
+  if (!activeReportPostId) return;
+
+  const reason = document.getElementById('reportReason')?.value || 'Spam';
+  const details = document.getElementById('reportDetails')?.value.trim() || '';
+
+  fetch('/api/community/report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: activeReportPostId,
+      reason,
+      details
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    closeReportModal();
+    showToast('🛡️ Report received. Thank you for keeping Utah safe!');
+    document.getElementById('reportDetails').value = '';
+  })
+  .catch(err => {
+    closeReportModal();
+    showToast('🛡️ Report received. Thank you!');
+  });
+}
+
+function openGuidelinesModal() {
+  const modal = document.getElementById('guidelinesModal');
+  if (modal) modal.classList.add('show');
+}
+
+function closeGuidelinesModal() {
+  const modal = document.getElementById('guidelinesModal');
+  if (modal) modal.classList.remove('show');
+}
+
+function triggerCommunityShare() {
+  const baseUrl = getCanonicalBaseUrl();
+  const deepLink = `${baseUrl}#community`;
+  const shareInfo = {
+    title: 'The SpotLIGHT · Utah Community Feed',
+    text: 'Discover and upvote Utah’s top spots, businesses, music & creators!',
+    url: deepLink,
+    storyTag: 'Community Discovery',
+    storyTitle: 'The SpotLIGHT Feed',
+    storySub: 'Utah Ranked Live'
+  };
+  openShareModal(shareInfo);
+}
+
+function triggerSpotShare(postId, title, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  const baseUrl = getCanonicalBaseUrl();
+  const deepLink = `${baseUrl}#community`;
+  const shareInfo = {
+    title: `Vote for ${title} on The SpotLIGHT!`,
+    text: `Check out ${title} on Utah’s SpotLIGHT community feed: ${deepLink}`,
+    url: deepLink,
+    storyTag: 'Community Spotlight',
+    storyTitle: title,
+    storySub: 'Vote on The SpotLIGHT'
+  };
+  openShareModal(shareInfo);
+}
+
+function handleDeleteCommunityPost(postId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  const post = COMMUNITY_POSTS.find(p => p.id === postId);
+  const postTitle = post ? `"${post.title}"` : 'this spot';
+
+  if (!confirm(`Are you sure you want to delete ${postTitle}? This action cannot be undone.`)) {
+    return;
+  }
+
+  // 1. Instant optimistic update
+  COMMUNITY_POSTS = COMMUNITY_POSTS.filter(p => p.id !== postId);
+  mySubmittedPostIds.delete(postId);
+  localStorage.setItem('spotlight_my_posts', JSON.stringify([...mySubmittedPostIds]));
+  updateCommunityFeedUI();
+  if (activeTab === 'community') {
+    renderEditor();
+  }
+  showToast('🗑️ Spot deleted.');
+
+  // 2. Call backend moderation endpoint
+  fetch('/api/admin/community/moderate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: postId, action: 'delete' })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      loadCommunityPosts().then(() => {
+        if (activeTab === 'community') renderEditor();
+      });
+    } else {
+      console.warn('Backend delete returned non-success:', data);
+    }
+  })
+  .catch(err => {
+    console.error('Delete network error:', err);
+  });
+}
+
+function handleAdminModeratePost(postId, action, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+
+  if (action === 'delete') {
+    handleDeleteCommunityPost(postId, event);
+    return;
+  }
+
+  // Optimistic update for pin / unpin / clear_reports
+  const post = COMMUNITY_POSTS.find(p => p.id === postId);
+  if (post) {
+    if (action === 'pin') post.isPinned = true;
+    if (action === 'unpin') post.isPinned = false;
+    if (action === 'clear_reports') post.reports = [];
+    updateCommunityFeedUI();
+    if (activeTab === 'community') renderEditor();
+  }
+
+  fetch('/api/admin/community/moderate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: postId, action })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      showToast(`Action '${action}' completed.`);
+      loadCommunityPosts().then(() => {
+        if (activeTab === 'community') renderEditor();
+      });
+    } else {
+      showToast('Moderation action failed.');
+    }
+  })
+  .catch(err => {
+    console.error('Moderation error:', err);
+  });
+}
+
+function communityPage() {
+  return {
+    id: 'community-discovery',
+    cls: 'community-page theme-community',
+    html: () => renderCommunityPageHtml()
+  };
+}
+
 let PAGES = [];
 let total = 0;
 let current = 0;
@@ -2137,6 +3692,7 @@ function buildPages() {
         <div class="flip-hint">Tap or swipe to flip →</div>
       `
     },
+    communityPage(),
     ...cities.map((city, idx) => cityPage(city, idx)),
     {
       id: 'back',
@@ -2323,7 +3879,9 @@ function getCanonicalBaseUrl() {
 function getPageSlug(idx) {
   if (idx === 0) return 'cover';
   if (idx === total - 1) return 'back';
-  const city = MAGAZINE.cities[idx - 1];
+  if (PAGES[idx]?.id === 'community-discovery' || idx === 1) return 'community';
+  const cityIdx = idx - 2;
+  const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
   if (city && city.name) {
     return city.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   }
@@ -2340,10 +3898,19 @@ function getPageShareInfo(idx) {
   let storyTitle = 'The SpotLIGHT';
   let storySub = 'Tap the link to check it out';
 
-  if (targetIdx > 0 && targetIdx < total - 1) {
-    const city = MAGAZINE.cities[targetIdx - 1];
+  if (targetIdx === 0) {
+    storyTag = 'Wasatch Front · Digital Edition';
+    storyTitle = 'The SpotLIGHT';
+    storySub = 'Utah’s Premier Mobile Magazine';
+  } else if (PAGES[targetIdx]?.id === 'community-discovery' || targetIdx === 1) {
+    storyTag = 'Community Discovery';
+    storyTitle = 'Community Spotlight Feed';
+    storySub = 'Discover & Vote Up Utah’s Best';
+  } else if (targetIdx >= 2 && targetIdx < total - 1) {
+    const cityIdx = targetIdx - 2;
+    const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
     if (city && city.name) {
-      storyTag = `City Spotlight · ${city.num || '0' + targetIdx}`;
+      storyTag = `City Spotlight · ${city.num || '0' + (cityIdx + 1)}`;
       storyTitle = city.name;
       storySub = 'The SpotLIGHT';
     }
@@ -2836,6 +4403,7 @@ document.addEventListener('keydown', e => {
 async function start() {
   MAGAZINE = await loadMagazine();
   applyMagazineUpdates();
+  loadCommunityPosts();
 
   // Parse deep-link URL hash only if an explicit non-cover city deep-link was requested
   const rawHash = (window.location.hash || '').replace('#', '').trim().toLowerCase();
@@ -2843,6 +4411,9 @@ async function start() {
     let targetIdx = -1;
     if (rawHash === 'back') {
       targetIdx = total - 1;
+    } else if (rawHash === 'community' || rawHash === 'feed' || rawHash === 'discovery') {
+      const commIdx = PAGES.findIndex(p => p.id === 'community-discovery');
+      if (commIdx !== -1) targetIdx = commIdx;
     } else if (/^page-\d+$/i.test(rawHash)) {
       const pNum = parseInt(rawHash.replace('page-', ''), 10);
       if (!isNaN(pNum) && pNum >= 1 && pNum <= total) targetIdx = pNum - 1;
@@ -2851,12 +4422,12 @@ async function start() {
       if (!isNaN(pNum) && pNum >= 1 && pNum <= total) targetIdx = pNum - 1;
     } else {
       // Match by city name slug
-      const cityIdx = MAGAZINE.cities.findIndex((c, i) => {
+      const cityIdx = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities.findIndex((c, i) => {
         const slug = (c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         return slug === rawHash || (rawHash === 'slc' && slug.includes('salt-lake'));
-      });
+      }) : -1;
       if (cityIdx !== -1) {
-        targetIdx = cityIdx + 1; // +1 because cover is page 0
+        targetIdx = cityIdx + 2; // +2 because 0 is cover, 1 is community
       }
     }
 

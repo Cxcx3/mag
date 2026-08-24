@@ -1,6 +1,6 @@
 {
   "name": "The Spotlight Magazine",
-  "description": "Interactive digital flip magazine showcasing Wasatch Front local businesses, culture, and community spotlights.",
+  "description": "Interactive digital flip magazine and live community discovery feed showcasing Wasatch Front local businesses, creators, events, music, and spots ranked by upvotes.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

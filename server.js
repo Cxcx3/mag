@@ -205,6 +205,217 @@ app.post(['/api/save', '/api/data'], async (req, res) => {
   }
 });
 
+// Community Feed helper functions
+const communityPath = path.join(__dirname, 'community.json');
+
+async function getCommunityPosts() {
+  if (!fs.existsSync(communityPath)) {
+    return [];
+  }
+  try {
+    const raw = await fs.promises.readFile(communityPath, 'utf8');
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Error reading community.json:', e);
+    return [];
+  }
+}
+
+async function saveCommunityPosts(posts) {
+  try {
+    await fs.promises.writeFile(communityPath, JSON.stringify(posts, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Error writing community.json:', e);
+    return false;
+  }
+}
+
+// GET Community Posts with optional category filtering and sorting (votes or newest)
+app.get('/api/community', async (req, res) => {
+  try {
+    let posts = await getCommunityPosts();
+    const { category, sort } = req.query;
+
+    if (category && category !== 'All') {
+      posts = posts.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
+    }
+
+    if (sort === 'newest') {
+      posts.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    } else {
+      // Default: Trending / Highest Votes. Pinned posts always stay at the top.
+      posts.sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return (b.votes || 0) - (a.votes || 0);
+      });
+    }
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return res.json({ success: true, posts });
+  } catch (err) {
+    console.error('Community fetch error:', err);
+    return res.status(500).json({ error: 'Failed to fetch community posts' });
+  }
+});
+
+// POST Upvote a Community Post
+app.post('/api/community/upvote', async (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      return res.status(400).json({ error: 'Post ID required' });
+    }
+
+    const posts = await getCommunityPosts();
+    const post = posts.find(p => p.id === id);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    post.votes = (post.votes || 0) + 1;
+    await saveCommunityPosts(posts);
+
+    return res.json({ success: true, id, votes: post.votes });
+  } catch (err) {
+    console.error('Upvote error:', err);
+    return res.status(500).json({ error: 'Failed to record vote' });
+  }
+});
+
+// POST Submit a New Community Spot
+app.post('/api/community/post', async (req, res) => {
+  try {
+    const { title, author, handle, category, location, description, mediaUrl, mediaType, link, linkText } = req.body;
+
+    if (!title || !description) {
+      return res.status(400).json({ error: 'Title and description are required' });
+    }
+
+    const validCategories = [
+      'Businesses',
+      'Creators',
+      'Events',
+      'Art',
+      'Music',
+      'Fashion',
+      'News/announcements',
+      'Community discussions'
+    ];
+
+    const safeCat = validCategories.includes(category) ? category : 'Businesses';
+
+    const newPost = {
+      id: 'post-' + Date.now() + '-' + Math.round(Math.random() * 1000),
+      title: String(title).slice(0, 100).trim(),
+      author: String(author || 'Local Contributor').slice(0, 50).trim(),
+      handle: String(handle || '').slice(0, 40).trim(),
+      category: safeCat,
+      location: String(location || 'Wasatch Front, UT').slice(0, 60).trim(),
+      description: String(description).slice(0, 500).trim(),
+      mediaUrl: mediaUrl || '',
+      mediaType: mediaType || 'image',
+      link: link || '',
+      linkText: String(linkText || 'Learn More').slice(0, 40).trim(),
+      votes: 1, // Author's initial upvote
+      createdAt: new Date().toISOString(),
+      isPinned: false,
+      reports: []
+    };
+
+    const posts = await getCommunityPosts();
+    posts.unshift(newPost);
+    await saveCommunityPosts(posts);
+
+    return res.json({ success: true, post: newPost });
+  } catch (err) {
+    console.error('Community submit error:', err);
+    return res.status(500).json({ error: 'Failed to submit post' });
+  }
+});
+
+// POST Report a Community Post (Violation flags)
+app.post('/api/community/report', async (req, res) => {
+  try {
+    const { id, reason, details } = req.body;
+    if (!id || !reason) {
+      return res.status(400).json({ error: 'Post ID and report reason required' });
+    }
+
+    const allowedReasons = [
+      'Spam',
+      'Scams',
+      'Illegal content',
+      'Harassment',
+      'Hate',
+      'Explicit sexual content',
+      'Dangerous/violent content'
+    ];
+
+    const safeReason = allowedReasons.includes(reason) ? reason : 'Spam';
+
+    const posts = await getCommunityPosts();
+    const post = posts.find(p => p.id === id);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    post.reports = post.reports || [];
+    post.reports.push({
+      reason: safeReason,
+      details: String(details || '').slice(0, 200),
+      timestamp: new Date().toISOString()
+    });
+
+    await saveCommunityPosts(posts);
+
+    return res.json({ success: true, reportCount: post.reports.length });
+  } catch (err) {
+    console.error('Report error:', err);
+    return res.status(500).json({ error: 'Failed to submit report' });
+  }
+});
+
+// POST Admin Community Moderation (Pin, Delete, Clear Reports)
+app.post('/api/admin/community/moderate', async (req, res) => {
+  try {
+    const { action, id } = req.body;
+    if (!action || !id) {
+      return res.status(400).json({ error: 'Action and post ID required' });
+    }
+
+    let posts = await getCommunityPosts();
+    const postIdx = posts.findIndex(p => String(p.id) === String(id));
+
+    if (postIdx === -1) {
+      // If already deleted or not found, return success for idempotent deletes
+      if (action === 'delete') {
+        return res.json({ success: true, action, id, message: 'Post was already removed' });
+      }
+      return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (action === 'delete') {
+      posts.splice(postIdx, 1);
+    } else if (action === 'pin') {
+      posts[postIdx].isPinned = true;
+    } else if (action === 'unpin') {
+      posts[postIdx].isPinned = false;
+    } else if (action === 'clear_reports') {
+      posts[postIdx].reports = [];
+    } else {
+      return res.status(400).json({ error: 'Invalid moderation action' });
+    }
+
+    await saveCommunityPosts(posts);
+    return res.json({ success: true, action, id });
+  } catch (err) {
+    console.error('Admin moderation error:', err);
+    return res.status(500).json({ error: 'Moderation failed' });
+  }
+});
+
 // Serve static assets from root
 app.use(express.static(__dirname));
 
