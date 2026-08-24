@@ -6,7 +6,8 @@
 <title>The Spotlight Magazine — Bold Edition</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
+<link rel="stylesheet" href="spot-menu-fix.css">
+  <style>
   :root{
     --ink:#14121A;
     --coral:#FF4D6D;
