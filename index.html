@@ -2960,6 +2960,19 @@ let activeCommCategory = 'All';
 let activeCommSort = 'votes';
 let userUpvotedPosts = new Set(JSON.parse(localStorage.getItem('spotlight_upvoted_posts') || '[]'));
 let mySubmittedPostIds = new Set(JSON.parse(localStorage.getItem('spotlight_my_posts') || '[]'));
+// Each browser gets a private creator key. It is stored locally and sent with
+// create/edit/delete requests so only the creator can manage their own spots.
+function getSpotOwnerToken() {
+  let token = localStorage.getItem('spotlight_owner_token');
+  if (!token) {
+    token = (window.crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'owner-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    localStorage.setItem('spotlight_owner_token', token);
+  }
+  return token;
+}
+
 let activeReportPostId = null;
 
 const COMMUNITY_CATEGORIES = [
@@ -3187,7 +3200,8 @@ function filterAndSortLocalPosts() {
 
 function renderCommunityCardHtml(p, rank) {
   const isUpvoted = userUpvotedPosts.has(p.id);
-  const isMyPost = mySubmittedPostIds.has(p.id) || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked);
+  const isMyPost = mySubmittedPostIds.has(p.id);
+  const isAdminPostManager = (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked);
   const catClass = getCategoryBadgeClass(p.category);
   const rankLabel = p.isPinned 
     ? '⭐ PINNED SPOTLIGHT' 
@@ -3239,6 +3253,9 @@ function renderCommunityCardHtml(p, rank) {
               🚩 Report Violation
             </button>
             ${isMyPost ? `
+              <button class="comm-dropdown-item" onclick="openEditSpotModal('${p.id}', event)">
+                ✏️ Edit Spot
+              </button>
               <button class="comm-dropdown-item delete" style="color:#FF4D6D;font-weight:700;" onclick="openDeleteConfirmModal('${p.id}', event)">
                 🗑️ Delete Spot
               </button>
@@ -3445,7 +3462,82 @@ function handleCommunityUpvote(postId, event) {
   });
 }
 
+
+let editingSpotPostId = null;
+
+function openEditSpotModal(postId, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  if (!mySubmittedPostIds.has(postId)) {
+    showToast('⚠️ Only the creator can edit this spot.');
+    return;
+  }
+
+  const post = COMMUNITY_POSTS.find(p => String(p.id) === String(postId));
+  if (!post) {
+    showToast('⚠️ Spot could not be found.');
+    return;
+  }
+
+  editingSpotPostId = postId;
+  pendingSpotMediaUrl = post.mediaUrl || '';
+  pendingSpotMediaType = post.mediaType || detectMediaType(post.mediaUrl || '');
+
+  const values = {
+    spotTitle: post.title || '',
+    spotAuthor: post.author || '',
+    spotHandle: post.handle || '',
+    spotCategory: post.category || 'Businesses',
+    spotLocation: post.location || '',
+    spotMediaUrl: post.mediaUrl || '',
+    spotDescription: post.description || '',
+    spotLink: post.link || '',
+    spotLinkText: post.linkText || 'Learn More'
+  };
+
+  Object.entries(values).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  });
+
+  const preview = document.getElementById('spotMediaPreview');
+  if (preview) {
+    preview.innerHTML = post.mediaUrl
+      ? renderMediaPreview(post.mediaUrl, post.mediaType || detectMediaType(post.mediaUrl))
+      : '';
+  }
+
+  const modal = document.getElementById('submitSpotModal');
+  const title = modal?.querySelector('h2');
+  const intro = modal?.querySelector('p');
+  const submitBtn = document.getElementById('spotSubmitBtn');
+  if (title) title.textContent = 'Edit Your Spot';
+  if (intro) intro.textContent = 'Fix your Spot post, update the media, or make any corrections. Your existing votes stay with the post.';
+  if (submitBtn) submitBtn.textContent = '💾 SAVE SPOT CHANGES';
+
+  if (modal) modal.classList.add('show');
+}
+
+function resetSpotModalToCreate() {
+  editingSpotPostId = null;
+  const title = document.querySelector('#submitSpotModal h2');
+  const intro = document.querySelector('#submitSpotModal .comm-modal-card > p');
+  const submitBtn = document.getElementById('spotSubmitBtn');
+  if (title) title.textContent = 'Post Your Spot';
+  if (intro) intro.textContent = "Share your Utah business, creative project, music, event, or announcement. The more upvotes you get from locals, the higher you rank in the magazine!";
+  if (submitBtn) submitBtn.textContent = '🚀 PUBLISH & START GETTING VOTES';
+  pendingSpotMediaUrl = '';
+  pendingSpotMediaType = 'image';
+}
+
 function openSubmitSpotModal() {
+  resetSpotModalToCreate();
+  const form = document.getElementById('submitSpotForm');
+  if (form) form.reset();
+  const preview = document.getElementById('spotMediaPreview');
+  if (preview) preview.innerHTML = '';
   const modal = document.getElementById('submitSpotModal');
   if (modal) modal.classList.add('show');
 }
@@ -3453,6 +3545,7 @@ function openSubmitSpotModal() {
 function closeSubmitSpotModal() {
   const modal = document.getElementById('submitSpotModal');
   if (modal) modal.classList.remove('show');
+  resetSpotModalToCreate();
 }
 
 let pendingSpotMediaUrl = '';
@@ -3511,6 +3604,7 @@ function handleSpotSubmit(event) {
   }
 
   const payload = {
+    ownerToken: getSpotOwnerToken(),
     title,
     author: author || 'Local Contributor',
     handle: handle || '',
@@ -3522,6 +3616,41 @@ function handleSpotSubmit(event) {
     link: link || '',
     linkText: linkText || 'Learn More'
   };
+
+  if (editingSpotPostId) {
+    if (!mySubmittedPostIds.has(editingSpotPostId)) {
+      showToast('⚠️ Only the creator can edit this spot.');
+      return;
+    }
+
+    const postId = editingSpotPostId;
+    fetch('/api/community/edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: postId,
+        ownerToken: getSpotOwnerToken(),
+        ...payload
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success && data.post) {
+        const index = COMMUNITY_POSTS.findIndex(p => String(p.id) === String(postId));
+        if (index !== -1) COMMUNITY_POSTS[index] = data.post;
+        updateCommunityFeedUI();
+        closeSubmitSpotModal();
+        showToast('✅ Spot updated successfully!');
+      } else {
+        showToast(data.error || 'Error updating spot.');
+      }
+    })
+    .catch(err => {
+      console.error('Error editing spot:', err);
+      showToast('❌ Could not save your changes.');
+    });
+    return;
+  }
 
   fetch('/api/community/post', {
     method: 'POST',
@@ -3655,6 +3784,11 @@ function triggerSpotShare(postId, title, event) {
 let pendingDeletePostId = null;
 
 function openDeleteConfirmModal(postId, event) {
+  if (!mySubmittedPostIds.has(postId) && !(typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked)) {
+    if (event) { event.stopPropagation(); event.preventDefault(); }
+    showToast('⚠️ Only the creator can delete this spot.');
+    return;
+  }
   if (event) {
     event.stopPropagation();
     event.preventDefault();
@@ -3701,7 +3835,7 @@ async function executeDeleteCommunityPost(targetPostId) {
     const res = await fetch('/api/community/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: idToDelete })
+      body: JSON.stringify({ id: idToDelete, ownerToken: getSpotOwnerToken() })
     });
     const data = await res.json();
     if (data && data.success) {
@@ -3714,6 +3848,10 @@ async function executeDeleteCommunityPost(targetPostId) {
 }
 
 function handleDeleteCommunityPost(postId, event) {
+  if (!mySubmittedPostIds.has(postId)) {
+    showToast('⚠️ Only the creator can delete this spot.');
+    return;
+  }
   openDeleteConfirmModal(postId, event);
 }
 

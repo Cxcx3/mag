@@ -287,7 +287,7 @@ app.post('/api/community/upvote', async (req, res) => {
 // POST Submit a New Community Spot
 app.post('/api/community/post', async (req, res) => {
   try {
-    const { title, author, handle, category, location, description, mediaUrl, mediaType, link, linkText } = req.body;
+    const { ownerToken, title, author, handle, category, location, description, mediaUrl, mediaType, link, linkText } = req.body;
 
     if (!title || !description) {
       return res.status(400).json({ error: 'Title and description are required' });
@@ -308,6 +308,7 @@ app.post('/api/community/post', async (req, res) => {
 
     const newPost = {
       id: 'post-' + Date.now() + '-' + Math.round(Math.random() * 1000),
+      ownerToken: String(ownerToken || '').slice(0, 200),
       title: String(title).slice(0, 100).trim(),
       author: String(author || 'Local Contributor').slice(0, 50).trim(),
       handle: String(handle || '').slice(0, 40).trim(),
@@ -382,6 +383,7 @@ app.post(['/api/community/edit', '/api/community/update'], async (req, res) => {
   try {
     const {
       id,
+      ownerToken,
       title,
       author,
       handle,
@@ -403,6 +405,10 @@ app.post(['/api/community/edit', '/api/community/update'], async (req, res) => {
 
     if (!post) {
       return res.status(404).json({ error: 'Post not found' });
+    }
+
+    if (!ownerToken || !post.ownerToken || String(ownerToken) !== String(post.ownerToken)) {
+      return res.status(403).json({ error: 'Only the creator can edit this spot' });
     }
 
     if (title && String(title).trim()) post.title = String(title).trim().slice(0, 100);
@@ -428,13 +434,19 @@ app.post(['/api/community/edit', '/api/community/update'], async (req, res) => {
 // POST Delete Community Spot (Author or Admin)
 app.post(['/api/community/delete', '/api/admin/community/delete'], async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id, ownerToken } = req.body;
     if (!id) {
       return res.status(400).json({ error: 'Post ID is required' });
     }
 
     let posts = await getCommunityPosts();
     const initialLen = posts.length;
+    const postToDelete = posts.find(p => String(p.id) === String(id));
+
+    if (postToDelete && (!ownerToken || !postToDelete.ownerToken || String(ownerToken) !== String(postToDelete.ownerToken))) {
+      return res.status(403).json({ error: 'Only the creator can delete this spot' });
+    }
+
     posts = posts.filter(p => String(p.id) !== String(id));
 
     if (posts.length !== initialLen) {
