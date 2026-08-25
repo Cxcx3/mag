@@ -3044,10 +3044,8 @@ function renderCommunityPageHtml() {
       </div>`
     : posts.map((p, idx) => renderCommunityCardHtml(p, idx + 1)).join('');
 
-  const categoryPillsHtml = COMMUNITY_CATEGORIES.map(cat => `
-    <button class="comm-cat-pill ${activeCommCategory === cat ? 'active' : ''}" onclick="event.stopPropagation(); setCommunityCategory('${cat}')">
-      ${cat === 'All' ? '✨ All' : cat}
-    </button>
+  const categoryOptionsHtml = COMMUNITY_CATEGORIES.map(cat => `
+    <option value="${esc(cat)}" ${activeCommCategory === cat ? 'selected' : ''}>${cat === 'All' ? '✨ All Categories' : esc(cat)}</option>
   `).join('');
 
   return `
@@ -3063,7 +3061,7 @@ function renderCommunityPageHtml() {
       <div class="comm-hero-tag">🔥 LIVE DISCOVERY FEED</div>
       <h2>THE SPOTLIGHT COMMUNITY</h2>
       <div class="comm-hero-sub">
-        Utah's official discovery. vote to push them to the top spot #1🏆
+        Utah's official endless discovery scroll. Upvote local businesses, creators, events & music to push them to #1!
       </div>
       <div class="comm-hero-actions">
         <button class="comm-action-btn comm-btn-submit" onclick="event.stopPropagation(); openSubmitSpotModal()">
@@ -3076,8 +3074,11 @@ function renderCommunityPageHtml() {
     </div>
 
     <div class="comm-controls-sticky">
-      <div class="comm-cat-pills">
-        ${categoryPillsHtml}
+      <div class="comm-meta-row" style="margin-top:0;">
+        <span>CATEGORY:</span>
+        <select class="comm-sort-select" id="commCategorySelect" onchange="setCommunityCategory(this.value)" onclick="event.stopPropagation();">
+          ${categoryOptionsHtml}
+        </select>
       </div>
       <div class="comm-meta-row">
         <span>RANKED BY:</span>
@@ -3110,10 +3111,10 @@ function updateCommunityFeedUI() {
       : posts.map((p, idx) => renderCommunityCardHtml(p, idx + 1)).join('');
   }
 
-  document.querySelectorAll('.comm-cat-pill').forEach(btn => {
-    const text = btn.textContent.trim().replace(/^✨\s*/, '');
-    btn.classList.toggle('active', text === activeCommCategory);
-  });
+  const catSelect = document.getElementById('commCategorySelect');
+  if (catSelect && catSelect.value !== activeCommCategory) {
+    catSelect.value = activeCommCategory;
+  }
 }
 
 function setCommunityCategory(cat) {
