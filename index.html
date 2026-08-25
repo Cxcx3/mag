@@ -1762,14 +1762,14 @@ async function uploadToSupabaseStorage(file, onProgress){
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
   const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
 
-  const { data, error } = await sb.storage.from('media').upload(path, file, {
+  const { data, error } = await sb.storage.from('spotlight-media').upload(path, file, {
     cacheControl: '3600',
     upsert: false
   });
 
   if (error) throw error;
 
-  const { data: pub } = sb.storage.from('media').getPublicUrl(data.path);
+  const { data: pub } = sb.storage.from('spotlight-media').getPublicUrl(data.path);
 
   let posterUrl = '';
   if (isVideo) {
