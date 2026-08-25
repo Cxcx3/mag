@@ -1545,7 +1545,13 @@
     </div>
   </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+const SUPABASE_URL = 'https://rcgtgmyiygdkbmbfspbo.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_6lDmQxTb7avdPjaAckrV7w_xDmRdxIC';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const ADMIN_EMAIL = 'lfsm111@icloud.com';
+
 const DEFAULT_CITIES = [
   {
     theme: 'theme-slc', num: '01', name: 'Salt Lake City',
@@ -1662,7 +1668,6 @@ const HAS_EDITS_KEY = 'spotlight_has_saved_edits';
 const DB_NAME = 'SpotlightMagDB_v2';
 const DB_STORE = 'magazineStore';
 const DB_KEY = 'savedMagazine';
-const ADMIN_PASSWORD = 'spotlight2024';
 const DATA_URL = './data.json';
 
 const DEFAULT_MAGAZINE = {
@@ -1751,44 +1756,27 @@ function detectMediaType(url) {
   return 'image';
 }
 
-function uploadMediaFile(file, progressCallback) {
-  return new Promise((resolve, reject) => {
-    const formData = new FormData();
-    formData.append('file', file);
+// Uploads a file straight to Supabase Storage (bucket: media) and returns a public URL.
+async function uploadToSupabaseStorage(file, onProgress){
+  const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|ogg|mov|m4v|avi|mkv|3gp)$/i.test(file.name);
+  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/upload', true);
-
-    if (xhr.upload && progressCallback) {
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          progressCallback(percent);
-        }
-      };
-    }
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const res = JSON.parse(xhr.responseText);
-          if (res && res.url) {
-            resolve(res);
-          } else {
-            reject(new Error('Invalid response from server'));
-          }
-        } catch (e) {
-          reject(e);
-        }
-      } else {
-        reject(new Error('Upload failed with status ' + xhr.status));
-      }
-    };
-
-    xhr.onerror = () => reject(new Error('Network error during upload'));
-    xhr.ontimeout = () => reject(new Error('Upload timed out'));
-    xhr.send(formData);
+  const { data, error } = await sb.storage.from('media').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false
   });
+
+  if (error) throw error;
+
+  const { data: pub } = sb.storage.from('media').getPublicUrl(data.path);
+
+  let posterUrl = '';
+  if (isVideo) {
+    posterUrl = await generateVideoPosterFromBlob(file);
+  }
+
+  return { url: pub.publicUrl, type: isVideo ? 'video' : 'image', posterUrl };
 }
 
 function readFileAsDataURL(file){
@@ -1796,47 +1784,6 @@ function readFileAsDataURL(file){
     const reader = new FileReader();
     reader.onload = (event) => resolve(event.target?.result || null);
     reader.onerror = () => reject(new Error('Could not read file'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function compressImageToDataURL(file, maxWidth = 1200, quality = 0.82) {
-  return new Promise((resolve) => {
-    if (!file || !file.type.startsWith('image/')) {
-      readFileAsDataURL(file).then(resolve).catch(() => resolve(null));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        let w = img.width;
-        let h = img.height;
-        if (w > maxWidth || h > maxWidth) {
-          if (w > h) {
-            h = Math.round((h * maxWidth) / w);
-            w = maxWidth;
-          } else {
-            w = Math.round((w * maxWidth) / h);
-            h = maxWidth;
-          }
-        }
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          const dataUrl = canvas.toDataURL('image/jpeg', quality);
-          resolve(dataUrl);
-        } catch (err) {
-          resolve(e.target?.result || null);
-        }
-      };
-      img.onerror = () => resolve(e.target?.result || null);
-      img.src = e.target?.result;
-    };
-    reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
   });
 }
@@ -1884,7 +1831,8 @@ function generateVideoPosterFromBlob(file) {
   });
 }
 
-// Open IndexedDB for local media persistence backup
+// Local IndexedDB is kept only as an OFFLINE fallback cache so the page never
+// shows blank if the visitor has no internet connection. Supabase is the source of truth.
 function openDB() {
   return new Promise((resolve) => {
     if (!window.indexedDB) {
@@ -1907,22 +1855,7 @@ function openDB() {
   });
 }
 
-async function saveMagazineData(data) {
-  // 1. Save directly to server data.json
-  try {
-    const res = await fetch('/api/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) {
-      console.warn('Server save returned status', res.status);
-    }
-  } catch (e) {
-    console.warn('Server save failed, relying on client storage', e);
-  }
-
-  // 2. Backup to IndexedDB
+async function cacheMagazineLocally(data) {
   try {
     const db = await openDB();
     if (db) {
@@ -1933,56 +1866,36 @@ async function saveMagazineData(data) {
         tx.onerror = () => reject(tx.error);
       });
     }
-  } catch (e) {
-    console.warn('IndexedDB save failed', e);
-  }
-
-  // 3. Mark edits in localStorage
+  } catch (e) {}
   try {
-    localStorage.setItem(HAS_EDITS_KEY, 'true');
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (e) {}
 }
 
-async function loadMagazine() {
-  const candidateUrls = [
-    './data.json?_t=' + Date.now(),
-    'data.json?_t=' + Date.now(),
-    '/data.json?_t=' + Date.now(),
-    '/api/data?_t=' + Date.now()
-  ];
+// Saves magazine content to Supabase (admin only — requires an active admin session).
+async function saveMagazineData(data) {
+  const { error } = await sb.rpc('save_magazine', { p_data: data });
+  if (error) {
+    console.error('Supabase save failed:', error);
+    throw error;
+  }
+  await cacheMagazineLocally(data);
+}
 
-  for (const url of candidateUrls) {
-    try {
-      const res = await fetch(url, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-      if (res.ok) {
-        const text = await res.text();
-        if (text && text.trim().startsWith('{')) {
-          const data = JSON.parse(text);
-          if (data && typeof data === 'object' && (data.cover || data.cities)) {
-            console.log('Loaded magazine data from:', url);
-            const normalized = normalizeMagazine(data);
-            try {
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-            } catch (e) {}
-            return normalized;
-          }
-        }
-      }
-    } catch (err) {
-      // Continue to next candidate URL
+// Loads magazine content from Supabase (shared, live for every visitor).
+async function loadMagazine() {
+  try {
+    const { data, error } = await sb.from('magazine').select('data').eq('id', 1).single();
+    if (!error && data && data.data && Object.keys(data.data).length > 0) {
+      const normalized = normalizeMagazine(data.data);
+      await cacheMagazineLocally(normalized);
+      return normalized;
     }
+  } catch (err) {
+    console.warn('Supabase magazine load failed, trying local cache', err);
   }
 
-  console.log('No network data.json available, checking local storage cache');
-
-  // Fallback to IndexedDB / localStorage if offline
+  // Offline / first-load fallback to local cache
   try {
     const db = await openDB();
     if (db) {
@@ -1992,26 +1905,22 @@ async function loadMagazine() {
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => resolve(null);
       });
-      if (dbData) {
-        return normalizeMagazine(dbData);
-      }
-    }
-  } catch (e) {
-    console.warn('Error reading from IndexedDB', e);
-  }
-
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      return normalizeMagazine(JSON.parse(saved));
+      if (dbData) return normalizeMagazine(dbData);
     }
   } catch (e) {}
 
-  // Fallback to built-in default
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) return normalizeMagazine(JSON.parse(saved));
+  } catch (e) {}
+
   return cloneData(DEFAULT_MAGAZINE);
 }
 
 async function resetMagazineContent() {
+  try {
+    await saveMagazineData(cloneData(DEFAULT_MAGAZINE));
+  } catch (e) {}
   try {
     const db = await openDB();
     if (db) {
@@ -2141,20 +2050,40 @@ function normalizeMagazine(saved){
 let isEditorUnlocked = false;
 let MAGAZINE = cloneData(DEFAULT_MAGAZINE);
 
-function checkPassword(){
+// Signs into Supabase Auth with the fixed admin email + whatever password was typed.
+// Only lfsm111@icloud.com will ever succeed here (that's the only account that exists).
+async function checkPassword(){
   const input = document.getElementById('passwordInput');
-  if(input.value === ADMIN_PASSWORD){
-    isEditorUnlocked = true;
-    document.getElementById('passwordModal').classList.remove('show');
-    editorToggle.style.display = 'block';
-    editorPanel.classList.add('open');
-    renderEditor();
-    bindEditor();
-    input.value = '';
-  } else {
+  const password = input.value;
+  const unlockBtn = document.querySelector('.password-box button');
+  if (unlockBtn) { unlockBtn.textContent = 'CHECKING...'; unlockBtn.disabled = true; }
+
+  const { data, error } = await sb.auth.signInWithPassword({ email: ADMIN_EMAIL, password });
+
+  if (unlockBtn) { unlockBtn.textContent = 'UNLOCK EDITOR'; unlockBtn.disabled = false; }
+
+  if (error || !data.session) {
     alert('Incorrect password');
     input.value = '';
     input.focus();
+    return;
+  }
+
+  isEditorUnlocked = true;
+  document.getElementById('passwordModal').classList.remove('show');
+  editorToggle.style.display = 'block';
+  editorPanel.classList.add('open');
+  renderEditor();
+  bindEditor();
+  input.value = '';
+}
+
+// Restore an existing admin session on page load (so refresh doesn't log you out)
+async function restoreAdminSession(){
+  const { data } = await sb.auth.getSession();
+  if (data && data.session && data.session.user && data.session.user.email === ADMIN_EMAIL) {
+    isEditorUnlocked = true;
+    if (typeof editorToggle !== 'undefined' && editorToggle) editorToggle.style.display = 'block';
   }
 }
 
@@ -2162,7 +2091,6 @@ function syncActiveVideos() {
   const activePage = document.getElementById('page-' + current);
   if (!activePage) return;
 
-  // 1. Play active HTML5 videos
   const videos = activePage.querySelectorAll('video');
   videos.forEach(v => {
     v.muted = true;
@@ -2184,7 +2112,6 @@ function syncActiveVideos() {
     }
   });
 
-  // 2. Autoplay YouTube iframes via postMessage and ensure muted autoplay
   const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
   ytIframes.forEach(iframe => {
     try {
@@ -2193,7 +2120,6 @@ function syncActiveVideos() {
     } catch (e) {}
   });
 
-  // 3. Pause background / flipped videos
   document.querySelectorAll('.page:not(.active-page) video').forEach(v => {
     try { v.pause(); } catch (e) {}
   });
@@ -2265,9 +2191,6 @@ function mediaBlock(media, placeholderText, extraClass){
     let posterAttr = '';
     if(media.poster){
       posterAttr = `poster="${resolveMediaUrl(media.poster)}"`;
-    } else if(url.includes('/uploads/')){
-      const autoPoster = url.replace(/\.[^/.]+$/, '') + '-poster.jpg';
-      posterAttr = `poster="${autoPoster}"`;
     }
 
     return `
@@ -2295,8 +2218,7 @@ function mediaBlock(media, placeholderText, extraClass){
         <div class="video-play-badge" onclick="toggleVideoPlayback(this.previousElementSibling)" style="display:none;position:absolute;inset:0;margin:auto;width:48px;height:48px;border-radius:50%;background:rgba(20,18,26,0.8);color:#FFD23F;border:2px solid #FFD23F;align-items:center;justify-content:center;font-size:18px;cursor:pointer;pointer-events:auto;z-index:4;box-shadow:0 4px 16px rgba(0,0,0,0.6);touch-action:manipulation;">▶</div>
         <div class="video-error-badge" style="display:none;position:absolute;inset:0;background:rgba(20,18,26,0.92);color:#FFD23F;flex-direction:column;align-items:center;justify-content:center;padding:16px;text-align:center;font-size:11px;font-weight:700;z-index:5;line-height:1.4;">
           <span style="font-size:22px;margin-bottom:6px;">⚠️</span>
-          <span>Could not load: <code>${rawUrl}</code></span>
-          <span style="font-size:10px;color:#f5f1e8;margin-top:6px;font-weight:400;">Make sure <b>${rawUrl}</b> is uploaded to your GitHub repository</span>
+          <span>Could not load video</span>
         </div>
       </div>
     `;
@@ -2344,7 +2266,7 @@ function standardAdHtml(a, cityIdx){
 function cityPage(c, idx){
   if (!c || typeof c !== 'object') c = {};
   const totalCities = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities.length : 1;
-  const pageIndexInPages = idx + 2; // Cover is 0, Community Discovery is 1, City 1 is 2
+  const pageIndexInPages = idx + 2;
   const ads = Array.isArray(c.ads) ? c.ads : [];
   const adsHtml = ads.map(a => standardAdHtml(a, pageIndexInPages)).join('');
   const model = c.model || { name: '', role: '', bio: '', media: null };
@@ -2443,7 +2365,7 @@ editorPanel.innerHTML = `
       <div><h2>SpotLIGHT Editor</h2></div>
       <div class="editor-actions">
         <button class="ed-btn ed-primary" id="saveMagazine">SAVE & PREVIEW</button>
-        <button class="ed-btn ed-download" id="downloadData">DOWNLOAD data.json</button>
+        <button class="ed-btn ed-light" id="signOutEditor">SIGN OUT</button>
         <button class="ed-btn ed-light" id="closeEditor">CLOSE</button>
       </div>
     </div>
@@ -2490,7 +2412,7 @@ function mediaFieldHTML(label, fieldName, currentMedia, typeName) {
           <input type="file" accept="image/*,video/*,video/mp4,video/webm,video/quicktime,video/mov" class="upload-native-input" data-upload-target="${fieldName}" data-type-name="${typeName}">
           <span class="upload-btn-text" id="status-text-${fieldName}">📁 Tap to Choose Photo / Video</span>
         </label>
-        <span class="upload-hint">📸 Photos automatically embed into data.json. 🎥 For videos, you can also paste any YouTube (including Shorts) or Vimeo link!</span>
+        <span class="upload-hint">📸 Photos & videos upload directly to your Supabase media library. 🎥 You can also paste any YouTube (including Shorts) or Vimeo link!</span>
       </div>
       <div class="media-preview-box" id="preview-${fieldName}">
         ${renderMediaPreview(url, type)}
@@ -2587,15 +2509,12 @@ function renderEditor(){
           Manage, pin, or moderate user submissions to keep the discovery feed safe, authentic, and local.
         </p>
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-          <button class="ed-btn ed-primary" style="font-size:11px;" onclick="openSubmitSpotModal()">
-            ➕ ADD OFFICIAL SPOT
-          </button>
           <button class="ed-btn ed-light" style="font-size:11px;" onclick="loadCommunityPosts().then(() => renderEditor())">
             🔄 REFRESH FEED DATA
           </button>
         </div>
         <div class="ads">
-          ${COMMUNITY_POSTS.length === 0 ? '<div style="padding:20px;text-align:center;color:#666;">No community posts yet. Click "+ ADD OFFICIAL SPOT" to add one!</div>' : postsHtml}
+          ${COMMUNITY_POSTS.length === 0 ? '<div style="padding:20px;text-align:center;color:#666;">No community posts yet.</div>' : postsHtml}
         </div>
       </div>
     `;
@@ -2770,47 +2689,14 @@ function bindUploadInputs(){
       const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|ogg|mov|m4v|avi|mkv|3gp)$/i.test(file.name);
 
       if (statusLabel) {
-        statusLabel.textContent = `⏳ Processing ${isVideo ? 'video' : 'photo'}...`;
+        statusLabel.textContent = `⏳ Uploading ${isVideo ? 'video' : 'photo'}...`;
       }
 
       try {
-        let finalUrl = '';
-        let finalType = isVideo ? 'video' : 'image';
-        let posterUrl = '';
-
-        if (!isVideo) {
-          // Photos: Compress to Base64 data URL so it embeds directly into data.json
-          // This makes photos work 100% reliably on mobile, GitHub Pages, and anywhere without needing server storage!
-          if (statusLabel) statusLabel.textContent = `⏳ Optimizing photo for mobile...`;
-          finalUrl = await compressImageToDataURL(file, 1200, 0.82);
-          finalType = 'image';
-        } else {
-          // Video: Generate poster thumbnail for instant mobile preview
-          if (statusLabel) statusLabel.textContent = `⏳ Generating video preview...`;
-          posterUrl = await generateVideoPosterFromBlob(file);
-
-          try {
-            // Upload to server if backend is present
-            const uploadRes = await uploadMediaFile(file, (percent) => {
-              if (statusLabel) {
-                statusLabel.textContent = `⏳ Uploading video (${percent}%)...`;
-              }
-            });
-            if (uploadRes && uploadRes.url) {
-              finalUrl = uploadRes.url;
-              finalType = uploadRes.type || 'video';
-              if (uploadRes.posterUrl) posterUrl = uploadRes.posterUrl;
-            }
-          } catch (serverErr) {
-            console.warn('Server upload unavailable, using client fallback', serverErr);
-            if (file.size <= 4 * 1024 * 1024) {
-              finalUrl = await readFileAsDataURL(file);
-            } else {
-              finalUrl = URL.createObjectURL(file);
-              showToast('Note: Large videos need YouTube/Vimeo links or upload to your GitHub repo to show on mobile.');
-            }
-          }
-        }
+        const result = await uploadToSupabaseStorage(file);
+        const finalUrl = result.url;
+        const finalType = result.type;
+        const posterUrl = result.posterUrl;
 
         const targetInput = document.querySelector(`[data-image-field="${targetName}"]`);
         if (targetInput) {
@@ -2835,7 +2721,7 @@ function bindUploadInputs(){
           statusLabel.textContent = `✅ ${isVideo ? 'Video' : 'Photo'} Ready! Tap to change`;
         }
       } catch (err) {
-        console.error('File load failed', err);
+        console.error('Upload failed', err);
         if (statusLabel) {
           statusLabel.textContent = `❌ Upload failed. Tap to try again`;
         }
@@ -2844,7 +2730,6 @@ function bindUploadInputs(){
     });
   });
 
-  // URL input change updates preview and switches type if needed
   document.querySelectorAll('input[data-image-field]').forEach(input => {
     if (input.dataset.previewBound === 'true') return;
     input.dataset.previewBound = 'true';
@@ -2873,7 +2758,6 @@ function bindUploadInputs(){
     input.addEventListener('change', updatePreview);
   });
 
-  // Radio button change updates preview
   document.querySelectorAll('.media-type-row input[type="radio"]').forEach(radio => {
     if (radio.dataset.radioBound === 'true') return;
     radio.dataset.radioBound = 'true';
@@ -2901,10 +2785,10 @@ function bindEditor(){
         await saveMagazineData(MAGAZINE);
         applyMagazineUpdates();
         editorPanel.classList.remove('open');
-        showToast('Magazine updated and saved!');
+        showToast('Magazine updated and saved for everyone!');
       } catch (err) {
         console.error('Save failed', err);
-        showToast('Error saving changes');
+        showToast('Error saving changes — are you still signed in?');
       } finally {
         saveBtn.textContent = 'SAVE & PREVIEW';
         saveBtn.disabled = false;
@@ -2912,19 +2796,14 @@ function bindEditor(){
     };
   }
 
-  const downloadBtn = document.getElementById('downloadData');
-  if (downloadBtn) {
-    downloadBtn.onclick = () => {
-      saveActiveTabFields();
-      const dataStr = JSON.stringify(MAGAZINE, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'data.json';
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast('data.json downloaded!');
+  const signOutBtn = document.getElementById('signOutEditor');
+  if (signOutBtn) {
+    signOutBtn.onclick = async () => {
+      await sb.auth.signOut();
+      isEditorUnlocked = false;
+      editorPanel.classList.remove('open');
+      editorToggle.innerHTML = '🔒';
+      showToast('Signed out of editor');
     };
   }
 
@@ -2954,14 +2833,13 @@ editorToggle.onclick = () => {
   setTimeout(() => document.getElementById('passwordInput')?.focus(), 120);
 };
 
-// Community Feed System - Data, Category Filtering, Upvoting, Reporting, and Moderation
+// ---------- Community Feed System (backed live by Supabase) ----------
 let COMMUNITY_POSTS = [];
 let activeCommCategory = 'All';
 let activeCommSort = 'votes';
 let userUpvotedPosts = new Set(JSON.parse(localStorage.getItem('spotlight_upvoted_posts') || '[]'));
 let mySubmittedPostIds = new Set(JSON.parse(localStorage.getItem('spotlight_my_posts') || '[]'));
-// Each browser gets a private creator key. It is stored locally and sent with
-// create/edit/delete requests so only the creator can manage their own spots.
+
 function getSpotOwnerToken() {
   let token = localStorage.getItem('spotlight_owner_token');
   if (!token) {
@@ -2976,155 +2854,31 @@ function getSpotOwnerToken() {
 let activeReportPostId = null;
 
 const COMMUNITY_CATEGORIES = [
-  'All',
-  'Businesses',
-  'Creators',
-  'Events',
-  'Art',
-  'Music',
-  'Fashion',
-  'News/announcements',
-  'Community discussions'
+  'All', 'Businesses', 'Creators', 'Events', 'Art', 'Music', 'Fashion',
+  'News/announcements', 'Community discussions'
 ];
 
-const DEFAULT_COMMUNITY_POSTS = [
-  {
-    id: "post-1",
-    title: "Neon Sunset Roasters · New Pour-Over Bar",
-    author: "Marcus & Elena",
-    handle: "@neonsunset_slc",
-    category: "Businesses",
-    location: "Downtown Salt Lake City",
-    description: "Just opened our downtown tasting bar on 300 South! Handcrafted single-origin roasts, vinyl spinning all day, and fresh gluten-free pastries. Vote us up to support local coffee culture!",
-    mediaUrl: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1000&q=80",
-    mediaType: "image",
-    link: "https://ig.me/m/l_i_g_h__t",
-    linkText: "Visit Instagram @neonsunset_slc",
-    votes: 384,
-    createdAt: "2026-08-23T10:00:00.000Z",
-    isPinned: true,
-    reports: []
-  },
-  {
-    id: "post-2",
-    title: "Echoes of the Wasatch · New Single 'Alta Glow'",
-    author: "The Canyon Collective",
-    handle: "@canyoncollective_music",
-    category: "Music",
-    location: "Millcreek / SLC",
-    description: "Our brand new indie-rock anthem capturing late-night drives through Big Cottonwood Canyon just dropped on Spotify & Apple Music. Streaming everywhere now!",
-    mediaUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1000&q=80",
-    mediaType: "image",
-    link: "https://spotify.com",
-    linkText: "Listen on Spotify",
-    votes: 312,
-    createdAt: "2026-08-22T16:20:00.000Z",
-    isPinned: false,
-    reports: []
-  },
-  {
-    id: "post-3",
-    title: "Sugarhouse Night Market & Creator Fair",
-    author: "SLC Night Markets",
-    handle: "@sugarhousenightmarket",
-    category: "Events",
-    location: "Sugar House Park",
-    description: "This Friday 6PM - 10PM! Over 45 local food trucks, vintage vendors, live DJs, and handmade crafts under the string lights. Free entry for all ages!",
-    mediaUrl: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1000&q=80",
-    mediaType: "image",
-    link: "https://instagram.com",
-    linkText: "RSVP / Event Details",
-    votes: 278,
-    createdAt: "2026-08-22T12:00:00.000Z",
-    isPinned: false,
-    reports: []
-  },
-  {
-    id: "post-4",
-    title: "Mountain Grit Vintage · Autumn Collection Drop",
-    author: "Devon Miller",
-    handle: "@mountaingrit_vtg",
-    category: "Fashion",
-    location: "West Jordan, UT",
-    description: "Curated 90s outdoor gear, heavy flannel workwear, and one-of-one reworked denim jackets. Shop in-store or online starting Saturday at 10 AM.",
-    mediaUrl: "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=1000&q=80",
-    mediaType: "image",
-    link: "https://instagram.com",
-    linkText: "Shop Collection",
-    votes: 245,
-    createdAt: "2026-08-21T18:45:00.000Z",
-    isPinned: false,
-    reports: []
-  },
-  {
-    id: "post-5",
-    title: "Street Level Salt Lake · 35mm Photo Series",
-    author: "Jordan K.",
-    handle: "@jordank_visuals",
-    category: "Creators",
-    location: "Salt Lake City",
-    description: "Documenting the raw skate, architecture, and nightlife culture across Utah on analog 35mm film. Prints available with 10% donated to local youth arts.",
-    mediaUrl: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1000&q=80",
-    mediaType: "image",
-    link: "https://instagram.com",
-    linkText: "View Full Gallery",
-    votes: 219,
-    createdAt: "2026-08-21T09:15:00.000Z",
-    isPinned: false,
-    reports: []
-  },
-  {
-    id: "post-6",
-    title: "New 40-Foot Community Mural on 9th & 9th",
-    author: "Maya Morales Art",
-    handle: "@mayamorales_art",
-    category: "Art",
-    location: "9th & 9th District",
-    description: "Finished my biggest public mural yet celebrating Wasatch wildflowers and local biodiversity! Come snap a photo and tag @mayamorales_art.",
-    mediaUrl: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=1000&q=80",
-    mediaType: "image",
-    link: "https://instagram.com",
-    linkText: "See Mural Location",
-    votes: 194,
-    createdAt: "2026-08-20T11:30:00.000Z",
-    isPinned: false,
-    reports: []
-  },
-  {
-    id: "post-7",
-    title: "Front Runner Extension & Late-Night Transit Update",
-    author: "Wasatch Front Transit Watch",
-    handle: "@wasatchtransit",
-    category: "News/announcements",
-    location: "Utah County → Salt Lake",
-    description: "Weekend service frequency is officially increasing starting next month, with extended midnight trains for Friday & Saturday night events.",
-    mediaUrl: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1000&q=80",
-    mediaType: "image",
-    link: "https://instagram.com",
-    linkText: "Read Transit Update",
-    votes: 167,
-    createdAt: "2026-08-19T14:00:00.000Z",
-    isPinned: false,
-    reports: []
-  },
-  {
-    id: "post-8",
-    title: "What's the #1 Underrated Ramen or Taco Spot in the Valley?",
-    author: "The SpotLIGHT Editors",
-    handle: "@l_i_g_h__t",
-    category: "Community discussions",
-    location: "Wasatch Front",
-    description: "We are compiling the definitive 'Locals Only' dining guide for Issue 02. Drop your favorite hidden gem and upvote the best recommendations!",
-    mediaUrl: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=1000&q=80",
-    mediaType: "image",
-    link: "https://ig.me/m/l_i_g_h__t",
-    linkText: "Send Your Pick via DM",
-    votes: 152,
-    createdAt: "2026-08-18T17:00:00.000Z",
-    isPinned: false,
-    reports: []
-  }
-];
+// Converts a Supabase row (snake_case) into the camelCase shape the UI expects.
+function mapPostRow(row){
+  return {
+    id: row.id,
+    title: row.title,
+    author: row.author,
+    handle: row.handle,
+    category: row.category,
+    location: row.location,
+    description: row.description,
+    mediaUrl: row.media_url,
+    mediaType: row.media_type,
+    link: row.link,
+    linkText: row.link_text,
+    votes: row.votes || 0,
+    isPinned: row.is_pinned,
+    reports: row.reports || [],
+    ownerToken: row.owner_token,
+    createdAt: row.created_at
+  };
+}
 
 function getCategoryBadgeClass(cat) {
   if (!cat) return 'cat-businesses';
@@ -3140,45 +2894,35 @@ function getCategoryBadgeClass(cat) {
   return 'cat-businesses';
 }
 
-async function loadCommunityPosts(isBackgroundPoll = false) {
+async function loadCommunityPosts(isBackgroundPoll) {
   try {
-    const res = await fetch(`/api/community?category=${encodeURIComponent(activeCommCategory)}&sort=${activeCommSort}&_t=${Date.now()}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.posts && Array.isArray(data.posts)) {
-        // Check if there are changes before rebuilding DOM to avoid jumpy scrolling
-        const currentIdsAndVotes = COMMUNITY_POSTS.map(p => `${p.id}:${p.votes || 0}:${p.isPinned}`).join(',');
-        const newIdsAndVotes = data.posts.map(p => `${p.id}:${p.votes || 0}:${p.isPinned}`).join(',');
-        
-        COMMUNITY_POSTS = data.posts;
-        if (!isBackgroundPoll || currentIdsAndVotes !== newIdsAndVotes) {
-          updateCommunityFeedUI();
-          if (activeTab === 'community') {
-            renderEditor();
-          }
-        }
-        return;
-      }
+    const { data, error } = await sb.from('community_posts').select('*');
+    if (error) throw error;
+
+    const mapped = (data || []).map(mapPostRow);
+    const currentSig = COMMUNITY_POSTS.map(p => `${p.id}:${p.votes}:${p.isPinned}:${(p.reports||[]).length}`).join(',');
+    const newSig = mapped.map(p => `${p.id}:${p.votes}:${p.isPinned}:${(p.reports||[]).length}`).join(',');
+
+    COMMUNITY_POSTS = mapped;
+
+    if (!isBackgroundPoll || currentSig !== newSig) {
+      updateCommunityFeedUI();
+      if (activeTab === 'community') renderEditor();
     }
   } catch (e) {
-    if (!isBackgroundPoll) console.warn('API fetch warning:', e);
+    if (!isBackgroundPoll) console.warn('Community feed load warning:', e);
+    if (COMMUNITY_POSTS.length === 0) {
+      updateCommunityFeedUI();
+    }
   }
-
-  // Fallback to local / default list
-  if (COMMUNITY_POSTS.length === 0) {
-    COMMUNITY_POSTS = [...DEFAULT_COMMUNITY_POSTS];
-  }
-  filterAndSortLocalPosts();
-  updateCommunityFeedUI();
 }
 
-// Live real-time polling interval for instant votes and new posts
 let communityPollTimer = null;
 function startCommunityPolling() {
   if (communityPollTimer) clearInterval(communityPollTimer);
   communityPollTimer = setInterval(() => {
     loadCommunityPosts(true);
-  }, 4000); // Check for new posts/votes every 4 seconds
+  }, 4000);
 }
 
 function filterAndSortLocalPosts() {
@@ -3201,7 +2945,6 @@ function filterAndSortLocalPosts() {
 function renderCommunityCardHtml(p, rank) {
   const isUpvoted = userUpvotedPosts.has(p.id);
   const isMyPost = mySubmittedPostIds.has(p.id);
-  const isAdminPostManager = (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked);
   const catClass = getCategoryBadgeClass(p.category);
   const rankLabel = p.isPinned 
     ? '⭐ PINNED SPOTLIGHT' 
@@ -3230,33 +2973,33 @@ function renderCommunityCardHtml(p, rank) {
         <span class="comm-cat-tag ${catClass}">${esc(p.category || 'Spotlight')}</span>
       </div>
 
-      <div class="comm-card-header">
-        <div class="comm-card-author-info">
-          <div class="comm-card-author-name">
+      <div class="comm-card-head">
+        <div class="comm-author-meta">
+          <div class="comm-author-name">
             ${safeAuthor}
-            ${safeHandle ? `<span class="comm-card-author-handle">${safeHandle}</span>` : ''}
+            ${safeHandle ? `<span style="opacity:0.7;font-weight:600;"> ${safeHandle}</span>` : ''}
           </div>
-          <div class="comm-card-author-meta">
+          <div class="comm-author-loc">
             <span>📍 ${safeLocation}</span>
           </div>
         </div>
 
-        <div class="comm-card-menu-wrap">
-          <button class="comm-card-menu-btn" title="More options" onclick="togglePostDropdown('${p.id}', event)">
+        <div class="comm-more-wrap">
+          <button class="comm-more-btn" title="More options" onclick="togglePostDropdown('${p.id}', event)">
             •••
           </button>
-          <div class="comm-card-dropdown" id="comm-dropdown-${p.id}">
+          <div class="comm-dropdown-menu" id="comm-dropdown-${p.id}">
             <button class="comm-dropdown-item" onclick="triggerSpotShare('${p.id}', '${safeTitle.replace(/'/g, "\\'")}', event)">
               ↗ Share This Spot
             </button>
-            <button class="comm-dropdown-item report" onclick="openReportModal('${p.id}', event)">
+            <button class="comm-dropdown-item danger" onclick="openReportModal('${p.id}', event)">
               🚩 Report Violation
             </button>
             ${isMyPost ? `
               <button class="comm-dropdown-item" onclick="openEditSpotModal('${p.id}', event)">
                 ✏️ Edit Spot
               </button>
-              <button class="comm-dropdown-item delete" style="color:#FF4D6D;font-weight:700;" onclick="openDeleteConfirmModal('${p.id}', event)">
+              <button class="comm-dropdown-item danger" onclick="openDeleteConfirmModal('${p.id}', event)">
                 🗑️ Delete Spot
               </button>
             ` : ''}
@@ -3272,19 +3015,17 @@ function renderCommunityCardHtml(p, rank) {
       </div>
 
       <div class="comm-card-footer">
-        <div class="comm-card-footer-actions">
-          <button class="comm-upvote-btn ${isUpvoted ? 'upvoted' : ''}" id="upvote-btn-${p.id}" onclick="handleCommunityUpvote('${p.id}', event)">
-            <span class="upvote-arrow">▲</span>
-            <span class="upvote-text">${isUpvoted ? 'Voted' : 'Upvote'}</span>
-            <span class="upvote-count" id="upvote-count-${p.id}">${p.votes || 0}</span>
-          </button>
+        <button class="comm-upvote-btn ${isUpvoted ? 'upvoted' : ''}" id="upvote-btn-${p.id}" onclick="handleCommunityUpvote('${p.id}', event)">
+          <span>▲</span>
+          <span>${isUpvoted ? 'Voted' : 'Upvote'}</span>
+          <span id="upvote-count-${p.id}">${p.votes || 0}</span>
+        </button>
 
-          ${p.link ? `
-            <a href="${esc(p.link)}" target="_blank" rel="noopener noreferrer" class="comm-link-btn" onclick="event.stopPropagation();">
-              ${esc(p.linkText || 'Learn More')} ↗
-            </a>
-          ` : ''}
-        </div>
+        ${p.link ? `
+          <a href="${esc(p.link)}" target="_blank" rel="noopener noreferrer" class="comm-link-btn" onclick="event.stopPropagation();">
+            ${esc(p.linkText || 'Learn More')} ↗
+          </a>
+        ` : ''}
       </div>
     </article>
   `;
@@ -3293,11 +3034,11 @@ function renderCommunityCardHtml(p, rank) {
 function renderCommunityPageHtml() {
   const posts = filterAndSortLocalPosts();
   const cardsHtml = posts.length === 0
-    ? `<div class="comm-empty-state">
-        <div class="comm-empty-icon">📍</div>
-        <div class="comm-empty-title">No spots in this category yet!</div>
-        <div class="comm-empty-sub">Be the first to submit your business, band, art, or event and get voted to the top.</div>
-        <button class="comm-action-btn comm-btn-submit" style="margin-top:12px;" onclick="event.stopPropagation(); openSubmitSpotModal()">
+    ? `<div style="padding:30px 16px;text-align:center;">
+        <div style="font-size:32px;margin-bottom:8px;">📍</div>
+        <div style="font-weight:800;color:#fff;margin-bottom:6px;">No spots in this category yet!</div>
+        <div style="font-size:12px;color:rgba(245,241,232,0.7);margin-bottom:12px;">Be the first to submit your business, band, art, or event and get voted to the top.</div>
+        <button class="comm-action-btn comm-btn-submit" onclick="event.stopPropagation(); openSubmitSpotModal()">
           + Submit First Spot
         </button>
       </div>`
@@ -3318,47 +3059,37 @@ function renderCommunityPageHtml() {
       </div>
     </div>
 
-    <div class="comm-feed-wrapper">
-      <div class="comm-hero">
-        <div class="comm-hero-tag">🔥 LIVE DISCOVERY FEED</div>
-        <h2>THE SPOTLIGHT COMMUNITY</h2>
-        <div class="comm-hero-sub">
-          Utah's official discovery. vote to push them to #1🏆
-        </div>
-        <div class="comm-hero-actions">
-          <button class="comm-action-btn comm-btn-submit" onclick="event.stopPropagation(); openSubmitSpotModal()">
-            + Submit Your Spot
-          </button>
-          <button class="comm-action-btn comm-btn-rules" onclick="event.stopPropagation(); openGuidelinesModal()">
-            📜 Rules & Safety
-          </button>
-        </div>
+    <div class="comm-hero">
+      <div class="comm-hero-tag">🔥 LIVE DISCOVERY FEED</div>
+      <h2>THE SPOTLIGHT COMMUNITY</h2>
+      <div class="comm-hero-sub">
+        Utah's official endless discovery scroll. Upvote local businesses, creators, events & music to push them to #1!
       </div>
-
-      <div class="comm-feed-controls">
-        <div class="comm-category-pills">
-          ${categoryPillsHtml}
-        </div>
-        <div class="comm-sort-row">
-          <div class="comm-sort-label">RANKED BY:</div>
-          <select class="comm-sort-select" onchange="handleCommSortChange(this.value)" onclick="event.stopPropagation();">
-            <option value="votes" ${activeCommSort === 'votes' ? 'selected' : ''}>🔥 Highest Votes (Ranked)</option>
-            <option value="newest" ${activeCommSort === 'newest' ? 'selected' : ''}>✨ Newest Submissions</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="comm-feed-list" id="communityFeedList">
-        ${cardsHtml}
-      </div>
-      
-      <div class="comm-end-box">
-        <div class="comm-end-title">Want your spot at #1?</div>
-        <div class="comm-end-sub">Share your link with your followers and ask them to vote you up!</div>
-        <button class="comm-action-btn comm-btn-submit" style="margin-top:10px;" onclick="event.stopPropagation(); openSubmitSpotModal()">
-          + Submit Your Spot Now
+      <div class="comm-hero-actions">
+        <button class="comm-action-btn comm-btn-submit" onclick="event.stopPropagation(); openSubmitSpotModal()">
+          + Submit Your Spot
+        </button>
+        <button class="comm-action-btn comm-btn-rules" onclick="event.stopPropagation(); openGuidelinesModal()">
+          📜 Rules & Safety
         </button>
       </div>
+    </div>
+
+    <div class="comm-controls-sticky">
+      <div class="comm-cat-pills">
+        ${categoryPillsHtml}
+      </div>
+      <div class="comm-meta-row">
+        <span>RANKED BY:</span>
+        <select class="comm-sort-select" onchange="handleCommSortChange(this.value)" onclick="event.stopPropagation();">
+          <option value="votes" ${activeCommSort === 'votes' ? 'selected' : ''}>🔥 Highest Votes</option>
+          <option value="newest" ${activeCommSort === 'newest' ? 'selected' : ''}>✨ Newest</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="comm-feed-list" id="communityFeedList">
+      ${cardsHtml}
     </div>
   `;
 }
@@ -3368,18 +3099,17 @@ function updateCommunityFeedUI() {
   if (feedList) {
     const posts = filterAndSortLocalPosts();
     feedList.innerHTML = posts.length === 0
-      ? `<div class="comm-empty-state">
-          <div class="comm-empty-icon">📍</div>
-          <div class="comm-empty-title">No spots in this category yet!</div>
-          <div class="comm-empty-sub">Be the first to submit your business, band, art, or event and get voted to the top.</div>
-          <button class="comm-action-btn comm-btn-submit" style="margin-top:12px;" onclick="event.stopPropagation(); openSubmitSpotModal()">
+      ? `<div style="padding:30px 16px;text-align:center;">
+          <div style="font-size:32px;margin-bottom:8px;">📍</div>
+          <div style="font-weight:800;color:#fff;margin-bottom:6px;">No spots in this category yet!</div>
+          <div style="font-size:12px;color:rgba(245,241,232,0.7);margin-bottom:12px;">Be the first to submit your business, band, art, or event and get voted to the top.</div>
+          <button class="comm-action-btn comm-btn-submit" onclick="event.stopPropagation(); openSubmitSpotModal()">
             + Submit First Spot
           </button>
         </div>`
       : posts.map((p, idx) => renderCommunityCardHtml(p, idx + 1)).join('');
   }
 
-  // Sync category pills active state
   document.querySelectorAll('.comm-cat-pill').forEach(btn => {
     const text = btn.textContent.trim().replace(/^✨\s*/, '');
     btn.classList.toggle('active', text === activeCommCategory);
@@ -3388,39 +3118,29 @@ function updateCommunityFeedUI() {
 
 function setCommunityCategory(cat) {
   activeCommCategory = cat;
-  loadCommunityPosts();
+  updateCommunityFeedUI();
 }
 
 function handleCommSortChange(sort) {
   activeCommSort = sort;
-  loadCommunityPosts();
+  updateCommunityFeedUI();
 }
 
 function togglePostDropdown(postId, event) {
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
-  document.querySelectorAll('.comm-card-dropdown').forEach(d => {
-    if (d.id !== `comm-dropdown-${postId}`) {
-      d.classList.remove('show');
-    }
+  if (event) { event.stopPropagation(); event.preventDefault(); }
+  document.querySelectorAll('.comm-dropdown-menu').forEach(d => {
+    if (d.id !== `comm-dropdown-${postId}`) d.classList.remove('show');
   });
   const menu = document.getElementById(`comm-dropdown-${postId}`);
-  if (menu) {
-    menu.classList.toggle('show');
-  }
+  if (menu) menu.classList.toggle('show');
 }
 
 document.addEventListener('click', () => {
-  document.querySelectorAll('.comm-card-dropdown').forEach(d => d.classList.remove('show'));
+  document.querySelectorAll('.comm-dropdown-menu').forEach(d => d.classList.remove('show'));
 });
 
-function handleCommunityUpvote(postId, event) {
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
+async function handleCommunityUpvote(postId, event) {
+  if (event) { event.stopPropagation(); event.preventDefault(); }
 
   const post = COMMUNITY_POSTS.find(p => p.id === postId);
   if (!post) return;
@@ -3429,47 +3149,37 @@ function handleCommunityUpvote(postId, event) {
   const countEl = document.getElementById(`upvote-count-${postId}`);
 
   if (userUpvotedPosts.has(postId)) {
-    // Already upvoted — trigger appreciation animation again
     if (btn) createHeartBurst(btn);
     showToast('✨ You already upvoted this spot!');
     return;
   }
 
-  // Optimistic UI update
   userUpvotedPosts.add(postId);
   localStorage.setItem('spotlight_upvoted_posts', JSON.stringify([...userUpvotedPosts]));
   post.votes = (post.votes || 0) + 1;
 
   if (btn) {
     btn.classList.add('upvoted');
-    const txt = btn.querySelector('.upvote-text');
-    if (txt) txt.textContent = 'Voted';
     createHeartBurst(btn);
   }
-  if (countEl) {
-    countEl.textContent = post.votes;
-  }
+  if (countEl) countEl.textContent = post.votes;
 
   showToast(`▲ Upvoted! "${post.title.slice(0, 24)}..." +1`);
 
-  // Call API in background
-  fetch('/api/community/upvote', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: postId })
-  }).catch(err => {
+  try {
+    const { error } = await sb.rpc('upvote_post', { p_post_id: postId, p_voter_token: getSpotOwnerToken() });
+    if (error) throw error;
+  } catch (err) {
     console.warn('Vote sync error:', err);
-  });
+  }
 }
 
-
 let editingSpotPostId = null;
+let pendingSpotMediaUrl = '';
+let pendingSpotMediaType = 'image';
 
 function openEditSpotModal(postId, event) {
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
+  if (event) { event.stopPropagation(); event.preventDefault(); }
   if (!mySubmittedPostIds.has(postId)) {
     showToast('⚠️ Only the creator can edit this spot.');
     return;
@@ -3548,44 +3258,29 @@ function closeSubmitSpotModal() {
   resetSpotModalToCreate();
 }
 
-let pendingSpotMediaUrl = '';
-let pendingSpotMediaType = 'image';
-
-function handleSpotFileUpload(input) {
+async function handleSpotFileUpload(input) {
   if (!input.files || !input.files[0]) return;
   const file = input.files[0];
-  const statusEl = document.getElementById('spotUploadStatus');
-  if (statusEl) statusEl.textContent = '⏳ Uploading & transcoding...';
+  const label = document.getElementById('spotUploadLabel');
+  if (label) label.textContent = '⏳ Uploading...';
 
-  const formData = new FormData();
-  formData.append('file', file);
-
-  fetch('/api/upload', {
-    method: 'POST',
-    body: formData
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.url) {
-      pendingSpotMediaUrl = data.url;
-      pendingSpotMediaType = data.type || (file.type.startsWith('video/') ? 'video' : 'image');
-      const urlInput = document.getElementById('spotMediaUrl');
-      if (urlInput) urlInput.value = data.url;
-      const preview = document.getElementById('spotMediaPreview');
-      if (preview) {
-        preview.innerHTML = renderMediaPreview(data.url, pendingSpotMediaType);
-      }
-      if (statusEl) statusEl.textContent = '✅ File Uploaded!';
-      showToast('📸 Media Uploaded!');
-    }
-  })
-  .catch(err => {
+  try {
+    const result = await uploadToSupabaseStorage(file);
+    pendingSpotMediaUrl = result.url;
+    pendingSpotMediaType = result.type;
+    const urlInput = document.getElementById('spotMediaUrl');
+    if (urlInput) urlInput.value = result.url;
+    const preview = document.getElementById('spotMediaPreview');
+    if (preview) preview.innerHTML = renderMediaPreview(result.url, result.type);
+    if (label) label.textContent = '✅ File Uploaded!';
+    showToast('📸 Media Uploaded!');
+  } catch (err) {
     console.error('Spot upload failed:', err);
-    if (statusEl) statusEl.textContent = '❌ Upload failed. Please try again.';
-  });
+    if (label) label.textContent = '❌ Upload failed. Tap to try again';
+  }
 }
 
-function handleSpotSubmit(event) {
+async function handleSpotSubmit(event) {
   if (event) event.preventDefault();
 
   const title = document.getElementById('spotTitle')?.value.trim();
@@ -3603,103 +3298,72 @@ function handleSpotSubmit(event) {
     return;
   }
 
-  const payload = {
-    ownerToken: getSpotOwnerToken(),
-    title,
-    author: author || 'Local Contributor',
-    handle: handle || '',
-    category: category || 'Businesses',
-    location: location || 'Wasatch Front, UT',
-    description,
-    mediaUrl: mediaUrl || '',
-    mediaType: pendingSpotMediaType || detectMediaType(mediaUrl),
-    link: link || '',
-    linkText: linkText || 'Learn More'
-  };
+  const submitBtn = document.getElementById('spotSubmitBtn');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'SAVING...'; }
 
-  if (editingSpotPostId) {
-    if (!mySubmittedPostIds.has(editingSpotPostId)) {
-      showToast('⚠️ Only the creator can edit this spot.');
-      return;
-    }
+  const mediaType = pendingSpotMediaType || detectMediaType(mediaUrl);
 
-    const postId = editingSpotPostId;
-    fetch('/api/community/edit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: postId,
-        ownerToken: getSpotOwnerToken(),
-        ...payload
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success && data.post) {
-        const index = COMMUNITY_POSTS.findIndex(p => String(p.id) === String(postId));
-        if (index !== -1) COMMUNITY_POSTS[index] = data.post;
-        updateCommunityFeedUI();
-        closeSubmitSpotModal();
-        showToast('✅ Spot updated successfully!');
-      } else {
-        showToast(data.error || 'Error updating spot.');
+  try {
+    if (editingSpotPostId) {
+      if (!mySubmittedPostIds.has(editingSpotPostId)) {
+        showToast('⚠️ Only the creator can edit this spot.');
+        return;
       }
-    })
-    .catch(err => {
-      console.error('Error editing spot:', err);
-      showToast('❌ Could not save your changes.');
-    });
-    return;
-  }
+      const { data, error } = await sb.rpc('edit_community_post', {
+        p_id: editingSpotPostId,
+        p_owner_token: getSpotOwnerToken(),
+        p_title: title,
+        p_author: author || 'Local Contributor',
+        p_handle: handle || '',
+        p_category: category || 'Businesses',
+        p_location: location || 'Wasatch Front, UT',
+        p_description: description,
+        p_media_url: mediaUrl || '',
+        p_media_type: mediaType,
+        p_link: link || '',
+        p_link_text: linkText || 'Learn More'
+      });
+      if (error) throw error;
 
-  fetch('/api/community/post', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success && data.post) {
-      COMMUNITY_POSTS.unshift(data.post);
-      mySubmittedPostIds.add(data.post.id);
+      const index = COMMUNITY_POSTS.findIndex(p => String(p.id) === String(editingSpotPostId));
+      if (index !== -1) COMMUNITY_POSTS[index] = mapPostRow(data);
+      updateCommunityFeedUI();
+      closeSubmitSpotModal();
+      showToast('✅ Spot updated successfully!');
+    } else {
+      const { data, error } = await sb.from('community_posts').insert({
+        title,
+        author: author || 'Local Contributor',
+        handle: handle || '',
+        category: category || 'Businesses',
+        location: location || 'Wasatch Front, UT',
+        description,
+        media_url: mediaUrl || '',
+        media_type: mediaType,
+        link: link || '',
+        link_text: linkText || 'Learn More',
+        owner_token: getSpotOwnerToken()
+      }).select().single();
+      if (error) throw error;
+
+      const newPost = mapPostRow(data);
+      COMMUNITY_POSTS.unshift(newPost);
+      mySubmittedPostIds.add(newPost.id);
       localStorage.setItem('spotlight_my_posts', JSON.stringify([...mySubmittedPostIds]));
       updateCommunityFeedUI();
       closeSubmitSpotModal();
       showToast('🎉 Spot Submitted to Community Feed!');
-      // Reset form
-      document.getElementById('spotSubmitForm')?.reset();
-      const preview = document.getElementById('spotMediaPreview');
-      if (preview) preview.innerHTML = '';
-      pendingSpotMediaUrl = '';
-    } else {
-      showToast('Error submitting spot.');
     }
-  })
-  .catch(err => {
+  } catch (err) {
     console.error('Error submitting spot:', err);
-    // Fallback local addition
-    const localPost = {
-      id: 'post-' + Date.now(),
-      ...payload,
-      votes: 1,
-      createdAt: new Date().toISOString(),
-      isPinned: false,
-      reports: []
-    };
-    COMMUNITY_POSTS.unshift(localPost);
-    mySubmittedPostIds.add(localPost.id);
-    localStorage.setItem('spotlight_my_posts', JSON.stringify([...mySubmittedPostIds]));
-    updateCommunityFeedUI();
-    closeSubmitSpotModal();
-    showToast('🎉 Spot Posted Locally!');
-  });
+    showToast('❌ Could not save your spot. Please try again.');
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = editingSpotPostId ? '💾 SAVE SPOT CHANGES' : '🚀 PUBLISH & START GETTING VOTES'; }
+  }
 }
 
 function openReportModal(postId, event) {
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
+  if (event) { event.stopPropagation(); event.preventDefault(); }
   activeReportPostId = postId;
   const modal = document.getElementById('reportModal');
   if (modal) modal.classList.add('show');
@@ -3711,32 +3375,25 @@ function closeReportModal() {
   if (modal) modal.classList.remove('show');
 }
 
-function handleReportSubmit(event) {
+async function handleReportSubmit(event) {
   if (event) event.preventDefault();
   if (!activeReportPostId) return;
 
-  const reason = document.getElementById('reportReason')?.value || 'Spam';
+  const reasonInput = document.querySelector('input[name="reportReason"]:checked');
+  const reason = reasonInput ? reasonInput.value : 'Spam';
   const details = document.getElementById('reportDetails')?.value.trim() || '';
 
-  fetch('/api/community/report', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      id: activeReportPostId,
-      reason,
-      details
-    })
-  })
-  .then(res => res.json())
-  .then(data => {
-    closeReportModal();
-    showToast('🛡️ Report received. Thank you for keeping Utah safe!');
-    document.getElementById('reportDetails').value = '';
-  })
-  .catch(err => {
-    closeReportModal();
-    showToast('🛡️ Report received. Thank you!');
-  });
+  try {
+    const { error } = await sb.rpc('report_community_post', { p_id: activeReportPostId, p_reason: reason, p_details: details });
+    if (error) throw error;
+  } catch (err) {
+    console.warn('Report error:', err);
+  }
+
+  closeReportModal();
+  showToast('🛡️ Report received. Thank you for keeping Utah safe!');
+  const detailsField = document.getElementById('reportDetails');
+  if (detailsField) detailsField.value = '';
 }
 
 function openGuidelinesModal() {
@@ -3752,56 +3409,45 @@ function closeGuidelinesModal() {
 function triggerCommunityShare() {
   const baseUrl = getCanonicalBaseUrl();
   const deepLink = `${baseUrl}#community`;
-  const shareInfo = {
+  openShareModal({
     title: 'The SpotLIGHT · Utah Community Feed',
     text: 'Discover and upvote Utah’s top spots, businesses, music & creators!',
     url: deepLink,
     storyTag: 'Community Discovery',
     storyTitle: 'The SpotLIGHT Feed',
     storySub: 'Utah Ranked Live'
-  };
-  openShareModal(shareInfo);
+  });
 }
 
 function triggerSpotShare(postId, title, event) {
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
+  if (event) { event.stopPropagation(); event.preventDefault(); }
   const baseUrl = getCanonicalBaseUrl();
   const deepLink = `${baseUrl}#community`;
-  const shareInfo = {
+  openShareModal({
     title: `Vote for ${title} on The SpotLIGHT!`,
     text: `Check out ${title} on Utah’s SpotLIGHT community feed: ${deepLink}`,
     url: deepLink,
     storyTag: 'Community Spotlight',
     storyTitle: title,
     storySub: 'Vote on The SpotLIGHT'
-  };
-  openShareModal(shareInfo);
+  });
 }
 
 let pendingDeletePostId = null;
 
 function openDeleteConfirmModal(postId, event) {
-  if (!mySubmittedPostIds.has(postId) && !(typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked)) {
+  if (!mySubmittedPostIds.has(postId) && !isEditorUnlocked) {
     if (event) { event.stopPropagation(); event.preventDefault(); }
     showToast('⚠️ Only the creator can delete this spot.');
     return;
   }
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
-  // Close any open dropdown menus
-  document.querySelectorAll('.comm-card-dropdown').forEach(d => d.classList.remove('show'));
+  if (event) { event.stopPropagation(); event.preventDefault(); }
+  document.querySelectorAll('.comm-dropdown-menu').forEach(d => d.classList.remove('show'));
 
   pendingDeletePostId = postId;
   const post = COMMUNITY_POSTS.find(p => String(p.id) === String(postId));
   const titleEl = document.getElementById('deleteModalSpotTitle');
-  if (titleEl) {
-    titleEl.textContent = post ? `Delete "${post.title}"?` : 'Delete This Spot?';
-  }
+  if (titleEl) titleEl.textContent = post ? `Delete "${post.title}"?` : 'Delete This Spot?';
 
   const modal = document.getElementById('deleteSpotConfirmModal');
   if (modal) modal.classList.add('show');
@@ -3819,31 +3465,20 @@ async function executeDeleteCommunityPost(targetPostId) {
 
   closeDeleteSpotModal();
 
-  // 1. Instant optimistic update
   COMMUNITY_POSTS = COMMUNITY_POSTS.filter(p => String(p.id) !== String(idToDelete));
   mySubmittedPostIds.delete(idToDelete);
   localStorage.setItem('spotlight_my_posts', JSON.stringify([...mySubmittedPostIds]));
-  
+
   updateCommunityFeedUI();
-  if (activeTab === 'community') {
-    renderEditor();
-  }
+  if (activeTab === 'community') renderEditor();
   showToast('🗑️ Spot permanently removed.');
 
-  // 2. Call backend deletion endpoints
   try {
-    const res = await fetch('/api/community/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: idToDelete, ownerToken: getSpotOwnerToken() })
-    });
-    const data = await res.json();
-    if (data && data.success) {
-      await loadCommunityPosts(true);
-      if (activeTab === 'community') renderEditor();
-    }
+    const { error } = await sb.rpc('delete_community_post', { p_id: idToDelete, p_owner_token: getSpotOwnerToken() });
+    if (error) throw error;
   } catch (err) {
-    console.error('Delete network error:', err);
+    console.error('Delete error:', err);
+    loadCommunityPosts();
   }
 }
 
@@ -3855,18 +3490,14 @@ function handleDeleteCommunityPost(postId, event) {
   openDeleteConfirmModal(postId, event);
 }
 
-function handleAdminModeratePost(postId, action, event) {
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
+async function handleAdminModeratePost(postId, action, event) {
+  if (event) { event.stopPropagation(); event.preventDefault(); }
 
   if (action === 'delete') {
     openDeleteConfirmModal(postId, event);
     return;
   }
 
-  // Optimistic update for pin / unpin / clear_reports
   const post = COMMUNITY_POSTS.find(p => p.id === postId);
   if (post) {
     if (action === 'pin') post.isPinned = true;
@@ -3876,25 +3507,15 @@ function handleAdminModeratePost(postId, action, event) {
     if (activeTab === 'community') renderEditor();
   }
 
-  fetch('/api/admin/community/moderate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id: postId, action })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      showToast(`Action '${action}' completed.`);
-      loadCommunityPosts().then(() => {
-        if (activeTab === 'community') renderEditor();
-      });
-    } else {
-      showToast('Moderation action failed.');
-    }
-  })
-  .catch(err => {
+  try {
+    const { error } = await sb.rpc('moderate_community_post', { p_id: postId, p_action: action });
+    if (error) throw error;
+    showToast(`Action '${action}' completed.`);
+  } catch (err) {
     console.error('Moderation error:', err);
-  });
+    showToast('Moderation action failed.');
+    loadCommunityPosts();
+  }
 }
 
 function communityPage() {
@@ -4003,36 +3624,6 @@ function renderPageContent(){
   });
 }
 
-function syncActiveVideos(){
-  PAGES.forEach((p, idx) => {
-    const pageEl = document.getElementById('page-' + idx);
-    if (!pageEl) return;
-    const isVisible = (idx === current);
-    const videos = pageEl.querySelectorAll('video');
-    videos.forEach(v => {
-      v.muted = true;
-      v.defaultMuted = true;
-      v.playsInline = true;
-      v.setAttribute('playsinline', '');
-      v.setAttribute('webkit-playsinline', '');
-      const badge = v.parentElement?.querySelector('.video-play-badge');
-      if (isVisible) {
-        const p = v.play();
-        if (p !== undefined) {
-          p.then(() => {
-            if (badge) badge.style.display = 'none';
-          }).catch(() => {
-            if (badge) badge.style.display = 'flex';
-          });
-        }
-      } else {
-        v.pause();
-      }
-    });
-  });
-}
-
-// Interactive Like Counter & Appreciation Logic
 function getLikesCount() {
   const base = (MAGAZINE?.backCover?.baseLikes !== undefined && !isNaN(Number(MAGAZINE.backCover.baseLikes)))
     ? Number(MAGAZINE.backCover.baseLikes)
@@ -4046,19 +3637,13 @@ function hasUserLiked() {
 }
 
 function handleLikeClick(btn, event) {
-  if (event) {
-    event.stopPropagation();
-    event.preventDefault();
-  }
+  if (event) { event.stopPropagation(); event.preventDefault(); }
   
   let userLikes = parseInt(localStorage.getItem('spotlight_mag_user_likes') || '0', 10);
   userLikes += 1;
   localStorage.setItem('spotlight_mag_user_likes', userLikes.toString());
 
-  // Trigger floating particle animation
   createHeartBurst(btn);
-
-  // Update UI count immediately
   updateLikeButtonUI();
 }
 
@@ -4074,7 +3659,6 @@ function createHeartBurst(btnElement) {
     burst.className = 'like-burst-particle';
     burst.textContent = icons[Math.floor(Math.random() * icons.length)];
     
-    // Spread particles horizontally & vertically
     const tx = (Math.random() * 80 - 40) + 'px';
     const ty = (-25 - Math.random() * 35) + 'px';
     burst.style.setProperty('--tx', tx);
@@ -4093,7 +3677,6 @@ function createHeartBurst(btnElement) {
 
 function updateLikeButtonUI() {
   const count = getLikesCount();
-  const liked = hasUserLiked();
   
   document.querySelectorAll('.like-interactive-btn').forEach(btn => {
     btn.classList.add('liked');
@@ -4102,9 +3685,7 @@ function updateLikeButtonUI() {
   });
 
   const badge = document.getElementById('likeThanksBadge');
-  if (badge) {
-    badge.style.display = 'block';
-  }
+  if (badge) badge.style.display = 'block';
 }
 
 const CANONICAL_PUBLIC_URL = 'https://cxcx3.github.io/mag/';
@@ -4112,7 +3693,6 @@ const CANONICAL_PUBLIC_URL = 'https://cxcx3.github.io/mag/';
 function getCanonicalBaseUrl() {
   if (typeof window !== 'undefined' && window.location) {
     const host = window.location.hostname;
-    // If running on user's real GitHub Pages site or custom domain
     if (host.endsWith('github.io') || (host && host !== 'localhost' && !host.includes('run.app') && !host.includes('127.0.0.1'))) {
       const cleanPath = window.location.pathname.endsWith('/') ? window.location.pathname : (window.location.pathname + '/');
       return window.location.origin + cleanPath;
@@ -4165,14 +3745,7 @@ function getPageShareInfo(idx) {
     storySub = 'The SpotLIGHT';
   }
 
-  return {
-    title: 'The SpotLIGHT',
-    text: 'Tap the link to check it out!',
-    url: deepLink,
-    storyTag: storyTag,
-    storyTitle: storyTitle,
-    storySub: storySub
-  };
+  return { title: 'The SpotLIGHT', text: 'Tap the link to check it out!', url: deepLink, storyTag, storyTitle, storySub };
 }
 
 let activeShareData = null;
@@ -4189,9 +3762,7 @@ function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add('show');
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    if (toast) toast.classList.remove('show');
-  }, 2600);
+  toastTimer = setTimeout(() => { if (toast) toast.classList.remove('show'); }, 2600);
 }
 
 function fallbackCopyText(text) {
@@ -4216,11 +3787,7 @@ function fallbackCopyText(text) {
       textarea.setSelectionRange(0, 99999);
       const successful = document.execCommand('copy');
       document.body.removeChild(textarea);
-      if (successful) {
-        resolve(true);
-      } else {
-        reject(new Error('execCommand copy returned false'));
-      }
+      if (successful) resolve(true); else reject(new Error('execCommand copy returned false'));
     } catch (err) {
       reject(err);
     }
@@ -4229,9 +3796,7 @@ function fallbackCopyText(text) {
 
 function copyTextToClipboard(text) {
   if (navigator.clipboard && window.isSecureContext) {
-    return navigator.clipboard.writeText(text).catch(() => {
-      return fallbackCopyText(text);
-    });
+    return navigator.clipboard.writeText(text).catch(() => fallbackCopyText(text));
   }
   return fallbackCopyText(text);
 }
@@ -4293,11 +3858,7 @@ function copyActiveShareLink() {
   const url = activeShareData.url;
   
   const urlInput = document.getElementById('shareUrlInput');
-  if (urlInput) {
-    urlInput.value = url;
-    urlInput.focus();
-    urlInput.select();
-  }
+  if (urlInput) { urlInput.value = url; urlInput.focus(); urlInput.select(); }
 
   copyTextToClipboard(url).then(() => {
     const copyBtn = document.getElementById('shareCopyBtn');
@@ -4353,9 +3914,7 @@ function invokeNativeShare() {
       text: 'Tap the link to check it out!',
       url: activeShareData.url
     }).catch(err => {
-      if (err.name !== 'AbortError') {
-        copyActiveShareLink();
-      }
+      if (err.name !== 'AbortError') copyActiveShareLink();
     });
   } else {
     copyActiveShareLink();
@@ -4365,13 +3924,9 @@ function invokeNativeShare() {
 const flipTimeouts = {};
 
 function getPageZIndex(idx) {
-  if (idx === current) {
-    return 50;
-  } else if (idx > current) {
-    return 40 - (idx - current);
-  } else {
-    return 10 + idx;
-  }
+  if (idx === current) return 50;
+  else if (idx > current) return 40 - (idx - current);
+  else return 10 + idx;
 }
 
 function render(){
@@ -4388,7 +3943,6 @@ function render(){
     }
 
     if (wasFlipped !== isFlipped) {
-      // Elevate the moving page during 3D flip animation
       el.style.zIndex = 75 + (isActive ? 5 : 0);
       el.classList.add('is-flipping');
       flipTimeouts[idx] = setTimeout(() => {
@@ -4397,7 +3951,6 @@ function render(){
         delete flipTimeouts[idx];
       }, 410);
     } else {
-      // Immediately enforce resting state so interrupted rapid flips never leave stale z-index
       el.classList.remove('is-flipping');
       el.style.zIndex = getPageZIndex(idx);
     }
@@ -4411,15 +3964,12 @@ function render(){
   nextBtn.disabled = current === total - 1;
   pageCountEl.textContent = `Page ${current + 1} of ${total}`;
   
-  // Smoothly sync videos after transition begins
   setTimeout(syncActiveVideos, 100);
 
   const activePage = document.getElementById('page-' + current);
   if (activePage) {
     const sheet = activePage.querySelector('.sheet');
-    if (sheet && sheet.scrollTop > 0) {
-      sheet.scrollTop = 0;
-    }
+    if (sheet && sheet.scrollTop > 0) sheet.scrollTop = 0;
   }
 }
 
@@ -4438,11 +3988,7 @@ function unlockAndPlayVisibleVideos() {
       if (v.paused) {
         const p = v.play();
         if (p !== undefined) {
-          p.then(() => {
-            if (badge) badge.style.display = 'none';
-          }).catch(() => {
-            if (badge) badge.style.display = 'flex';
-          });
+          p.then(() => { if (badge) badge.style.display = 'none'; }).catch(() => { if (badge) badge.style.display = 'flex'; });
         }
       }
     });
@@ -4454,9 +4000,7 @@ function unlockAndPlayVisibleVideos() {
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    syncActiveVideos();
-  }
+  if (document.visibilityState === 'visible') syncActiveVideos();
 });
 
 function nextPage(){ if(current < total - 1){ current++; render(); } }
@@ -4468,7 +4012,6 @@ function applyMagazineUpdates() {
   render();
 }
 
-// Direction-Aware Gesture & Sheet Scrolling Engine with Momentum Physics
 let gestureStartX = 0;
 let gestureStartY = 0;
 let gestureLastY = 0;
@@ -4488,7 +4031,6 @@ function getActiveSheet() {
 
 const bookWrap = document.querySelector('.book-wrap');
 if (bookWrap) {
-  // Mobile Touch Gestures - High performance direct vertical scroll + inertial momentum & horizontal flip detection
   bookWrap.addEventListener('touchstart', e => {
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
@@ -4499,10 +4041,7 @@ if (bookWrap) {
     gestureLastTime = gestureStartTime;
     scrollVelocity = 0;
 
-    if (momentumRaf) {
-      cancelAnimationFrame(momentumRaf);
-      momentumRaf = null;
-    }
+    if (momentumRaf) { cancelAnimationFrame(momentumRaf); momentumRaf = null; }
 
     const sheet = getActiveSheet();
     gestureStartScrollTop = sheet ? sheet.scrollTop : 0;
@@ -4543,9 +4082,7 @@ if (bookWrap) {
     } else if (isVerticalScroll) {
       if (e.cancelable) e.preventDefault();
       const sheet = getActiveSheet();
-      if (sheet) {
-        sheet.scrollTop = gestureStartScrollTop - dy;
-      }
+      if (sheet) sheet.scrollTop = gestureStartScrollTop - dy;
     }
   }, { passive: false });
 
@@ -4556,11 +4093,8 @@ if (bookWrap) {
       const dt = Math.max(1, performance.now() - gestureStartTime);
       const speed = Math.abs(dx) / dt;
 
-      if (dx < -30 || (dx < -15 && speed > 0.2)) {
-        nextPage();
-      } else if (dx > 30 || (dx > 15 && speed > 0.2)) {
-        prevPage();
-      }
+      if (dx < -30 || (dx < -15 && speed > 0.2)) nextPage();
+      else if (dx > 30 || (dx > 15 && speed > 0.2)) prevPage();
     } else if (isVerticalScroll) {
       const sheet = getActiveSheet();
       if (sheet && Math.abs(scrollVelocity) > 0.12) {
@@ -4572,11 +4106,8 @@ if (bookWrap) {
           if (!sheet) return;
           sheet.scrollTop += v;
           v *= 0.93;
-          if (Math.abs(v) > 0.4) {
-            momentumRaf = requestAnimationFrame(momentumStep);
-          } else {
-            momentumRaf = null;
-          }
+          if (Math.abs(v) > 0.4) momentumRaf = requestAnimationFrame(momentumStep);
+          else momentumRaf = null;
         }
         momentumRaf = requestAnimationFrame(momentumStep);
       }
@@ -4586,18 +4117,14 @@ if (bookWrap) {
     gestureMoved = false;
   }, { passive: true });
 
-  // Mouse wheel & trackpad scroll
   bookWrap.addEventListener('wheel', e => {
     const sheet = getActiveSheet();
     if (sheet) {
       sheet.scrollTop += e.deltaY;
-      if (sheet.scrollHeight > sheet.clientHeight) {
-        e.preventDefault();
-      }
+      if (sheet.scrollHeight > sheet.clientHeight) e.preventDefault();
     }
   }, { passive: false });
 
-  // Desktop click & drag scroll
   let isMouseDown = false;
   let mouseStartX = 0;
   let mouseStartY = 0;
@@ -4622,9 +4149,7 @@ if (bookWrap) {
     if (Math.hypot(dx, dy) > 5) mouseMoved = true;
     if (mouseMoved) {
       const sheet = getActiveSheet();
-      if (sheet && Math.abs(dy) >= Math.abs(dx)) {
-        sheet.scrollTop = mouseStartScrollTop - dy;
-      }
+      if (sheet && Math.abs(dy) >= Math.abs(dx)) sheet.scrollTop = mouseStartScrollTop - dy;
     }
   });
 
@@ -4646,12 +4171,12 @@ document.addEventListener('keydown', e => {
 });
 
 async function start() {
+  await restoreAdminSession();
   MAGAZINE = await loadMagazine();
   applyMagazineUpdates();
   loadCommunityPosts();
   startCommunityPolling();
 
-  // Parse deep-link URL hash only if an explicit non-cover city deep-link was requested
   const rawHash = (window.location.hash || '').replace('#', '').trim().toLowerCase();
   if (rawHash && rawHash !== 'cover' && rawHash !== '') {
     let targetIdx = -1;
@@ -4667,14 +4192,11 @@ async function start() {
       const pNum = parseInt(rawHash, 10);
       if (!isNaN(pNum) && pNum >= 1 && pNum <= total) targetIdx = pNum - 1;
     } else {
-      // Match by city name slug
       const cityIdx = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities.findIndex((c, i) => {
         const slug = (c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         return slug === rawHash || (rawHash === 'slc' && slug.includes('salt-lake'));
       }) : -1;
-      if (cityIdx !== -1) {
-        targetIdx = cityIdx + 2; // +2 because 0 is cover, 1 is community
-      }
+      if (cityIdx !== -1) targetIdx = cityIdx + 2;
     }
 
     if (targetIdx > 0 && targetIdx < total) {
@@ -4685,17 +4207,12 @@ async function start() {
 }
 
 function boot() {
-  if (typeof editorToggle !== 'undefined' && editorToggle) {
-    editorToggle.style.display = 'block';
-  }
-  // Render default content synchronously immediately so the screen is NEVER blank
   try {
     applyMagazineUpdates();
   } catch (e) {
     console.warn('Initial synchronous render notice:', e);
   }
 
-  // Load custom saved / data.json data
   start().catch(err => {
     console.error('Error starting magazine:', err);
     MAGAZINE = cloneData(DEFAULT_MAGAZINE);
@@ -4710,6 +4227,5 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
   window.addEventListener('load', boot);
 }
 </script>
-  <script src="media-upload-fix.js"></script>
 </body>
 </html>
