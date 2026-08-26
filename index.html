@@ -1379,7 +1379,7 @@
 
           <div class="comm-form-field full">
             <label>3D Tour / 360° Scan URL (Optional)</label>
-            <input type="url" id="spotTourUrl" placeholder="Matterport, Kuula, Polycam, Google Photosphere, or 360° photo URL">
+            <input type="url" id="spotTourUrl" placeholder="360Cities (e.g. 360cities.net/image/...), Kuula, Matterport, Polycam, Google Photosphere, or 360° photo URL">
           </div>
         </div>
 
@@ -1568,9 +1568,9 @@ const DEFAULT_CITIES = [
     },
     ads: [
       {
-        name: 'The Rush · Lounge & Entertainment', tag: 'VIP Nightlife & Dining',
+        name: '360 · Lounge & Venue', tag: 'VIP Nightlife & Dining',
         blurb: 'Multi-level experiential lounge with signature craft cocktails, state-of-the-art sound, and panoramic mountain patio views.',
-        cta: 'Book VIP Table', link: 'https://therushslc.com',
+        cta: 'Book VIP Table', link: 'https://360slc.com',
         tour3d: '',
         media: { type: 'image', url: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=900&q=80' }
       },
@@ -2571,7 +2571,7 @@ function renderEditor(){
           <div class="ed-field full"><label>Description</label><textarea data-ad="blurb">${esc(a.blurb)}</textarea></div>
           <div class="ed-field"><label>Button Text</label><input data-ad="cta" value="${esc(a.cta)}"></div>
           <div class="ed-field"><label>Link</label><input data-ad="link" value="${esc(a.link)}" placeholder="https://..."></div>
-          <div class="ed-field full"><label>3D Tour / 360° Scan URL (Matterport, Kuula, Polycam, or 360° image)</label><input data-ad="tour3d" value="${esc(a.tour3d || '')}" placeholder="Paste 3D tour link or 360° photo URL (Leave blank for demo tour)"></div>
+          <div class="ed-field full"><label>3D Tour / 360° Scan URL (360Cities, Kuula, Matterport, Polycam, Google Maps, or 360° photo)</label><input data-ad="tour3d" value="${esc(a.tour3d || '')}" placeholder="Paste 360cities.net/image/..., kuula.co/..., matterport, or 360° photo URL"></div>
           ${mediaFieldHTML('Business Media (Photo or Video)', `city-${ci}-ad-${ai}`, a.media, `ad-${ci}-${ai}-type`)}
         </div>
       </div>`).join('');
@@ -2892,6 +2892,8 @@ function mapPostRow(row){
     mediaType: row.media_type,
     link: row.link,
     linkText: row.link_text,
+    tour3d: row.tour_3d || row.tour3d || row.tour_url || row.tourUrl || '',
+    tourUrl: row.tour_url || row.tourUrl || row.tour_3d || row.tour3d || '',
     votes: row.votes || 0,
     isPinned: row.is_pinned,
     reports: row.reports || [],
@@ -3235,7 +3237,8 @@ function openEditSpotModal(postId, event) {
     spotMediaUrl: post.mediaUrl || '',
     spotDescription: post.description || '',
     spotLink: post.link || '',
-    spotLinkText: post.linkText || 'Learn More'
+    spotLinkText: post.linkText || 'Learn More',
+    spotTourUrl: post.tour3d || post.tourUrl || ''
   };
 
   Object.entries(values).forEach(([id, value]) => {
@@ -3323,6 +3326,7 @@ async function handleSpotSubmit(event) {
   const mediaUrl = document.getElementById('spotMediaUrl')?.value.trim() || pendingSpotMediaUrl;
   const link = document.getElementById('spotLink')?.value.trim();
   const linkText = document.getElementById('spotLinkText')?.value.trim();
+  const tourUrl = document.getElementById('spotTourUrl')?.value.trim() || '';
 
   if (!title || !description) {
     alert('Please enter a title and description for your spot.');
@@ -3357,7 +3361,12 @@ async function handleSpotSubmit(event) {
       if (error) throw error;
 
       const index = COMMUNITY_POSTS.findIndex(p => String(p.id) === String(editingSpotPostId));
-      if (index !== -1) COMMUNITY_POSTS[index] = mapPostRow(data);
+      if (index !== -1) {
+        const mapped = mapPostRow(data);
+        mapped.tour3d = tourUrl || mapped.tour3d;
+        mapped.tourUrl = tourUrl || mapped.tourUrl;
+        COMMUNITY_POSTS[index] = mapped;
+      }
       updateCommunityFeedUI();
       closeSubmitSpotModal();
       showToast('✅ Spot updated successfully!');
@@ -3378,6 +3387,8 @@ async function handleSpotSubmit(event) {
       if (error) throw error;
 
       const newPost = mapPostRow(data);
+      newPost.tour3d = tourUrl;
+      newPost.tourUrl = tourUrl;
       COMMUNITY_POSTS.unshift(newPost);
       mySubmittedPostIds.add(newPost.id);
       localStorage.setItem('spotlight_my_posts', JSON.stringify([...mySubmittedPostIds]));
