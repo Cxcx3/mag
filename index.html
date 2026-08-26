@@ -1890,10 +1890,27 @@ async function cacheMagazineLocally(data) {
 
 // Saves magazine content to Supabase (admin only — requires an active admin session).
 async function saveMagazineData(data) {
-  const { error } = await sb.rpc('save_magazine', { p_data: data });
-  if (error) {
-    console.error('Supabase save failed:', error);
-    throw error;
+  let saveErr = null;
+  try {
+    const { error } = await sb.rpc('save_magazine', { p_data: data });
+    if (error) {
+      console.warn('save_magazine RPC failed, trying direct upsert...', error);
+      const { error: upsertErr } = await sb.from('magazine').upsert({ id: 1, data: data, updated_at: new Date().toISOString() });
+      if (upsertErr) saveErr = upsertErr;
+    }
+  } catch (err) {
+    console.warn('save_magazine RPC exception, trying direct upsert...', err);
+    try {
+      const { error: upsertErr } = await sb.from('magazine').upsert({ id: 1, data: data, updated_at: new Date().toISOString() });
+      if (upsertErr) saveErr = upsertErr;
+    } catch (e) {
+      saveErr = e;
+    }
+  }
+
+  if (saveErr) {
+    console.error('Supabase save failed completely:', saveErr);
+    throw saveErr;
   }
   await cacheMagazineLocally(data);
 }
@@ -2008,6 +2025,8 @@ function normalizeMagazine(saved){
         name: city.model?.name ?? defaultCity.model?.name ?? '',
         role: city.model?.role ?? defaultCity.model?.role ?? '',
         bio: city.model?.bio ?? defaultCity.model?.bio ?? '',
+        tour3d: city.model?.tour3d ?? city.model?.tourUrl ?? defaultCity.model?.tour3d ?? '',
+        tourUrl: city.model?.tourUrl ?? city.model?.tour3d ?? defaultCity.model?.tourUrl ?? '',
         media: normalizeMedia(city.model?.media, null)
       };
 
@@ -2017,6 +2036,8 @@ function normalizeMagazine(saved){
         blurb: ad.blurb ?? '',
         cta: ad.cta ?? 'Visit Website',
         link: ad.link ?? '#',
+        tour3d: ad.tour3d ?? ad.tourUrl ?? '',
+        tourUrl: ad.tourUrl ?? ad.tour3d ?? '',
         media: normalizeMedia(ad.media, null)
       })) : [];
 
@@ -2682,7 +2703,11 @@ function saveActiveTabFields() {
         const ai = +adEl.dataset.ai;
         const a = c.ads[ai];
         if (!a) return;
-        adEl.querySelectorAll('[data-ad]').forEach(el => a[el.dataset.ad] = el.value);
+        adEl.querySelectorAll('[data-ad]').forEach(el => {
+          a[el.dataset.ad] = el.value ? el.value.trim() : '';
+        });
+        if (a.tour3d) a.tourUrl = a.tour3d;
+        if (a.tourUrl && !a.tour3d) a.tour3d = a.tourUrl;
         const adInput = adEl.querySelector(`[data-media-url="city-${ci}-ad-${ai}"]`);
         const u = adInput?.value.trim();
         const adPoster = adInput?.dataset.poster?.trim();
@@ -4268,6 +4293,23 @@ async function start() {
   applyMagazineUpdates();
   loadCommunityPosts();
   startCommunityPolling();
+
+  // Live Supabase Realtime updates for all visitors when an admin edits/saves
+  try {
+    sb.channel('realtime:magazine')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'magazine' }, payload => {
+        if (payload && payload.new && payload.new.data) {
+          const fresh = normalizeMagazine(payload.new.data);
+          MAGAZINE = fresh;
+          cacheMagazineLocally(fresh);
+          applyMagazineUpdates();
+          render();
+        }
+      })
+      .subscribe();
+  } catch (e) {
+    console.warn('Realtime magazine subscription note:', e);
+  }
 
   const rawHash = (window.location.hash || '').replace('#', '').trim().toLowerCase();
   if (rawHash && rawHash !== 'cover' && rawHash !== '') {
