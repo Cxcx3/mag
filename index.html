@@ -1376,6 +1376,11 @@
             <label>Button Label</label>
             <input type="text" id="spotLinkText" placeholder="e.g. Visit Website / Listen" maxlength="40" value="Learn More">
           </div>
+
+          <div class="comm-form-field full">
+            <label>3D Tour / 360° Scan URL (Optional)</label>
+            <input type="url" id="spotTourUrl" placeholder="Matterport, Kuula, Polycam, Google Photosphere, or 360° photo URL">
+          </div>
         </div>
 
         <div style="margin-top:16px;display:flex;gap:10px;">
@@ -1546,6 +1551,7 @@
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="tour-3d.js"></script>
 <script>
 const SUPABASE_URL = 'https://rcgtgmyiygdkbmbfspbo.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_6lDmQxTb7avdPjaAckrV7w_xDmRdxIC';
@@ -1562,21 +1568,31 @@ const DEFAULT_CITIES = [
     },
     ads: [
       {
+        name: 'The Rush · Lounge & Entertainment', tag: 'VIP Nightlife & Dining',
+        blurb: 'Multi-level experiential lounge with signature craft cocktails, state-of-the-art sound, and panoramic mountain patio views.',
+        cta: 'Book VIP Table', link: 'https://therushslc.com',
+        tour3d: '',
+        media: { type: 'image', url: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=900&q=80' }
+      },
+      {
         name: 'Peak & Pine Coffee Roasters', tag: 'Local Roaster',
         blurb: 'Small-batch beans roasted weekly in the Granary District. Try the seasonal cardamom pour-over.',
         cta: 'Visit us downtown', link: '#',
+        tour3d: '',
         media: { type: 'image', url: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80' }
       },
       {
         name: 'Wasatch Wax Candle Co.', tag: 'Handmade Goods',
         blurb: 'Soy candles poured in small batches, inspired by canyon hikes and mountain air.',
         cta: 'Shop the collection', link: '#',
+        tour3d: '',
         media: { type: 'image', url: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80' }
       },
       {
         name: 'Iron Door Fitness', tag: 'Studio & Gym',
         blurb: 'Boutique strength studio with sunrise classes and a members-only sauna.',
         cta: 'Book a free class', link: '#',
+        tour3d: '',
         media: { type: 'image', url: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=80' }
       }
     ]
@@ -2236,26 +2252,29 @@ function mediaBlock(media, placeholderText, extraClass){
   `;
 }
 
-function standardAdHtml(a, cityIdx){
+function standardAdHtml(a, pageIndexInPages, cityIdx, adIdx){
   if (!a || typeof a !== 'object') a = {};
   const link = (a.link && a.link !== '#' && a.link.trim() !== '') ? a.link.trim() : null;
   const ctaContent = link 
-    ? `<a href="${link}" target="_blank" rel="noopener noreferrer">${a.cta || 'Visit Website'}</a>`
-    : (a.cta || 'Visit Website');
+    ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">${esc(a.cta || 'Visit Website')}</a>`
+    : esc(a.cta || 'Visit Website');
 
-  const safeBizName = (a.name || 'Featured Spot').replace(/'/g, "\\'");
-  const safeBizTag = (a.tag || 'Local Spot').replace(/'/g, "\\'");
   const placeholderLabel = (a.name || 'BUSINESS').toUpperCase();
 
   return `
     <div class="ad-card">
       ${mediaBlock(a.media, '[ '+placeholderLabel+' PHOTO / VIDEO ]', 'ad-media')}
-      <div class="biz-name">${a.name || 'Local Business'}</div>
-      <div class="biz-tag">${a.tag || 'Special Offer'}</div>
-      <div class="biz-blurb">${a.blurb || ''}</div>
+      <div class="biz-name">${esc(a.name || 'Local Business')}</div>
+      <div class="biz-tag">${esc(a.tag || 'Special Offer')}</div>
+      <div class="biz-blurb">${esc(a.blurb || '')}</div>
+      <button type="button" class="step-inside-3d-btn" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="Explore in 3D 360°">
+        <span class="btn-3d-pulse">🔦</span>
+        <span>STEP INSIDE · 3D / 360°</span>
+        <span class="btn-3d-badge">VR</span>
+      </button>
       <div class="biz-footer-row">
         <div class="biz-cta">${ctaContent}</div>
-        <button class="ad-share-btn" onclick="event.stopPropagation(); triggerAdShare('${safeBizName}', '${safeBizTag}', ${cityIdx || 0})" title="Share this business">
+        <button class="ad-share-btn" onclick="event.stopPropagation(); window.triggerAdShareByIndex(${cityIdx}, ${adIdx}, ${pageIndexInPages || 0}, event)" title="Share this business">
           ↗ Share Spot
         </button>
       </div>
@@ -2268,7 +2287,7 @@ function cityPage(c, idx){
   const totalCities = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities.length : 1;
   const pageIndexInPages = idx + 2;
   const ads = Array.isArray(c.ads) ? c.ads : [];
-  const adsHtml = ads.map(a => standardAdHtml(a, pageIndexInPages)).join('');
+  const adsHtml = ads.map((a, adIdx) => standardAdHtml(a, pageIndexInPages, idx, adIdx)).join('');
   const model = c.model || { name: '', role: '', bio: '', media: null };
   const cityName = c.name || `City ${idx + 1}`;
   const cityNum = c.num || String(idx + 1).padStart(2, '0');
@@ -2552,6 +2571,7 @@ function renderEditor(){
           <div class="ed-field full"><label>Description</label><textarea data-ad="blurb">${esc(a.blurb)}</textarea></div>
           <div class="ed-field"><label>Button Text</label><input data-ad="cta" value="${esc(a.cta)}"></div>
           <div class="ed-field"><label>Link</label><input data-ad="link" value="${esc(a.link)}" placeholder="https://..."></div>
+          <div class="ed-field full"><label>3D Tour / 360° Scan URL (Matterport, Kuula, Polycam, or 360° image)</label><input data-ad="tour3d" value="${esc(a.tour3d || '')}" placeholder="Paste 3D tour link or 360° photo URL (Leave blank for demo tour)"></div>
           ${mediaFieldHTML('Business Media (Photo or Video)', `city-${ci}-ad-${ai}`, a.media, `ad-${ci}-${ai}-type`)}
         </div>
       </div>`).join('');
@@ -2989,7 +3009,10 @@ function renderCommunityCardHtml(p, rank) {
             •••
           </button>
           <div class="comm-dropdown-menu" id="comm-dropdown-${p.id}">
-            <button class="comm-dropdown-item" onclick="triggerSpotShare('${p.id}', '${safeTitle.replace(/'/g, "\\'")}', event)">
+            <button class="comm-dropdown-item" onclick="window.openSpot3dTour('${p.id}'); event.stopPropagation();">
+              🥽 Step Inside 3D View
+            </button>
+            <button class="comm-dropdown-item" onclick="window.triggerSpotShareById('${p.id}', event)">
               ↗ Share This Spot
             </button>
             <button class="comm-dropdown-item danger" onclick="openReportModal('${p.id}', event)">
@@ -3012,6 +3035,13 @@ function renderCommunityCardHtml(p, rank) {
       <div class="comm-card-body">
         <h3 class="comm-card-title">${safeTitle}</h3>
         <p class="comm-card-desc">${safeDesc}</p>
+        ${(p.tour3d || p.tourUrl || p.has3d || p.category === 'Businesses' || p.category === 'Food & Drink' || p.category === 'Music & Venues') ? `
+          <button type="button" class="step-inside-3d-btn" style="margin: 8px 0 4px;" onclick="event.stopPropagation(); window.openSpot3dTour('${p.id}');" title="Explore in 3D">
+            <span class="btn-3d-pulse">🔦</span>
+            <span>STEP INSIDE · 3D / 360°</span>
+            <span class="btn-3d-badge">VR</span>
+          </button>
+        ` : ''}
       </div>
 
       <div class="comm-card-footer">
@@ -3827,6 +3857,56 @@ function triggerAdShare(bizName, bizTag, cityPageIdx) {
   activeShareData = shareInfo;
   openShareModal(shareInfo);
 }
+
+window.triggerSpotShareById = function(postId, event) {
+  if (event && event.stopPropagation) { event.stopPropagation(); event.preventDefault(); }
+  const p = (Array.isArray(COMMUNITY_POSTS)) ? COMMUNITY_POSTS.find(item => String(item.id) === String(postId)) : null;
+  triggerSpotShare(postId, p ? p.title : 'Utah Spot', event);
+};
+
+window.triggerAdShareByIndex = function(cityIdx, adIdx, pageIdx, event) {
+  if (event && event.stopPropagation) { event.stopPropagation(); event.preventDefault(); }
+  const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
+  const ad = (city && Array.isArray(city.ads)) ? city.ads[adIdx] : (MAGAZINE && Array.isArray(MAGAZINE.ads) ? MAGAZINE.ads[adIdx] : null);
+  const bizName = ad ? (ad.name || 'Featured Spot') : 'Featured Spot';
+  const bizTag = ad ? (ad.tag || 'Local Spot') : 'Local Spot';
+  triggerAdShare(bizName, bizTag, pageIdx || 0);
+};
+
+window.openCityAd3dTour = function(cityIdx, adIdx) {
+  const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
+  const ad = (city && Array.isArray(city.ads)) ? city.ads[adIdx] : (MAGAZINE && Array.isArray(MAGAZINE.ads) ? MAGAZINE.ads[adIdx] : null);
+  if (ad && typeof open3dTourModal === 'function') {
+    open3dTourModal({
+      title: ad.name || 'Featured Spot',
+      tag: ad.tag || (city ? city.name : 'Local Spot'),
+      location: city ? `${city.name}, UT` : 'Wasatch Front, UT',
+      blurb: ad.blurb || '',
+      cta: ad.cta || 'Visit Website',
+      link: ad.link || '#',
+      tourUrl: ad.tour3d || ad.tourUrl || '',
+      panoUrl: ad.pano3d || ad.panoUrl || ''
+    });
+  } else if (typeof open3dTourModal === 'function') {
+    open3dTourModal();
+  }
+};
+
+window.openSpot3dTour = function(spotId) {
+  const p = (Array.isArray(COMMUNITY_POSTS)) ? COMMUNITY_POSTS.find(item => String(item.id) === String(spotId)) : null;
+  if (p && typeof open3dTourModal === 'function') {
+    open3dTourModal({
+      title: p.title || 'Community Spot',
+      tag: p.category || 'Community Spot',
+      location: p.location || 'Wasatch Front, UT',
+      blurb: p.description || '',
+      link: p.link || '#',
+      tourUrl: p.tour3d || p.tourUrl || ''
+    });
+  } else if (typeof open3dTourModal === 'function') {
+    open3dTourModal();
+  }
+};
 
 function openShareModal(shareInfo) {
   activeShareData = shareInfo || getPageShareInfo(current);
