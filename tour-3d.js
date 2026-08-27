@@ -1450,48 +1450,47 @@
       }
       .scan-node-marker {
         position: absolute;
-        width: 38px;
-        height: 38px;
+        left: 0;
+        top: 0;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
-        transform: translate(-50%, -50%);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 900;
-        transition: left 0.08s linear, top 0.08s linear, opacity 0.25s ease, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.2s, border-color 0.2s, box-shadow 0.2s;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
-        will-change: left, top, transform;
+        /* JS drives transform: translate3d(x,y,0) translate(-50%,-50%) — zero layout thrash */
+        transition: opacity 0.2s ease, background 0.2s, border-color 0.2s, box-shadow 0.2s, width 0.15s, height 0.15s;
+        box-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+        will-change: transform, opacity;
+        z-index: 5;
       }
       .scan-node-marker.pending {
-        background: rgba(255, 210, 63, 0.3);
-        border: 2px solid #FFD23F;
-        color: #FFD23F;
-        animation: pulseTarget 1.5s infinite;
+        background: rgba(255, 255, 255, 0.92);
+        border: 2.5px solid rgba(255, 255, 255, 0.95);
+        color: #14121A;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.25), 0 2px 10px rgba(0,0,0,0.4);
       }
       .scan-node-marker.captured {
         background: #06D6A0;
-        border: 2px solid #fff;
+        border: 2.5px solid #fff;
         color: #0d1b1e;
+        width: 26px;
+        height: 26px;
       }
       .scan-node-marker.aligned {
-        width: 48px;
-        height: 48px;
-        background: rgba(255, 210, 63, 0.35);
-        border: 3px solid #FFD23F;
-        color: #FFD23F;
-        box-shadow: 0 0 22px rgba(255, 210, 63, 0.7);
-        transform: translate(-50%, -50%) scale(1.08);
-        animation: none;
+        width: 42px;
+        height: 42px;
+        background: rgba(255, 210, 63, 0.95);
+        border: 3px solid #fff;
+        color: #14121A;
+        box-shadow: 0 0 20px rgba(255, 210, 63, 0.85), 0 0 0 3px rgba(255, 210, 63, 0.35);
+        z-index: 8;
       }
       .scan-center-ring {
-        width: 110px;
-        height: 110px;
-      }
-      @keyframes pulseTarget {
-        0% { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 0 0 rgba(255, 210, 63, 0.7); }
-        70% { transform: translate(-50%, -50%) scale(1.08); box-shadow: 0 0 0 10px rgba(255, 210, 63, 0); }
-        100% { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 0 0 rgba(255, 210, 63, 0); }
+        width: 120px;
+        height: 120px;
       }
       .scan-guide-arrow {
         position: absolute;
@@ -2115,7 +2114,7 @@
                 <!-- Guidance Arrow -->
                 <div class="scan-guide-arrow" id="scanGuideArrow">
                   <span class="guide-arrow-icon" id="scanGuideIcon">➔</span>
-                  <span class="guide-arrow-text" id="scanGuideText">Rotate to align golden circles with the center ring</span>
+                  <span class="guide-arrow-text" id="scanGuideText">Point at the white circles · tilt up & down to get them all</span>
                 </div>
 
                 <!-- Flash Animation -->
@@ -2125,7 +2124,7 @@
               <!-- Live Floating Stats -->
               <div class="scan-floating-hud">
                 <div class="scan-progress-box">
-                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 18 ANGLES CAPTURED (0%)</span>
+                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 28 CAPTURED (0%)</span>
                   <div class="scan-progress-bar-bg">
                     <div class="scan-progress-bar-fill" id="scanProgressBarFill" style="width:0%;"></div>
                   </div>
@@ -3700,8 +3699,14 @@
   // (In-browser spatial panorama scanner inspired by Teleport & HDReye)
   // =========================================================================
 
-  const SCAN_TOTAL_NODES = 18; // 20° intervals — tighter coverage like Teleport / HDReye
-  const SCAN_ANGLES = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340];
+  // HDReye / Street View style multi-row spherical capture grid
+  // Upper row + lower row + horizon = full up/down coverage
+  const SCAN_ROWS = [
+    { pitch:  38, count: 8  },  // look up
+    { pitch:   0, count: 12 },  // horizon
+    { pitch: -38, count: 8  }   // look down
+  ];
+  let SCAN_TOTAL_NODES = 0;
 
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
   let scanStream = null;
@@ -3722,16 +3727,24 @@
   let scanLoopAnimId = null;
   let scanSmoothYaw = 0;
   let scanSmoothPitch = 0;
-  let scanNodeEls = [];          // persistent DOM nodes (no more innerHTML thrash)
+  let scanNodeEls = [];          // persistent DOM nodes — never recreate
   let scanNodesInitialized = false;
 
   function initScanSlots() {
-    scanSlots = SCAN_ANGLES.map(angle => ({
-      angle: angle,
-      captured: false,
-      imgCanvas: null,
-      timestamp: 0
-    }));
+    scanSlots = [];
+    SCAN_ROWS.forEach(row => {
+      const step = 360 / row.count;
+      for (let i = 0; i < row.count; i++) {
+        scanSlots.push({
+          yaw: i * step,
+          pitch: row.pitch,
+          captured: false,
+          imgCanvas: null,
+          timestamp: 0
+        });
+      }
+    });
+    SCAN_TOTAL_NODES = scanSlots.length; // 28
   }
 
   function normalizeAngle360(deg) {
@@ -3786,7 +3799,7 @@
     runScannerLoop();
 
     if (typeof showToast === 'function') {
-      showToast('📸 360° Scanner active! Rotate your camera to align the golden circles with the center ring.');
+      showToast('📸 360° Scanner active! Rotate your camera to point at the white circles (tilt up & down too).');
     }
   };
 
@@ -3966,16 +3979,18 @@
       const vh = viewfinder.clientHeight || (window.innerHeight * 0.6);
       const centerX = vw / 2;
       const centerY = vh / 2;
-      const fovSpan = 58; // slightly tighter = nodes move more naturally across screen
+      // Approximate horizontal & vertical FOV of phone camera on screen
+      const hFov = 62;
+      const vFov = hFov * (vh / Math.max(vw, 1));
 
-      // Create the 18 target nodes ONCE (never destroy them every frame)
+      // Create nodes ONCE
       if (!scanNodesInitialized) {
         nodesLayer.innerHTML = '';
         scanNodeEls = scanSlots.map((slot, idx) => {
           const el = document.createElement('div');
           el.className = 'scan-node-marker pending';
-          el.dataset.idx = idx;
-          el.innerHTML = `<span>${slot.angle}°</span>`;
+          el.dataset.idx = String(idx);
+          el.innerHTML = '<span></span>';
           el.style.pointerEvents = 'auto';
           el.onclick = () => window.captureSpecificScanAngle(idx);
           nodesLayer.appendChild(el);
@@ -3988,13 +4003,14 @@
       let minAngularDistance = 999;
       let alignedTargetIdx = -1;
 
-      // Update existing nodes smoothly (no DOM recreation = no jump/glitch)
-      scanSlots.forEach((slot, idx) => {
+      // Update every node with pure transform (GPU, no layout jump)
+      for (let idx = 0; idx < scanSlots.length; idx++) {
+        const slot = scanSlots[idx];
         const el = scanNodeEls[idx];
-        if (!el) return;
+        if (!el) continue;
 
-        const diffYaw = angleDiffSigned(slot.angle, scanCurrentYaw);
-        const diffPitch = 0 - scanCurrentPitch;
+        const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+        const diffPitch = slot.pitch - scanCurrentPitch;
         const angularDist = Math.hypot(diffYaw, diffPitch);
 
         if (!slot.captured && angularDist < minAngularDistance) {
@@ -4002,36 +4018,37 @@
           closestUncapturedIdx = idx;
         }
 
-        const screenX = centerX + (diffYaw / fovSpan) * vw;
-        const screenY = centerY - (diffPitch / fovSpan) * vh;
-        const isVisible = Math.abs(diffYaw) < 55 && Math.abs(diffPitch) < 42;
+        // Project onto viewfinder
+        const screenX = centerX + (diffYaw / hFov) * vw;
+        const screenY = centerY - (diffPitch / vFov) * vh;
+        const isVisible = Math.abs(diffYaw) < hFov * 0.95 && Math.abs(diffPitch) < vFov * 0.95;
 
-        if (angularDist < 7) {
+        if (angularDist < 8) {
           alignedTargetIdx = idx;
         }
 
-        // Smooth CSS positioning
-        el.style.left = screenX + 'px';
-        el.style.top = screenY + 'px';
+        // GPU-only positioning — zero glitch
+        el.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
         el.style.opacity = isVisible ? '1' : '0';
         el.style.visibility = isVisible ? 'visible' : 'hidden';
         el.style.pointerEvents = isVisible ? 'auto' : 'none';
 
-        // Class states (Teleport / HDReye style)
+        // State classes (HDReye-style: clean white dots → green when done)
+        const span = el.querySelector('span');
         el.classList.remove('pending', 'aligned', 'captured');
         if (slot.captured) {
           el.classList.add('captured');
-          el.innerHTML = '<span>✓</span>';
-        } else if (angularDist < 7) {
+          if (span) span.textContent = '✓';
+        } else if (angularDist < 8) {
           el.classList.add('aligned');
-          el.innerHTML = `<span>${slot.angle}°</span>`;
+          if (span) span.textContent = '';
         } else {
           el.classList.add('pending');
-          el.innerHTML = `<span>${slot.angle}°</span>`;
+          if (span) span.textContent = '';
         }
-      });
+      }
 
-      // Update Center Reticle State
+      // Center reticle
       if (alignedTargetIdx !== -1) {
         const slot = scanSlots[alignedTargetIdx];
         if (centerRing) {
@@ -4039,11 +4056,13 @@
           centerRing.classList.toggle('captured', !!slot.captured);
         }
         if (ringStatus) {
-          ringStatus.textContent = slot.captured ? `✓ ANGLE ${slot.angle}° CAPTURED` : `TARGET LOCKED · HOLD STEADY`;
+          const rowLabel = slot.pitch > 15 ? 'UP' : (slot.pitch < -15 ? 'DOWN' : 'LEVEL');
+          ringStatus.textContent = slot.captured
+            ? `✓ CAPTURED (${rowLabel})`
+            : `LOCK · HOLD STEADY (${rowLabel})`;
           ringStatus.style.color = slot.captured ? '#06D6A0' : '#FFD23F';
         }
 
-        // Auto-Snap Logic (slightly longer hold for stability)
         if (scanAutoSnap && !slot.captured) {
           if (scanAlignedAngleIdx !== alignedTargetIdx) {
             scanAlignedAngleIdx = alignedTargetIdx;
@@ -4052,7 +4071,7 @@
               if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
                 window.captureCurrentScanAngle();
               }
-            }, 420);
+            }, 450);
           }
         }
       } else {
@@ -4062,21 +4081,30 @@
           centerRing.classList.remove('aligned', 'captured');
         }
         if (ringStatus) {
-          ringStatus.textContent = 'ROTATE TO ALIGN CIRCLE';
-          ringStatus.style.color = 'rgba(255,255,255,0.7)';
+          ringStatus.textContent = 'AIM AT A CIRCLE';
+          ringStatus.style.color = 'rgba(255,255,255,0.75)';
         }
       }
 
-      // Guidance Arrow
+      // Guidance
       if (closestUncapturedIdx !== -1 && guideArrow && guideText && guideIcon) {
-        const targetSlot = scanSlots[closestUncapturedIdx];
-        const diffYaw = angleDiffSigned(targetSlot.angle, scanCurrentYaw);
+        const t = scanSlots[closestUncapturedIdx];
+        const dYaw = angleDiffSigned(t.yaw, scanCurrentYaw);
+        const dPitch = t.pitch - scanCurrentPitch;
+        const absYaw = Math.abs(dYaw);
+        const absPitch = Math.abs(dPitch);
 
-        if (Math.abs(diffYaw) > 9) {
+        if (absYaw > 10 || absPitch > 10) {
           guideArrow.style.display = 'flex';
-          const direction = diffYaw > 0 ? 'RIGHT ➔' : '⬅ LEFT';
-          guideIcon.textContent = diffYaw > 0 ? '➔' : '⬅';
-          guideText.textContent = `Turn ${direction} ${Math.abs(Math.round(diffYaw))}° → next ${targetSlot.angle}°`;
+          let dir = '';
+          if (absPitch > absYaw) {
+            dir = dPitch > 0 ? 'TILT UP ↑' : 'TILT DOWN ↓';
+            guideIcon.textContent = dPitch > 0 ? '↑' : '↓';
+          } else {
+            dir = dYaw > 0 ? 'TURN RIGHT ➔' : '⬅ TURN LEFT';
+            guideIcon.textContent = dYaw > 0 ? '➔' : '⬅';
+          }
+          guideText.textContent = `${dir}  ·  next target`;
         } else {
           guideArrow.style.display = 'none';
         }
@@ -4106,7 +4134,9 @@
     let minDiff = 999;
 
     scanSlots.forEach((slot, idx) => {
-      const diff = Math.abs(angleDiffSigned(slot.angle, scanCurrentYaw));
+      const dYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+      const dPitch = slot.pitch - scanCurrentPitch;
+      const diff = Math.hypot(dYaw, dPitch);
       if (diff < minDiff) {
         minDiff = diff;
         closestIdx = idx;
@@ -4159,7 +4189,8 @@
 
     if (typeof showToast === 'function') {
       const capturedCount = scanSlots.filter(s => s.captured).length;
-      showToast(`📸 Angle ${scanSlots[slotIdx].angle}° captured! (${capturedCount}/${SCAN_TOTAL_NODES})`);
+      const s = scanSlots[slotIdx]; const row = s.pitch > 15 ? 'UP' : (s.pitch < -15 ? 'DOWN' : 'LEVEL');
+      showToast(`📸 ${row} ${Math.round(s.yaw)}° captured! (${capturedCount}/${SCAN_TOTAL_NODES})`);
     }
   };
 
@@ -4175,13 +4206,13 @@
     if (barFill) barFill.style.width = `${percent}%`;
 
     if (finishBtn) {
-      if (capturedCount >= 3) {
+      if (capturedCount >= 12) {
         finishBtn.style.opacity = '1';
         finishBtn.style.pointerEvents = 'auto';
         finishBtn.textContent = `✨ STITCH & USE 360° ROOM (${capturedCount}/${SCAN_TOTAL_NODES})`;
       } else {
         finishBtn.style.opacity = '0.6';
-        finishBtn.textContent = `✨ STITCH (Capture ${3 - capturedCount} more)`;
+        finishBtn.textContent = `✨ STITCH (need ${12 - capturedCount} more · aim for all 28)`;
       }
     }
   }
@@ -4192,17 +4223,23 @@
 
     track.innerHTML = scanSlots.map((slot, idx) => {
       const isCaptured = slot.captured;
+      const row = slot.pitch > 15 ? '↑' : (slot.pitch < -15 ? '↓' : '•');
       return `
-        <div class="scan-slot-chip ${isCaptured ? 'captured' : ''}" onclick="window.manualJumpToAngle(${slot.angle})">
-          <span style="font-size:10px;font-weight:800;">${slot.angle}°</span>
-          <span style="font-size:9px;">${isCaptured ? '✓ Ready' : '⭕ Pending'}</span>
+        <div class="scan-slot-chip ${isCaptured ? 'captured' : ''}" onclick="window.manualJumpToSlot(${idx})">
+          <span style="font-size:10px;font-weight:800;">${row}${Math.round(slot.yaw)}°</span>
+          <span style="font-size:9px;">${isCaptured ? '✓' : '○'}</span>
         </div>
       `;
     }).join('');
   }
 
-  window.manualJumpToAngle = function (angle) {
-    scanCurrentYaw = angle;
+  window.manualJumpToSlot = function (idx) {
+    const slot = scanSlots[idx];
+    if (!slot) return;
+    scanCurrentYaw = slot.yaw;
+    scanSmoothYaw = slot.yaw;
+    scanCurrentPitch = slot.pitch;
+    scanSmoothPitch = slot.pitch;
   };
 
   function clearStitchPreviewCanvas() {
@@ -4250,7 +4287,7 @@
         ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.font = '10px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`${slot.angle}°`, idx * sliceWidth + sliceWidth / 2, ph / 2);
+        ctx.fillText(`${Math.round(slot.yaw)}°`, idx * sliceWidth + sliceWidth / 2, ph / 2);
       }
     });
   }
@@ -4288,8 +4325,8 @@
    */
   window.finishAndUse360Stitch = async function () {
     const capturedSlots = scanSlots.filter(s => s.captured && s.imgCanvas);
-    if (capturedSlots.length < 10) {
-      alert('Please capture at least 10–12 of the 18 angles around the room for a clean 360° stitch. More = better.');
+    if (capturedSlots.length < 14) {
+      alert('Please capture at least 14 of the 28 targets (include UP and DOWN rows) for a clean 360°. More = better.');
       return;
     }
 
@@ -4311,59 +4348,88 @@
     pCtx.fillStyle = '#1a1822';
     pCtx.fillRect(0, 0, PANO_W, PANO_H);
 
-    const sliceW = PANO_W / SCAN_TOTAL_NODES;
-    const overlapW = sliceW * 0.42; // wider soft overlap for cleaner seams
+    // Place each capture by its real yaw (column) and pitch (row band)
+    // Horizon band is tallest; up/down bands fill the rest of the sphere
+    const bandH = {
+      up:   Math.round(PANO_H * 0.28),
+      mid:  Math.round(PANO_H * 0.44),
+      down: Math.round(PANO_H * 0.28)
+    };
+    const bandY = {
+      up:   0,
+      mid:  bandH.up,
+      down: bandH.up + bandH.mid
+    };
 
-    // Draw each captured slice with horizontal feathering (better than hard cut)
-    scanSlots.forEach((slot, idx) => {
+    function bandForPitch(p) {
+      if (p > 15) return 'up';
+      if (p < -15) return 'down';
+      return 'mid';
+    }
+
+    // Sort captured so later draws (horizon) can soft-overlap up/down
+    const drawOrder = [...scanSlots].sort((a, b) => {
+      const pa = bandForPitch(a.pitch) === 'mid' ? 1 : 0;
+      const pb = bandForPitch(b.pitch) === 'mid' ? 1 : 0;
+      return pa - pb;
+    });
+
+    drawOrder.forEach((slot) => {
       let srcCanvas = slot.imgCanvas;
-
-      // Fill missing angles from nearest captured frame
       if (!srcCanvas) {
+        if (!capturedSlots.length) return;
         let nearest = capturedSlots.reduce((prev, curr) => {
-          let prevDiff = Math.abs(angleDiffSigned(prev.angle, slot.angle));
-          let currDiff = Math.abs(angleDiffSigned(curr.angle, slot.angle));
+          let prevDiff = Math.hypot(angleDiffSigned(prev.yaw, slot.yaw), prev.pitch - slot.pitch);
+          let currDiff = Math.hypot(angleDiffSigned(curr.yaw, slot.yaw), curr.pitch - slot.pitch);
           return currDiff < prevDiff ? curr : prev;
         });
         srcCanvas = nearest.imgCanvas;
       }
+      if (!srcCanvas) return;
 
-      if (srcCanvas) {
-        const destX = idx * sliceW;
-        // Crop phone photo vertically a bit so ceiling/floor stretch less
-        const srcW = srcCanvas.width;
-        const srcH = srcCanvas.height;
-        const cropTop = srcH * 0.08;
-        const cropH = srcH * 0.84;
+      const band = bandForPitch(slot.pitch);
+      const destH = bandH[band];
+      const destY = bandY[band];
 
-        // Soft left/right edge fade for seamless join
-        const tmp = document.createElement('canvas');
-        tmp.width = Math.round(sliceW + overlapW);
-        tmp.height = Math.round(PANO_H * 0.72);
-        const tCtx = tmp.getContext('2d');
+      // Horizontal position from yaw (0–360 → full width)
+      const sliceW = PANO_W / (band === 'mid' ? 12 : 8);
+      const destX = (slot.yaw / 360) * PANO_W;
+      const overlapW = sliceW * 0.40;
 
-        tCtx.drawImage(
-          srcCanvas,
-          0, cropTop, srcW, cropH,
-          0, 0, tmp.width, tmp.height
-        );
+      const srcW = srcCanvas.width;
+      const srcH = srcCanvas.height;
+      const cropTop = srcH * 0.10;
+      const cropH = srcH * 0.80;
 
-        // Apply horizontal alpha gradient on both edges
-        const fade = Math.round(overlapW * 0.55);
-        const imgData = tCtx.getImageData(0, 0, tmp.width, tmp.height);
-        const d = imgData.data;
-        for (let y = 0; y < tmp.height; y++) {
-          for (let x = 0; x < tmp.width; x++) {
-            let a = 1;
-            if (x < fade) a = x / fade;
-            else if (x > tmp.width - fade) a = (tmp.width - x) / fade;
-            d[(y * tmp.width + x) * 4 + 3] = Math.round(255 * Math.max(0, Math.min(1, a)));
-          }
+      const tmp = document.createElement('canvas');
+      tmp.width = Math.round(sliceW + overlapW);
+      tmp.height = destH;
+      const tCtx = tmp.getContext('2d');
+      tCtx.drawImage(srcCanvas, 0, cropTop, srcW, cropH, 0, 0, tmp.width, tmp.height);
+
+      // Soft horizontal feather
+      const fade = Math.max(8, Math.round(overlapW * 0.5));
+      const imgData = tCtx.getImageData(0, 0, tmp.width, tmp.height);
+      const d = imgData.data;
+      for (let y = 0; y < tmp.height; y++) {
+        for (let x = 0; x < tmp.width; x++) {
+          let a = 1;
+          if (x < fade) a = x / fade;
+          else if (x > tmp.width - fade) a = (tmp.width - x) / fade;
+          // also soft vertical edge for band joins
+          if (y < 12) a *= y / 12;
+          if (y > tmp.height - 12) a *= (tmp.height - y) / 12;
+          d[(y * tmp.width + x) * 4 + 3] = Math.round(255 * Math.max(0, Math.min(1, a)));
         }
-        tCtx.putImageData(imgData, 0, 0);
+      }
+      tCtx.putImageData(imgData, 0, 0);
 
-        const destY = (PANO_H - tmp.height) / 2;
-        pCtx.drawImage(tmp, destX - overlapW / 2, destY);
+      pCtx.drawImage(tmp, destX - tmp.width / 2, destY);
+      // wrap-around seam (yaw near 0/360)
+      if (destX < tmp.width / 2) {
+        pCtx.drawImage(tmp, destX - tmp.width / 2 + PANO_W, destY);
+      } else if (destX > PANO_W - tmp.width / 2) {
+        pCtx.drawImage(tmp, destX - tmp.width / 2 - PANO_W, destY);
       }
     });
 
