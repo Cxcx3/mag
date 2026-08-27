@@ -4407,8 +4407,8 @@
         const pitch0 = slot.pitch * deg2rad;
         const tanH = Math.tan((CAM_HFOV / 2) * deg2rad);
         const tanV = Math.tan((CAM_VFOV / 2) * deg2rad);
-        const cy = Math.cos(yaw0), sy = Math.sin(yaw0);
-        const cp = Math.cos(pitch0), sp = Math.sin(pitch0);
+        const cosY = Math.cos(yaw0), sinY = Math.sin(yaw0);
+        const cosP = Math.cos(pitch0), sinP = Math.sin(pitch0);
 
         const yawSpan = CAM_HFOV + 16;
         const pitchSpan = CAM_VFOV + 16;
@@ -4446,22 +4446,22 @@
               const dirY = sinLat;
               const dirZ = cosLat * Math.cos(lon);
 
-              const x1 = dirX * cy - dirZ * sy;
-              const z1 = dirX * sy + dirZ * cy;
-              const y2 = dirY * cp + z1 * sp;
-              const z2 = -dirY * sp + z1 * cp;
+              const x1 = dirX * cosY - dirZ * sinY;
+              const z1 = dirX * sinY + dirZ * cosY;
+              const y2 = dirY * cosP + z1 * sinP;
+              const z2 = -dirY * sinP + z1 * cosP;
               if (z2 <= 0.08) continue;
 
               const u = x1 / z2;
               const v = y2 / z2;
               if (Math.abs(u) > tanH || Math.abs(v) > tanV) continue;
 
-              const sx = (0.5 + u / (2 * tanH)) * sw;
-              const sy = (0.5 - v / (2 * tanV)) * sh;
-              if (sx < 1 || sx >= sw - 2 || sy < 1 || sy >= sh - 2) continue;
+              const srcX = (0.5 + u / (2 * tanH)) * sw;
+              const srcY = (0.5 - v / (2 * tanV)) * sh;
+              if (srcX < 1 || srcX >= sw - 2 || srcY < 1 || srcY >= sh - 2) continue;
 
-              const ix = sx | 0;
-              const iy = sy | 0;
+              const ix = srcX | 0;
+              const iy = srcY | 0;
               const srcIdx = (iy * sw + ix) * 4;
 
               const wu = 1 - Math.abs(u / tanH);
