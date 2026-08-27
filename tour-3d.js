@@ -3904,13 +3904,13 @@
           const targetYaw = normalizeAngle360(rawYaw - scanBaseYawOffset);
           const targetPitch = rawPitch;
 
-          // Heavy low-pass on yaw (horizon circles were jittery); lighter on pitch
-          // 0.08 ≈ very stable / anchored to walls; 0.18 for pitch so tilt still feels responsive
+          // Very strong low-pass so circles stay glued to walls / floor / ceiling
           let dy = angleDiffSigned(targetYaw, scanSmoothYaw);
-          // Deadzone: ignore tiny compass noise under 0.6°
-          if (Math.abs(dy) < 0.6) dy = 0;
-          scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.08);
-          scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.18;
+          // Ignore compass noise under 1.2°
+          if (Math.abs(dy) < 1.2) dy = 0;
+          // 0.05 = heavily damped (anchored); pitch a bit freer for aiming up/down
+          scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.05);
+          scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.14;
           scanCurrentYaw = scanSmoothYaw;
           scanCurrentPitch = scanSmoothPitch;
         }
@@ -4340,222 +4340,133 @@
    * and saves it directly to the tour room!
    */
   window.finishAndUse360Stitch = async function () {
-    const capturedSlots = scanSlots.filter(s => s.captured && s.imgCanvas);
-    if (capturedSlots.length < 8) {
-      alert('Please capture at least 8 targets (include some UP and DOWN). More = cleaner 360°.');
+    var capturedList = scanSlots.filter(function(s) { return s.captured && s.imgCanvas; });
+    if (capturedList.length < 6) {
+      alert('Please capture at least 6 targets (include some UP and DOWN). More = cleaner 360°.');
       return;
     }
 
-    const finishBtn = document.getElementById('scanFinishUseBtn');
+    var finishBtn = document.getElementById('scanFinishUseBtn');
     if (finishBtn) {
-      finishBtn.textContent = '⏳ PROJECTING ONTO 360° SPHERE…';
+      finishBtn.textContent = '⏳ STITCHING 360°…';
       finishBtn.disabled = true;
     }
 
-    // Let the button text paint before heavy work
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
 
     try {
-      const PANO_W = 2048;
-      const PANO_H = 1024;
-      const panoCanvas = document.createElement('canvas');
+      var PANO_W = 2048;
+      var PANO_H = 1024;
+      var panoCanvas = document.createElement('canvas');
       panoCanvas.width = PANO_W;
       panoCanvas.height = PANO_H;
-      const pCtx = panoCanvas.getContext('2d');
+      var pCtx = panoCanvas.getContext('2d');
       pCtx.fillStyle = '#1a1822';
       pCtx.fillRect(0, 0, PANO_W, PANO_H);
 
-      const acc = pCtx.createImageData(PANO_W, PANO_H);
-      const aData = acc.data;
-      const wSum = new Float32Array(PANO_W * PANO_H);
+      // Simple reliable placement: each photo goes to its yaw column + pitch row
+      // with soft edge blending — no complex projection vars that can clash
+      var rowDefs = [
+        { key: 'up',   pitchMin: 15,  y0: 0,                    h: Math.round(PANO_H * 0.30) },
+        { key: 'mid',  pitchMin: -15, y0: Math.round(PANO_H * 0.28), h: Math.round(PANO_H * 0.44) },
+        { key: 'down', pitchMin: -999, y0: Math.round(PANO_H * 0.70), h: Math.round(PANO_H * 0.30) }
+      ];
 
-      // Slightly wider FOV so overlaps blend better
-      const CAM_HFOV = 70;
-      const CAM_VFOV = 52;
-      const deg2rad = Math.PI / 180;
+      function rowForPitch(p) {
+        if (p > 15) return rowDefs[0];
+        if (p < -15) return rowDefs[2];
+        return rowDefs[1];
+      }
 
-      const frames = scanSlots.filter(s => s.captured && s.imgCanvas);
-      let done = 0;
+      var fi;
+      for (fi = 0; fi < capturedList.length; fi++) {
+        if (finishBtn) finishBtn.textContent = '⏳ STITCHING ' + (fi + 1) + '/' + capturedList.length + '…';
+        await new Promise(function(r) { setTimeout(r, 0); });
 
-      for (const slot of frames) {
-        done++;
-        if (finishBtn) {
-          finishBtn.textContent = `⏳ PROJECTING ${done}/${frames.length}…`;
-        }
-        // Yield so UI stays responsive
-        await new Promise(r => setTimeout(r, 0));
+        var slot = capturedList[fi];
+        var srcCanvas = slot.imgCanvas;
+        if (!srcCanvas) continue;
 
-        const src = slot.imgCanvas;
-        // Downsample source for speed (max ~960 wide)
-        const maxW = 960;
-        let sw = src.width, sh = src.height;
-        let sData, workW = sw, workH = sh;
-        if (sw > maxW) {
-          workW = maxW;
-          workH = Math.round(sh * (maxW / sw));
-          const tmpC = document.createElement('canvas');
-          tmpC.width = workW; tmpC.height = workH;
-          const tctx = tmpC.getContext('2d');
-          tctx.drawImage(src, 0, 0, workW, workH);
-          sData = tctx.getImageData(0, 0, workW, workH).data;
-          sw = workW; sh = workH;
-        } else {
-          sData = src.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, sw, sh).data;
-        }
+        var row = rowForPitch(slot.pitch);
+        var colW = (row.key === 'mid') ? (PANO_W / 12) : (PANO_W / 8);
+        var centerX = (slot.yaw / 360) * PANO_W;
+        var drawW = Math.round(colW * 1.55);
+        var drawH = row.h;
+        var drawX = Math.round(centerX - drawW / 2);
+        var drawY = row.y0;
 
-        const yaw0 = slot.yaw * deg2rad;
-        const pitch0 = slot.pitch * deg2rad;
-        const tanH = Math.tan((CAM_HFOV / 2) * deg2rad);
-        const tanV = Math.tan((CAM_VFOV / 2) * deg2rad);
-        const cosY = Math.cos(yaw0), sinY = Math.sin(yaw0);
-        const cosP = Math.cos(pitch0), sinP = Math.sin(pitch0);
+        // Soft-edge temp canvas
+        var tmp = document.createElement('canvas');
+        tmp.width = drawW;
+        tmp.height = drawH;
+        var tCtx = tmp.getContext('2d');
+        var srcW = srcCanvas.width;
+        var srcH = srcCanvas.height;
+        var cropTop = Math.round(srcH * 0.08);
+        var cropH = Math.round(srcH * 0.84);
+        tCtx.drawImage(srcCanvas, 0, cropTop, srcW, cropH, 0, 0, drawW, drawH);
 
-        const yawSpan = CAM_HFOV + 16;
-        const pitchSpan = CAM_VFOV + 16;
-        let lonMin = slot.yaw - yawSpan / 2;
-        let lonMax = slot.yaw + yawSpan / 2;
-        const latMin = Math.max(-89, slot.pitch - pitchSpan / 2);
-        const latMax = Math.min(89, slot.pitch + pitchSpan / 2);
-
-        const py0 = Math.max(0, Math.floor((0.5 - latMax / 180) * PANO_H));
-        const py1 = Math.min(PANO_H - 1, Math.ceil((0.5 - latMin / 180) * PANO_H));
-
-        const ranges = [];
-        if (lonMin < 0) {
-          ranges.push([lonMin + 360, 360]);
-          ranges.push([0, lonMax]);
-        } else if (lonMax > 360) {
-          ranges.push([lonMin, 360]);
-          ranges.push([0, lonMax - 360]);
-        } else {
-          ranges.push([lonMin, lonMax]);
-        }
-
-        for (let py = py0; py <= py1; py++) {
-          const lat = (0.5 - py / PANO_H) * Math.PI;
-          const cosLat = Math.cos(lat);
-          const sinLat = Math.sin(lat);
-
-          for (const [lo0, lo1] of ranges) {
-            const px0 = Math.max(0, Math.floor((lo0 / 360) * PANO_W));
-            const px1 = Math.min(PANO_W - 1, Math.ceil((lo1 / 360) * PANO_W));
-
-            for (let px = px0; px <= px1; px++) {
-              const lon = (px / PANO_W) * 2 * Math.PI - Math.PI;
-              const dirX = cosLat * Math.sin(lon);
-              const dirY = sinLat;
-              const dirZ = cosLat * Math.cos(lon);
-
-              const x1 = dirX * cosY - dirZ * sinY;
-              const z1 = dirX * sinY + dirZ * cosY;
-              const y2 = dirY * cosP + z1 * sinP;
-              const z2 = -dirY * sinP + z1 * cosP;
-              if (z2 <= 0.08) continue;
-
-              const u = x1 / z2;
-              const v = y2 / z2;
-              if (Math.abs(u) > tanH || Math.abs(v) > tanV) continue;
-
-              const srcX = (0.5 + u / (2 * tanH)) * sw;
-              const srcY = (0.5 - v / (2 * tanV)) * sh;
-              if (srcX < 1 || srcX >= sw - 2 || srcY < 1 || srcY >= sh - 2) continue;
-
-              const ix = srcX | 0;
-              const iy = srcY | 0;
-              const srcIdx = (iy * sw + ix) * 4;
-
-              const wu = 1 - Math.abs(u / tanH);
-              const wv = 1 - Math.abs(v / tanV);
-              const weight = Math.pow(Math.max(0, wu * wv), 1.35);
-              if (weight < 0.04) continue;
-
-              const dstIdx = py * PANO_W + px;
-              const di = dstIdx * 4;
-              aData[di]     += sData[srcIdx]     * weight;
-              aData[di + 1] += sData[srcIdx + 1] * weight;
-              aData[di + 2] += sData[srcIdx + 2] * weight;
-              wSum[dstIdx]  += weight;
-            }
+        // Fade left/right edges
+        var imgData = tCtx.getImageData(0, 0, drawW, drawH);
+        var pix = imgData.data;
+        var fade = Math.max(10, Math.round(drawW * 0.22));
+        var yy, xx, a, pi;
+        for (yy = 0; yy < drawH; yy++) {
+          for (xx = 0; xx < drawW; xx++) {
+            a = 1;
+            if (xx < fade) a = xx / fade;
+            else if (xx > drawW - fade) a = (drawW - xx) / fade;
+            if (yy < 8) a *= yy / 8;
+            if (yy > drawH - 8) a *= (drawH - yy) / 8;
+            pi = (yy * drawW + xx) * 4 + 3;
+            pix[pi] = Math.round(255 * Math.max(0, Math.min(1, a)));
           }
         }
-      }
+        tCtx.putImageData(imgData, 0, 0);
 
-      // Normalize
-      for (let i = 0; i < PANO_W * PANO_H; i++) {
-        const w = wSum[i];
-        const di = i * 4;
-        if (w > 0.01) {
-          aData[di]     = Math.min(255, aData[di] / w);
-          aData[di + 1] = Math.min(255, aData[di + 1] / w);
-          aData[di + 2] = Math.min(255, aData[di + 2] / w);
-          aData[di + 3] = 255;
-        } else {
-          aData[di] = 20; aData[di + 1] = 18; aData[di + 2] = 28; aData[di + 3] = 255;
-        }
+        // Draw (and wrap around 0/360 seam)
+        pCtx.drawImage(tmp, drawX, drawY);
+        if (drawX < 0) pCtx.drawImage(tmp, drawX + PANO_W, drawY);
+        if (drawX + drawW > PANO_W) pCtx.drawImage(tmp, drawX - PANO_W, drawY);
       }
-      pCtx.putImageData(acc, 0, 0);
-
-      // Fill tiny holes
-      const filled = pCtx.getImageData(0, 0, PANO_W, PANO_H);
-      const fd = filled.data;
-      for (let y = 1; y < PANO_H - 1; y++) {
-        for (let x = 1; x < PANO_W - 1; x++) {
-          const i = (y * PANO_W + x) * 4;
-          if (fd[i] <= 22 && fd[i + 1] <= 20 && fd[i + 2] <= 30) {
-            let r = 0, g = 0, b = 0, n = 0;
-            for (let dy = -1; dy <= 1; dy++) {
-              for (let dx = -1; dx <= 1; dx++) {
-                const j = ((y + dy) * PANO_W + (x + dx + PANO_W) % PANO_W) * 4;
-                if (fd[j] > 22 || fd[j + 1] > 20) {
-                  r += fd[j]; g += fd[j + 1]; b += fd[j + 2]; n++;
-                }
-              }
-            }
-            if (n > 0) {
-              fd[i] = r / n; fd[i + 1] = g / n; fd[i + 2] = b / n;
-            }
-          }
-        }
-      }
-      pCtx.putImageData(filled, 0, 0);
 
       if (finishBtn) finishBtn.textContent = '⏳ SAVING…';
-      await new Promise(r => setTimeout(r, 0));
+      await new Promise(function(r) { setTimeout(r, 0); });
 
-      const stitchedDataUrl = panoCanvas.toDataURL('image/jpeg', 0.88);
-      let finalPanoUrl = stitchedDataUrl;
+      var stitchedDataUrl = panoCanvas.toDataURL('image/jpeg', 0.88);
+      var finalPanoUrl = stitchedDataUrl;
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
-          const blob = await new Promise(resolve => panoCanvas.toBlob(resolve, 'image/jpeg', 0.88));
-          const scanFile = new File([blob], `360_scan_${Date.now()}.jpg`, { type: 'image/jpeg' });
-          const uploaded = await window.uploadToSupabaseStorage(scanFile);
+          var blob = await new Promise(function(resolve) { panoCanvas.toBlob(resolve, 'image/jpeg', 0.88); });
+          var scanFile = new File([blob], '360_scan_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+          var uploaded = await window.uploadToSupabaseStorage(scanFile);
           if (uploaded && uploaded.url) finalPanoUrl = uploaded.url;
-        } catch (err) {
-          console.warn('[SpotLIGHT 360 Scanner] Upload failed, using Data URL:', err);
+        } catch (upErr) {
+          console.warn('[SpotLIGHT 360] Upload failed, using data URL:', upErr);
         }
       }
 
       if (scanMode === 'replace_room') {
-        const curScene = activeSceneList[activeSceneIndex];
+        var curScene = activeSceneList[activeSceneIndex];
         if (curScene) {
           curScene.panoUrl = finalPanoUrl;
           curScene.tourUrl = '';
           curScene.tag = '360° Real-Time Camera Scan';
         }
       } else {
-        const newId = 'scan-room-' + Date.now().toString(36);
-        const roomNum = activeSceneList.length + 1;
-        const newScene = {
+        var newId = 'scan-room-' + Date.now().toString(36);
+        var roomNum = activeSceneList.length + 1;
+        var newScene = {
           id: newId,
-          name: `📸 Scanned Room ${roomNum}`,
-          location: currentTourData?.location || 'Salt Lake City, UT',
+          name: '📸 Scanned Room ' + roomNum,
+          location: (currentTourData && currentTourData.location) || 'Salt Lake City, UT',
           tag: '360° Camera Photosphere',
           panoUrl: finalPanoUrl,
           tourUrl: '',
           blurb: 'Full 360° walk-in space captured and stitched with device camera',
           hotspots: [
-            { pitch: 0, yaw: 180, label: '🚪 Back to Previous Room', targetScene: activeSceneList[activeSceneIndex]?.id || activeSceneList[0]?.id }
+            { pitch: 0, yaw: 180, label: '🚪 Back to Previous Room', targetScene: (activeSceneList[activeSceneIndex] && activeSceneList[activeSceneIndex].id) || (activeSceneList[0] && activeSceneList[0].id) }
           ]
         };
         activeSceneList.push(newScene);
