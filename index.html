@@ -1379,7 +1379,7 @@
 
           <div class="comm-form-field full">
             <label>3D Tour / 360° Scan URL (Optional)</label>
-            <input type="url" id="spotTourUrl" placeholder="360Cities (e.g. 360cities.net/image/...), Kuula, Matterport, Polycam, Google Photosphere, or 360° photo URL">
+            <input type="url" id="spotTourUrl" placeholder="Pannellum, 360Cities, Kuula, Momento360, Polycam, Google Photosphere, or 360° photo URL">
           </div>
         </div>
 
@@ -1550,6 +1550,7 @@
     </div>
   </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="tour-3d.js"></script>
 <script>
@@ -1794,6 +1795,7 @@ async function uploadToSupabaseStorage(file, onProgress){
 
   return { url: pub.publicUrl, type: isVideo ? 'video' : 'image', posterUrl };
 }
+window.uploadToSupabaseStorage = uploadToSupabaseStorage;
 
 function readFileAsDataURL(file){
   return new Promise((resolve, reject) => {
@@ -1914,6 +1916,7 @@ async function saveMagazineData(data) {
   }
   await cacheMagazineLocally(data);
 }
+window.saveMagazineData = saveMagazineData;
 
 // Loads magazine content from Supabase (shared, live for every visitor).
 async function loadMagazine() {
@@ -2086,6 +2089,7 @@ function normalizeMagazine(saved){
 
 let isEditorUnlocked = false;
 let MAGAZINE = cloneData(DEFAULT_MAGAZINE);
+window.MAGAZINE = MAGAZINE;
 
 // Signs into Supabase Auth with the fixed admin email + whatever password was typed.
 // Only lfsm111@icloud.com will ever succeed here (that's the only account that exists).
@@ -2592,7 +2596,16 @@ function renderEditor(){
           <div class="ed-field full"><label>Description</label><textarea data-ad="blurb">${esc(a.blurb)}</textarea></div>
           <div class="ed-field"><label>Button Text</label><input data-ad="cta" value="${esc(a.cta)}"></div>
           <div class="ed-field"><label>Link</label><input data-ad="link" value="${esc(a.link)}" placeholder="https://..."></div>
-          <div class="ed-field full"><label>3D Tour / 360° Scan URL (360Cities, Kuula, Matterport, Polycam, Google Maps, or 360° photo)</label><input data-ad="tour3d" value="${esc(a.tour3d || '')}" placeholder="Paste 360cities.net/image/..., kuula.co/..., matterport, or 360° photo URL"></div>
+          <div class="ed-field full">
+            <label>3D Tour / 360° Scan URL or Hotspot Tour (360Cities, Kuula, Momento360, Polycam, Google Maps, or 360° photo)</label>
+            <input data-ad="tour3d" value="${esc(a.tour3d || '')}" placeholder="Paste pannellum, 360cities.net, kuula.co, momento360, or 360° photo URL">
+            <div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
+              <button type="button" class="ed-btn ed-primary" style="padding:6px 12px;font-size:11px;background:#14121A;border:1.5px solid #FFD23F;color:#FFD23F" onclick="window.openCityAd3dTour(${ci}, ${ai}, true)">
+                🚪 LAUNCH & EDIT 360° WALKTHROUGH
+              </button>
+              <small style="color:var(--text-muted);font-size:11px;">Opens interactive 360 viewer where you can walk through and place hotspot doors</small>
+            </div>
+          </div>
           ${mediaFieldHTML('Business Media (Photo or Video)', `city-${ci}-ad-${ai}`, a.media, `ad-${ci}-${ai}-type`)}
         </div>
       </div>`).join('');
@@ -2708,6 +2721,15 @@ function saveActiveTabFields() {
         });
         if (a.tour3d) a.tourUrl = a.tour3d;
         if (a.tourUrl && !a.tour3d) a.tour3d = a.tourUrl;
+        if (a.tour3d && a.tour3d.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(a.tour3d);
+            a.tourConfig = parsed;
+          } catch(e){}
+        }
+        if (a.tour3d && a.tour3d.startsWith('file:///')) {
+          if (typeof showToast === 'function') showToast('⚠️ Note: file:/// paths on your computer cannot be seen by visitors. Please upload to Supabase storage!');
+        }
         const adInput = adEl.querySelector(`[data-media-url="city-${ci}-ad-${ai}"]`);
         const u = adInput?.value.trim();
         const adPoster = adInput?.dataset.poster?.trim();
@@ -3909,9 +3931,12 @@ window.triggerAdShareByIndex = function(cityIdx, adIdx, pageIdx, event) {
   triggerAdShare(bizName, bizTag, pageIdx || 0);
 };
 
-window.openCityAd3dTour = function(cityIdx, adIdx) {
+window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
   const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
   const ad = (city && Array.isArray(city.ads)) ? city.ads[adIdx] : (MAGAZINE && Array.isArray(MAGAZINE.ads) ? MAGAZINE.ads[adIdx] : null);
+  window.currentEditingAdRef = ad;
+  window.currentEditingCityIdx = cityIdx;
+  window.currentEditingAdIdx = adIdx;
   if (ad && typeof open3dTourModal === 'function') {
     open3dTourModal({
       title: ad.name || 'Featured Spot',
@@ -3921,14 +3946,19 @@ window.openCityAd3dTour = function(cityIdx, adIdx) {
       cta: ad.cta || 'Visit Website',
       link: ad.link || '#',
       tourUrl: ad.tour3d || ad.tourUrl || '',
-      panoUrl: ad.pano3d || ad.panoUrl || ''
+      panoUrl: ad.pano3d || ad.panoUrl || '',
+      scenes: ad.tourConfig?.scenes || undefined
     });
+    if (startInEditMode && typeof toggleTourEditorMode === 'function') {
+      setTimeout(() => toggleTourEditorMode(true), 200);
+    }
   } else if (typeof open3dTourModal === 'function') {
     open3dTourModal();
   }
 };
 
 window.openSpot3dTour = function(spotId) {
+  window.currentEditingSpotId = spotId;
   const p = (Array.isArray(COMMUNITY_POSTS)) ? COMMUNITY_POSTS.find(item => String(item.id) === String(spotId)) : null;
   if (p && typeof open3dTourModal === 'function') {
     open3dTourModal({
@@ -3941,6 +3971,21 @@ window.openSpot3dTour = function(spotId) {
     });
   } else if (typeof open3dTourModal === 'function') {
     open3dTourModal();
+  }
+};
+
+window.saveCommunitySpotTour = async function(spotId, tourJson) {
+  if (!spotId) return;
+  const p = (Array.isArray(COMMUNITY_POSTS)) ? COMMUNITY_POSTS.find(item => String(item.id) === String(spotId)) : null;
+  if (p) {
+    p.tour3d = tourJson;
+    p.tourUrl = tourJson;
+    try {
+      await sb.from('community_posts').update({ tour_3d: tourJson }).eq('id', spotId);
+      updateCommunityFeedUI();
+    } catch(e) {
+      console.warn('Community spot tour save error:', e);
+    }
   }
 };
 
@@ -4124,10 +4169,13 @@ function nextPage(){ if(current < total - 1){ current++; render(); } }
 function prevPage(){ if(current > 0){ current--; render(); } }
 
 function applyMagazineUpdates() {
+  window.MAGAZINE = MAGAZINE;
   buildPages();
   renderPageContent();
   render();
 }
+window.applyMagazineUpdates = applyMagazineUpdates;
+window.render = render;
 
 let gestureStartX = 0;
 let gestureStartY = 0;

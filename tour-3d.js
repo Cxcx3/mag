@@ -1,36 +1,68 @@
 /**
- * SpotLIGHT 3D / 360° Immersive Location Viewer
+ * SpotLIGHT 3D / 360° Immersive Photosphere & Walkthrough Tour Engine
+ * 
+ * Powered by Three.js WebGL Rectilinear Projection
  * 
  * Features:
- * - "STEP INSIDE · 3D / 360°" full-screen immersive viewer
- * - Universal URL Normalizer: 360Cities, Kuula, Matterport, Polycam, Google Maps Photospheres, Momento360, YouTube VR, Luma AI, Roundme
- * - Equirectangular 360° sphere projection with instantaneous procedural fallback
- * - Inertial touch drag & mouse drag look-around (360° Yaw & 180° Pitch)
- * - Pinch-to-zoom & mouse wheel zoom (FOV 35° to 95°)
- * - Mobile Gyroscope / DeviceOrientation camera look (with iOS permission request)
- * - Auto-rotation ambient pan mode with toggle
- * - Interactive hotspot pins & room switching (Main Stage & Floor, VIP Speakeasy, Sky Patio, Ensign Peak)
- * - Direct iframe embed with cross-origin safeguards & external view launcher
- * - Keyboard navigation (Arrow keys / WASD, + / - for zoom, Escape to close)
- * - Seamless integration with SpotLIGHT Magazine & Editor
+ * - True Rectilinear 360° Photosphere Rendering (Zero fisheye / circular distortion, 100% natural perspective like Kuula, ThingLink, Matterport)
+ * - Universal URL Normalizer (Kuula, ThingLink, Matterport, 360Cities, Momento360, Polycam, YouTube 360, Google Maps, direct 360 photos)
+ * - Interactive Hotspot Engine with exact 3D Vector Projection
+ * - Add/Edit/Delete Hotspot Doors with Live Camera Orientation Capture
+ * - Add New 360 Rooms via File Upload (Supabase Cloud Storage), Preset Photospheres, or Custom 360 URLs
+ * - Cloud Persistence via Supabase for all visitors ("SAVE TOUR FOR EVERYONE")
+ * - Inertial Touch Drag, Mouse Drag, Keyboard (WASD / Arrows), Gyroscope & Pinch/Wheel Zoom (FOV 35° to 95°)
  */
 
 (function () {
   'use strict';
 
   /**
-   * Normalizes any 360 tour, VR, photosphere, or 360 image URL into a ready-to-embed format.
+   * Universal URL Normalizer for 360 VR & Photosphere Providers
    */
   function normalize3dTourUrl(rawUrl) {
     if (!rawUrl || typeof rawUrl !== 'string') {
       return { isEmbed: false, isImage: false, url: '', provider: 'none', originalUrl: '' };
     }
-    const trimmed = rawUrl.trim();
+    let trimmed = rawUrl.trim();
     if (!trimmed) {
       return { isEmbed: false, isImage: false, url: '', provider: 'none', originalUrl: '' };
     }
 
-    // 1. 360Cities (e.g. https://www.360cities.net/image/ensign-peak-01-salt-lake-city-utah-usa#33.56,0.31,110.0)
+    // 0. Extract src from <iframe> snippet if user pasted embed HTML
+    if (trimmed.includes('<iframe') || trimmed.includes('<IFRAME')) {
+      const srcMatch = trimmed.match(/src=["']([^"']+)["']/i);
+      if (srcMatch && srcMatch[1]) {
+        trimmed = srcMatch[1].trim();
+      }
+    }
+
+    // 1. Kuula (e.g. https://kuula.co/share/XXXX or https://kuula.co/post/XXXX)
+    const matchKuula = trimmed.match(/kuula\.co\/(post|share)\/([a-zA-Z0-9_-]+)/i);
+    if (matchKuula) {
+      const id = matchKuula[2];
+      return {
+        isEmbed: true,
+        isImage: false,
+        url: `https://kuula.co/share/${id}?logo=1&info=1&fs=1&vr=1&sd=1&thumbs=1`,
+        provider: 'Kuula',
+        originalUrl: trimmed
+      };
+    }
+
+    // 2. ThingLink (e.g. https://www.thinglink.com/scene/XXXX, https://www.thinglink.com/mediacard/XXXX, https://www.thinglink.com/card/XXXX)
+    const matchThingLink = trimmed.match(/thinglink\.com\/(scene|mediacard|card)\/([a-zA-Z0-9_-]+)/i);
+    if (matchThingLink) {
+      const id = matchThingLink[2];
+      return {
+        isEmbed: true,
+        isImage: false,
+        url: `https://www.thinglink.com/card/${id}`,
+        provider: 'ThingLink',
+        originalUrl: trimmed
+      };
+    }
+
+    // 3. 360Cities (e.g. https://www.360cities.net/image/ensign-peak-01-salt-lake-city-utah-usa)
     const match360Cities = trimmed.match(/360cities\.net\/(image|embed_iframe|paid_embed_iframe)\/([^\/?#]+)/i);
     if (match360Cities) {
       const slug = match360Cities[2];
@@ -46,20 +78,7 @@
       };
     }
 
-    // 2. Kuula (e.g. https://kuula.co/post/XXXX or https://kuula.co/share/XXXX)
-    const matchKuula = trimmed.match(/kuula\.co\/(post|share)\/([a-zA-Z0-9_-]+)/i);
-    if (matchKuula) {
-      const id = matchKuula[2];
-      return {
-        isEmbed: true,
-        isImage: false,
-        url: `https://kuula.co/share/${id}?logo=1&info=1&fs=1&vr=1&sd=1&thumbs=1`,
-        provider: 'Kuula',
-        originalUrl: trimmed
-      };
-    }
-
-    // 3. Matterport (e.g. https://my.matterport.com/show/?m=XXXXX)
+    // 4. Matterport (e.g. https://my.matterport.com/show/?m=XXXXX)
     if (trimmed.includes('matterport.com')) {
       let embedUrl = trimmed;
       if (!embedUrl.includes('&play=1') && !embedUrl.includes('?play=1')) {
@@ -68,7 +87,7 @@
       return { isEmbed: true, isImage: false, url: embedUrl, provider: 'Matterport', originalUrl: trimmed };
     }
 
-    // 4. Polycam (e.g. https://poly.cam/capture/XXXXX or https://poly.cam/embed/XXXXX)
+    // 5. Polycam (e.g. https://poly.cam/capture/XXXXX or https://poly.cam/embed/XXXXX)
     const matchPolycam = trimmed.match(/poly\.cam\/(capture|embed)\/([a-zA-Z0-9_-]+)/i);
     if (matchPolycam) {
       const id = matchPolycam[2];
@@ -81,12 +100,21 @@
       };
     }
 
-    // 5. Momento360
+    // 6. Momento360 (e.g. https://momento360.com/e/u/XXXX or https://momento360.com/e/p/XXXX)
     if (trimmed.includes('momento360.com')) {
-      return { isEmbed: true, isImage: false, url: trimmed, provider: 'Momento360', originalUrl: trimmed };
+      let embedUrl = trimmed;
+      if (!embedUrl.includes('autostart=')) {
+        embedUrl += (embedUrl.includes('?') ? '&' : '?') + 'autostart=true';
+      }
+      return { isEmbed: true, isImage: false, url: embedUrl, provider: 'Momento360', originalUrl: trimmed };
     }
 
-    // 6. YouTube 360 / VR Videos
+    // 7. Pannellum (Free Open-Source 360 & Tour Viewer)
+    if (trimmed.includes('pannellum.org') || trimmed.includes('pannellum.htm')) {
+      return { isEmbed: true, isImage: false, url: trimmed, provider: 'Pannellum', originalUrl: trimmed };
+    }
+
+    // 8. YouTube 360 / VR Videos
     const matchYT = trimmed.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
     if (matchYT) {
       const ytId = matchYT[1];
@@ -99,23 +127,13 @@
       };
     }
 
-    // 7. Google Maps / Street View / Photosphere
+    // 9. Google Maps / Street View / Photosphere
     if (trimmed.includes('google.com/maps') || trimmed.includes('goo.gl/maps')) {
       return { isEmbed: true, isImage: false, url: trimmed, provider: 'Google Maps', originalUrl: trimmed };
     }
 
-    // 8. Luma AI
-    if (trimmed.includes('lumalabs.ai') || trimmed.includes('luma.ai')) {
-      return { isEmbed: true, isImage: false, url: trimmed, provider: 'Luma AI', originalUrl: trimmed };
-    }
-
-    // 9. Roundme
-    if (trimmed.includes('roundme.com')) {
-      return { isEmbed: true, isImage: false, url: trimmed, provider: 'Roundme', originalUrl: trimmed };
-    }
-
-    // 10. Direct 360 Equirectangular Image
-    if (/\.(jpg|jpeg|png|webp|avif)(\?.*)?$/i.test(trimmed) || trimmed.startsWith('data:image/') || trimmed.startsWith('blob:') || trimmed.includes('images.unsplash.com') || trimmed.includes('cloudinary.com') || trimmed.includes('imgur.com')) {
+    // 10. Direct 360 Equirectangular Image (Stored in Supabase, Cloudinary, Imgur, Unsplash, etc.)
+    if (/\.(jpg|jpeg|png|webp|avif)(\?.*)?$/i.test(trimmed) || trimmed.startsWith('data:image/') || trimmed.startsWith('blob:') || trimmed.includes('images.unsplash.com') || trimmed.includes('cloudinary.com') || trimmed.includes('imgur.com') || trimmed.includes('supabase.co/storage')) {
       return { isEmbed: false, isImage: true, url: trimmed, provider: 'Equirectangular Photo', originalUrl: trimmed };
     }
 
@@ -127,68 +145,110 @@
     return { isEmbed: false, isImage: false, url: trimmed, provider: 'unknown', originalUrl: trimmed };
   }
 
-  // 360° Scenes (Equirectangular indoor & outdoor spaces + Utah 360 spots)
-  const DEMO_SCENES = [
+  // 360° Walk-In Tour Scenes with High-Definition Equirectangular Spherical Panoramas
+  const SLC_WALK_SCENES = [
     {
-      id: '360-main',
-      name: '360 · Main Stage & Floor',
-      location: 'Salt Lake City, UT',
-      tag: 'Entertainment & Lounge',
-      panoUrl: 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=2000&q=85',
-      blurb: 'Step inside 360 — Utah\'s premier multi-level lounge and immersive entertainment venue.',
+      id: 'slc-entrance',
+      name: 'SpotLIGHT SLC · Street Entrance & Walk-In',
+      location: 'Downtown Salt Lake City, UT',
+      tag: 'Walk-In Entrance · Step Inside',
+      panoUrl: 'https://pannellum.org/images/alma.jpg',
+      blurb: 'Exterior entrance to SpotLIGHT Salt Lake City. Look toward the doorway marker to step inside.',
       hotspots: [
-        { pitch: -4, yaw: 80, label: '🍸 VIP Speakeasy & Bar', targetScene: '360-lounge' },
-        { pitch: 0, yaw: -90, label: '🌴 Sky Lounge & Patio', targetScene: '360-patio' }
+        { pitch: -3, yaw: -85, label: '🚪 Step Inside Studio', targetScene: 'slc-studio' },
+        { pitch: 4, yaw: 65, label: '🌴 Wasatch Sky Patio', targetScene: 'slc-patio' }
       ]
     },
     {
-      id: '360-lounge',
-      name: '360 · VIP Speakeasy & Bar',
-      location: 'Salt Lake City, UT',
-      tag: 'Craft Cocktails & Seating',
-      panoUrl: 'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?auto=format&fit=crop&w=2000&q=85',
-      blurb: 'Craft mixology, leather booths, and curated ambient soundscapes.',
+      id: 'slc-studio',
+      name: 'SpotLIGHT SLC · Main Studio & Workspace',
+      location: 'Downtown Salt Lake City, UT',
+      tag: 'Creative Studio · Interior',
+      panoUrl: 'https://pannellum.org/images/bma-0.jpg',
+      blurb: 'Creative production floor, high ceilings, desks, and gallery walls.',
       hotspots: [
-        { pitch: 4, yaw: -80, label: '📍 Back to Main Stage', targetScene: '360-main' }
+        { pitch: -2, yaw: 175, label: '🚪 Walk Back to Street', targetScene: 'slc-entrance' },
+        { pitch: -1, yaw: 75, label: '🍸 VIP Speakeasy & Lounge', targetScene: 'slc-lounge' }
       ]
     },
     {
-      id: '360-patio',
-      name: '360 · Sky Lounge & Patio',
-      location: 'Salt Lake City, UT',
-      tag: 'Wasatch Mountain Views',
-      panoUrl: 'https://images.unsplash.com/photo-1543007630-9710e4a00a20?auto=format&fit=crop&w=2000&q=85',
-      blurb: 'Open-air views of the Wasatch Front peaks with fireside lounge tables.',
+      id: 'slc-lounge',
+      name: 'SpotLIGHT SLC · VIP Speakeasy & Bar',
+      location: 'Downtown Salt Lake City, UT',
+      tag: 'Curated Seating & Bar',
+      panoUrl: 'https://pannellum.org/images/cerro-toco-0.jpg',
+      blurb: 'Craft mixology, leather booths, and curated ambient lighting.',
       hotspots: [
-        { pitch: 0, yaw: 110, label: '🚪 Step Inside', targetScene: '360-main' }
+        { pitch: 0, yaw: -85, label: '📍 Back to Main Studio', targetScene: 'slc-studio' }
       ]
     },
     {
-      id: 'ensign-peak',
-      name: 'Ensign Peak · Panoramic View',
-      location: 'Salt Lake City, UT',
-      tag: '360Cities · Panoramic Peak',
-      tourUrl: 'https://www.360cities.net/embed_iframe/ensign-peak-01-salt-lake-city-utah-usa',
-      blurb: 'Iconic scenic lookout overlooking Salt Lake City, the Capitol building, and the Great Salt Lake.',
-      hotspots: []
-    },
-    {
-      id: 'coffee-roaster',
-      name: 'Peak & Pine Coffee Roasters',
-      location: 'Granary District · SLC',
-      tag: 'Artisan Cafe & Roastery',
-      panoUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=2000&q=85',
-      blurb: 'Single-origin espresso bar with handcrafted walnut seating and vinyl music.',
-      hotspots: []
+      id: 'slc-patio',
+      name: 'SpotLIGHT SLC · Sky Patio & Mountain Views',
+      location: 'Downtown Salt Lake City, UT',
+      tag: 'Wasatch Mountain Overlook',
+      panoUrl: 'https://pannellum.org/images/jfk.jpg',
+      blurb: 'Panoramic open-air terrace with views of the Wasatch Front peaks.',
+      hotspots: [
+        { pitch: 0, yaw: 110, label: '🚪 Step Inside Studio', targetScene: 'slc-studio' }
+      ]
     }
   ];
 
-  // Cache for generated procedural 360 panoramas so they never fail
+  // Preset 360 equirectangular photospheres for quick selection in modal
+  const PRESET_360_PANOS = [
+    { name: '🏛️ Modern Walk-In Entrance', url: 'https://pannellum.org/images/alma.jpg', tag: 'Exterior & Street' },
+    { name: '🎨 Creative Studio & Workspace', url: 'https://pannellum.org/images/bma-0.jpg', tag: 'Indoor Studio' },
+    { name: '🍸 Speakeasy Bar & Lounge', url: 'https://pannellum.org/images/cerro-toco-0.jpg', tag: 'Lounge & Bar' },
+    { name: '🌄 Wasatch Sky Patio Overlook', url: 'https://pannellum.org/images/jfk.jpg', tag: 'Outdoor Vista' }
+  ];
+
+  // Global Tour Viewer State
+  let activeSceneList = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
+  let activeSceneIndex = 0;
+  let currentTourData = null;
+  let isEditorMode = false;
+
+  // Camera & Navigation State
+  let yaw = 0;
+  let pitch = 0;
+  let fov = 75;
+  let targetYaw = 0;
+  let targetPitch = 0;
+  let targetFov = 75;
+
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let lastX = 0;
+  let lastY = 0;
+  let velX = 0;
+  let velY = 0;
+  let lastPinchDist = null;
+
+  let isAutoRotating = false;
+  let autoRotateSpeed = 0.12;
+  let gyroEnabled = false;
+  let animFrameId = null;
+  let currentPanoUrl = null;
+
+  // Three.js Core Objects
+  let threeRenderer = null;
+  let threeScene = null;
+  let threeCamera = null;
+  let threeSphere = null;
+  let threeTextureLoader = null;
+  let currentTexture = null;
+
+  // Fallback 2D Canvas Context
+  let canvas2d = null;
+  let ctx2d = null;
+
+  // Procedural Canvas Cache
   const proceduralPanoCache = {};
 
   /**
-   * Generates a rich, crisp 2048x1024 360° Equirectangular texture
-   * Ensures instant, stunning rendering with zero black screen latency.
+   * Generates a rich 2048x1024 360° Equirectangular texture
    */
   function getSceneProceduralCanvas(sceneId) {
     if (proceduralPanoCache[sceneId]) {
@@ -202,397 +262,194 @@
     const w = c.width;
     const h = c.height;
 
-    if (sceneId === '360-lounge') {
-      // Warm Amber Speakeasy Bar 360 Panorama
-      const ceilGrad = ctx.createLinearGradient(0, 0, 0, h * 0.45);
-      ceilGrad.addColorStop(0, '#100c14');
-      ceilGrad.addColorStop(1, '#2b1a1c');
-      ctx.fillStyle = ceilGrad;
-      ctx.fillRect(0, 0, w, h * 0.45);
+    // Ambient Space Gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.5);
+    skyGrad.addColorStop(0, '#0a0812');
+    skyGrad.addColorStop(0.5, '#161324');
+    skyGrad.addColorStop(1, '#2c2242');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, h * 0.5);
 
-      const floorGrad = ctx.createLinearGradient(0, h * 0.45, 0, h);
-      floorGrad.addColorStop(0, '#261510');
-      floorGrad.addColorStop(1, '#0e0807');
-      ctx.fillStyle = floorGrad;
-      ctx.fillRect(0, h * 0.45, w, h * 0.55);
+    const floorGrad = ctx.createLinearGradient(0, h * 0.5, 0, h);
+    floorGrad.addColorStop(0, '#1c1724');
+    floorGrad.addColorStop(0.5, '#120f18');
+    floorGrad.addColorStop(1, '#08060c');
+    ctx.fillStyle = floorGrad;
+    ctx.fillRect(0, h * 0.5, w, h * 0.5);
 
-      const barX = w * 0.25;
-      const barW = w * 0.22;
-      ctx.fillStyle = 'rgba(255, 180, 70, 0.25)';
-      ctx.fillRect(barX, h * 0.28, barW, h * 0.22);
-      ctx.fillStyle = '#FFB84D';
-      ctx.fillRect(barX - 10, h * 0.5, barW + 20, 14);
-
-      ctx.fillStyle = '#FFD23F';
-      ctx.font = 'bold 36px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = '#FFD23F';
-      ctx.shadowBlur = 24;
-      ctx.fillText('360 · SPEAKEASY & COCKTAILS', barX + barW / 2, h * 0.24);
-      ctx.shadowBlur = 0;
-
-      const lampX = [w * 0.1, w * 0.35, w * 0.6, w * 0.85];
-      lampX.forEach(lx => {
-        const rad = ctx.createRadialGradient(lx, h * 0.22, 6, lx, h * 0.22, 120);
-        rad.addColorStop(0, 'rgba(255, 210, 80, 0.9)');
-        rad.addColorStop(0.3, 'rgba(255, 150, 40, 0.3)');
-        rad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = rad;
-        ctx.fillRect(lx - 120, h * 0.1, 240, 240);
-      });
-
-      ctx.fillStyle = 'rgba(20, 14, 18, 0.85)';
-      ctx.fillRect(0, h * 0.56, w, h * 0.44);
-
-    } else if (sceneId === '360-patio' || sceneId === 'ensign-peak') {
-      // Mountain Twilight Sky Lounge 360 Panorama
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, h * 0.5);
-      skyGrad.addColorStop(0, '#090817');
-      skyGrad.addColorStop(0.5, '#20163B');
-      skyGrad.addColorStop(0.85, '#68294B');
-      skyGrad.addColorStop(1, '#FF7A59');
-      ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, w, h * 0.5);
-
-      // Wasatch Mountains Ridge Silhouettes
-      ctx.fillStyle = '#161024';
+    // Architectural Perspective Grid
+    ctx.strokeStyle = 'rgba(255, 210, 63, 0.15)';
+    ctx.lineWidth = 2;
+    for (let x = 0; x < w; x += 128) {
       ctx.beginPath();
-      ctx.moveTo(0, h * 0.46);
-      for (let x = 0; x <= w; x += 40) {
-        const peak = Math.sin(x * 0.008) * 60 + Math.cos(x * 0.02) * 35;
-        ctx.lineTo(x, h * 0.44 - peak);
-      }
-      ctx.lineTo(w, h * 0.55);
-      ctx.lineTo(0, h * 0.55);
-      ctx.closePath();
-      ctx.fill();
-
-      // Deck / Patio Floor
-      const deckGrad = ctx.createLinearGradient(0, h * 0.5, 0, h);
-      deckGrad.addColorStop(0, '#1c1822');
-      deckGrad.addColorStop(1, '#0c0a10');
-      ctx.fillStyle = deckGrad;
-      ctx.fillRect(0, h * 0.5, w, h * 0.5);
-
-      // Glass Fire Pit Glow
-      const fireRad = ctx.createRadialGradient(w * 0.5, h * 0.65, 10, w * 0.5, h * 0.65, 200);
-      fireRad.addColorStop(0, 'rgba(255, 120, 50, 0.95)');
-      fireRad.addColorStop(0.4, 'rgba(255, 77, 109, 0.35)');
-      fireRad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = fireRad;
-      ctx.fillRect(w * 0.5 - 200, h * 0.5, 400, 300);
-
-      // String bulb dots
-      for (let x = 30; x < w; x += 70) {
-        const by = (x < w * 0.5) 
-          ? (h * 0.18 + Math.sin((x / (w * 0.5)) * Math.PI) * (h * 0.08))
-          : (h * 0.18 + Math.sin(((x - w * 0.5) / (w * 0.5)) * Math.PI) * (h * 0.08));
-        ctx.fillStyle = '#FFD23F';
-        ctx.beginPath();
-        ctx.arc(x, by, 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.fillStyle = '#F5F1E8';
-      ctx.font = 'bold 32px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(sceneId === 'ensign-peak' ? 'ENSIGN PEAK · SALT LAKE CITY 360°' : '360 · WASATCH SKY LOUNGE & PATIO', w * 0.5, h * 0.12);
-
-    } else if (sceneId === 'coffee-roaster') {
-      // Artisan Cafe 360 Panorama
-      ctx.fillStyle = '#1e1614';
-      ctx.fillRect(0, 0, w, h * 0.45);
-      ctx.fillStyle = '#2c221e';
-      ctx.fillRect(0, h * 0.45, w, h * 0.55);
-
-      ctx.fillStyle = 'rgba(255, 200, 120, 0.2)';
-      ctx.fillRect(w * 0.3, h * 0.3, w * 0.4, h * 0.3);
-
-      ctx.fillStyle = '#FFD23F';
-      ctx.font = 'bold 36px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('PEAK & PINE COFFEE ROASTERS · GRANARY SLC', w * 0.5, h * 0.25);
-
-    } else {
-      // Default: '360-main' (High-Energy Immersive Venue & Main Stage)
-      const ceilGrad = ctx.createLinearGradient(0, 0, 0, h * 0.46);
-      ceilGrad.addColorStop(0, '#0a0810');
-      ceilGrad.addColorStop(0.6, '#180d28');
-      ceilGrad.addColorStop(1, '#2d1445');
-      ctx.fillStyle = ceilGrad;
-      ctx.fillRect(0, 0, w, h * 0.46);
-
-      const floorGrad = ctx.createLinearGradient(0, h * 0.46, 0, h);
-      floorGrad.addColorStop(0, '#1c102a');
-      floorGrad.addColorStop(0.3, '#100b1a');
-      floorGrad.addColorStop(1, '#08060c');
-      ctx.fillStyle = floorGrad;
-      ctx.fillRect(0, h * 0.46, w, h * 0.54);
-
-      // Floor Grid Lines
-      ctx.strokeStyle = 'rgba(63, 221, 224, 0.15)';
-      ctx.lineWidth = 1.5;
-      for (let x = 0; x < w; x += 120) {
-        ctx.beginPath();
-        ctx.moveTo(x, h * 0.46);
-        ctx.lineTo((x - w * 0.5) * 2.5 + w * 0.5, h);
-        ctx.stroke();
-      }
-
-      // Stage LED Backdrop
-      const stageX = w * 0.38;
-      const stageW = w * 0.24;
-      const stageH = h * 0.28;
-      const stageY = h * 0.18;
-
-      const screenGrad = ctx.createLinearGradient(stageX, stageY, stageX + stageW, stageY + stageH);
-      screenGrad.addColorStop(0, '#FF4D6D');
-      screenGrad.addColorStop(0.5, '#7928CA');
-      screenGrad.addColorStop(1, '#3FDDE0');
-      ctx.fillStyle = screenGrad;
-      ctx.fillRect(stageX, stageY, stageW, stageH);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 52px "Space Grotesk", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = '#3FDDE0';
-      ctx.shadowBlur = 30;
-      ctx.fillText('360', stageX + stageW / 2, stageY + stageH * 0.45);
-
-      ctx.font = 'bold 20px "Space Grotesk", sans-serif';
-      ctx.letterSpacing = '4px';
-      ctx.fillText('IMMERSIVE VENUE & LOUNGE', stageX + stageW / 2, stageY + stageH * 0.7);
-      ctx.shadowBlur = 0;
-
-      const spots = [
-        { x: stageX + 40, color: 'rgba(255, 77, 109, 0.35)' },
-        { x: stageX + stageW / 2, color: 'rgba(255, 210, 63, 0.35)' },
-        { x: stageX + stageW - 40, color: 'rgba(63, 221, 224, 0.35)' }
-      ];
-      spots.forEach(sp => {
-        ctx.fillStyle = sp.color;
-        ctx.beginPath();
-        ctx.moveTo(sp.x, 40);
-        ctx.lineTo(sp.x - 140, h * 0.58);
-        ctx.lineTo(sp.x + 140, h * 0.58);
-        ctx.closePath();
-        ctx.fill();
-      });
-
-      const sideNeons = [w * 0.08, w * 0.18, w * 0.78, w * 0.9];
-      sideNeons.forEach((sx, i) => {
-        const col = (i % 2 === 0) ? '#3FDDE0' : '#FFD23F';
-        ctx.fillStyle = col;
-        ctx.shadowColor = col;
-        ctx.shadowBlur = 18;
-        ctx.fillRect(sx, h * 0.22, 6, h * 0.28);
-      });
-      ctx.shadowBlur = 0;
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
     }
+    for (let y = 0; y < h; y += 64) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+
+    // Horizon Line
+    ctx.strokeStyle = '#FFD23F';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.5);
+    ctx.lineTo(w, h * 0.5);
+    ctx.stroke();
+
+    // Studio Banner in Panorama
+    ctx.fillStyle = '#FFD23F';
+    ctx.font = 'bold 44px "Space Grotesk", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#FFD23F';
+    ctx.shadowBlur = 18;
+    ctx.fillText('SpotLIGHT · 360° IMMERSIVE STUDIO', w * 0.5, h * 0.38);
+    ctx.font = '22px "Space Grotesk", sans-serif';
+    ctx.fillStyle = '#3FDDE0';
+    ctx.fillText('📍 Wasatch Front · Move Camera or Tap Doors to Walk Around', w * 0.5, h * 0.44);
+    ctx.shadowBlur = 0;
 
     proceduralPanoCache[sceneId] = c;
     return c;
   }
 
-  let currentTourData = null;
-  let activeSceneIndex = 0;
-  let activeSceneList = DEMO_SCENES;
-  
-  // Camera state
-  let yaw = 0;
-  let pitch = 0;
-  let fov = 75;
-  let targetYaw = 0;
-  let targetPitch = 0;
-  let targetFov = 75;
+  /**
+   * Initializes Three.js WebGL Rectilinear Renderer
+   */
+  function initThreeEngine() {
+    if (typeof THREE === 'undefined') {
+      console.warn('[SpotLIGHT 360] Three.js not found in global scope.');
+      return false;
+    }
 
-  // Interaction state
-  let isDragging = false;
-  let startX = 0;
-  let startY = 0;
-  let lastX = 0;
-  let lastY = 0;
-  let velX = 0;
-  let velY = 0;
-  let lastPinchDist = null;
-  let isAutoRotating = true;
-  let autoRotateSpeed = 0.12;
-  let gyroEnabled = false;
-  let animFrameId = null;
-  let resizeObserver = null;
+    const canvas = document.getElementById('tour3dCanvas');
+    const container = document.getElementById('tourViewportContainer');
+    if (!canvas || !container) return false;
 
-  // Canvas & Image
-  let canvas = null;
-  let ctx = null;
-  let currentImage = null;
-  let imageLoaded = false;
-  let currentPanoUrl = '';
+    if (threeRenderer) return true;
 
-  function initViewerElements() {
-    if (document.getElementById('tour3dModal')) return;
+    try {
+      const rect = container.getBoundingClientRect();
+      const width = Math.max(100, Math.floor(rect.width || window.innerWidth || 800));
+      const height = Math.max(100, Math.floor(rect.height || window.innerHeight || 600));
 
-    const modal = document.createElement('div');
-    modal.id = 'tour3dModal';
-    modal.className = 'tour-3d-modal';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-label', '360° Virtual Tour Viewer');
+      threeRenderer = new THREE.WebGLRenderer({
+        canvas: canvas,
+        antialias: true,
+        alpha: false,
+        powerPreference: 'high-performance'
+      });
+      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      threeRenderer.setSize(width, height);
 
-    modal.innerHTML = `
-      <div class="tour-hud-top">
-        <div class="tour-brand-group">
-          <div class="tour-live-badge">
-            <span class="tour-radar-dot"></span>
-            <span id="tourProviderBadge">360° 3D IMMERSIVE SPACE</span>
-          </div>
-          <div class="tour-title-wrap">
-            <h2 id="tourSpotTitle" class="tour-spot-title">360 · Salt Lake City</h2>
-            <div id="tourSpotTag" class="tour-spot-tag">📍 Wasatch Front · 3D Scan</div>
-          </div>
-        </div>
+      threeScene = new THREE.Scene();
+      threeCamera = new THREE.PerspectiveCamera(targetFov, width / height, 1, 1500);
 
-        <div class="tour-top-controls">
-          <a id="tourExternalLaunchBtn" href="#" target="_blank" rel="noopener noreferrer" class="tour-hud-btn" style="display:none;" title="Open directly in new tab">
-            ↗ <span class="hud-btn-lbl">OPEN SITE</span>
-          </a>
-          <button type="button" id="tourGyroBtn" class="tour-hud-btn" title="Toggle Phone Gyroscope Look" aria-label="Toggle Gyroscope">
-            🧭 <span class="hud-btn-lbl">GYRO</span>
-          </button>
-          <button type="button" id="tourAutoRotateBtn" class="tour-hud-btn active" title="Toggle Auto-Rotation" aria-label="Toggle Auto-Rotation">
-            🔄 <span class="hud-btn-lbl">ROTATE</span>
-          </button>
-          <button type="button" id="tourResetBtn" class="tour-hud-btn" title="Reset View Angle" aria-label="Reset View">
-            🎯
-          </button>
-          <button type="button" id="tourFullscreenBtn" class="tour-hud-btn" title="Full Screen" aria-label="Toggle Fullscreen">
-            ⛶
-          </button>
-          <button type="button" id="tourCloseBtn" class="tour-hud-btn tour-close-btn" title="Exit 3D View (Esc)" aria-label="Close 3D Tour">
-            ✕
-          </button>
-        </div>
-      </div>
+      // Inverted Sphere Geometry (inside of sphere faces the camera)
+      const geometry = new THREE.SphereGeometry(500, 64, 32);
+      geometry.scale(-1, 1, 1);
 
-      <div class="tour-viewport-container" id="tourViewportContainer">
-        <canvas id="tour3dCanvas" class="tour-3d-canvas"></canvas>
-        <iframe id="tourEmbedFrame" class="tour-embed-frame" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer; autoplay; clipboard-write; web-share" style="display:none;"></iframe>
-        
-        <div class="tour-loader" id="tourLoader">
-          <div class="tour-spinner"></div>
-          <div class="tour-loader-text" id="tourLoaderTitle">ENTERING 360° SPACE...</div>
-          <div class="tour-loader-sub" id="tourLoaderSub">Loading Virtual Tour View</div>
-        </div>
+      const material = new THREE.MeshBasicMaterial();
+      threeSphere = new THREE.Mesh(geometry, material);
+      threeScene.add(threeSphere);
 
-        <div class="tour-compass-indicator" id="tourCompass">
-          <div class="compass-dial" id="compassDial">▲ N</div>
-        </div>
+      threeTextureLoader = new THREE.TextureLoader();
+      threeTextureLoader.crossOrigin = 'anonymous';
 
-        <div class="tour-hotspots-layer" id="tourHotspotsLayer"></div>
-      </div>
-
-      <div class="tour-hud-bottom">
-        <div class="tour-scene-selector" id="tourSceneSelector"></div>
-
-        <div class="tour-gesture-hint" id="tourGestureHint">
-          <span class="hint-icon">👆</span>
-          <span>Drag to look 360° · Pinch or scroll to zoom · Tap 🧭 for phone motion</span>
-        </div>
-
-        <div class="tour-bottom-actions">
-          <div class="tour-zoom-pill" id="tourZoomPill">
-            <button type="button" class="zoom-btn" id="tourZoomOut" title="Zoom Out">-</button>
-            <span class="zoom-level" id="tourZoomLevel">100%</span>
-            <button type="button" class="zoom-btn" id="tourZoomIn" title="Zoom In">+</button>
-          </div>
-          <a id="tourCtaLink" href="#" target="_blank" rel="noopener noreferrer" class="tour-cta-btn">
-            Visit Website ↗
-          </a>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-    bindViewerEvents();
+      return true;
+    } catch (err) {
+      console.error('[SpotLIGHT 360] WebGL Three.js init error:', err);
+      return false;
+    }
   }
 
-  function injectViewerStyles() {
-    if (document.getElementById('tour3dStyles')) return;
+  /**
+   * Loads Equirectangular Texture into Three.js Sphere
+   */
+  function loadThreePanoTexture(urlOrCanvas) {
+    if (!threeSphere) {
+      if (!initThreeEngine()) return;
+    }
+    const loader = document.getElementById('tourLoader');
+
+    if (typeof urlOrCanvas === 'string' && urlOrCanvas) {
+      threeTextureLoader.load(
+        urlOrCanvas,
+        (texture) => {
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.generateMipmaps = false;
+          
+          if (currentTexture) currentTexture.dispose();
+          currentTexture = texture;
+          threeSphere.material.map = texture;
+          threeSphere.material.needsUpdate = true;
+
+          if (loader) loader.classList.add('hidden');
+        },
+        undefined,
+        (err) => {
+          console.warn('[SpotLIGHT 360] Remote texture load notice, using procedural backdrop:', err);
+          const fallbackCanvas = getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-fallback');
+          const texture = new THREE.CanvasTexture(fallbackCanvas);
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+
+          if (currentTexture) currentTexture.dispose();
+          currentTexture = texture;
+          threeSphere.material.map = texture;
+          threeSphere.material.needsUpdate = true;
+
+          if (loader) loader.classList.add('hidden');
+        }
+      );
+    } else {
+      const srcCanvas = (urlOrCanvas instanceof HTMLCanvasElement) ? urlOrCanvas : getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-main');
+      const texture = new THREE.CanvasTexture(srcCanvas);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+
+      if (currentTexture) currentTexture.dispose();
+      currentTexture = texture;
+      threeSphere.material.map = texture;
+      threeSphere.material.needsUpdate = true;
+
+      if (loader) loader.classList.add('hidden');
+    }
+  }
+
+  /**
+   * Injects HTML UI & CSS Modal into DOM
+   */
+  function injectTourModalHtml() {
+    if (document.getElementById('tour3dModal')) return;
+
     const style = document.createElement('style');
     style.id = 'tour3dStyles';
     style.textContent = `
-      /* ==========================================================================
-         STEP INSIDE 3D / 360° STYLES
-         ========================================================================== */
-      .step-inside-3d-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        width: 100%;
-        background: linear-gradient(135deg, #14121A 0%, #291b3e 50%, #14121A 100%);
-        color: #FFD23F !important;
-        border: 1.5px solid rgba(255, 210, 63, 0.7);
-        border-radius: 8px;
-        padding: 9px 12px;
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: 11px;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        cursor: pointer;
-        margin: 8px 0 4px;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), 0 0 16px rgba(255, 210, 63, 0.15);
-        transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-        text-decoration: none;
-      }
-      .step-inside-3d-btn:hover, .step-inside-3d-btn:active {
-        background: linear-gradient(135deg, #FFD23F 0%, #FF4D6D 100%);
-        color: #14121A !important;
-        border-color: #fff;
-        transform: translateY(-1px) scale(1.02);
-        box-shadow: 0 6px 20px rgba(255, 77, 109, 0.4);
-      }
-      .btn-3d-pulse {
-        font-size: 14px;
-        animation: pulseIcon 1.8s infinite;
-      }
-      .btn-3d-badge {
-        background: #FF4D6D;
-        color: #fff;
-        font-size: 9px;
-        font-weight: 800;
-        padding: 2px 6px;
-        border-radius: 4px;
-        letter-spacing: 0.05em;
-        margin-left: 2px;
-      }
-      @keyframes pulseIcon {
-        0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px #FFD23F); }
-        50% { transform: scale(1.2); filter: drop-shadow(0 0 6px #FFD23F); }
-      }
-
-      /* 3D Fullscreen Modal Overlay */
-      .tour-3d-modal {
+      #tour3dModal {
         position: fixed;
         inset: 0;
-        z-index: 100010;
-        background: #09080d;
+        z-index: 999999;
+        background: #09080e;
         display: none;
         flex-direction: column;
-        justify-content: space-between;
-        user-select: none;
-        -webkit-user-select: none;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
         overflow: hidden;
         font-family: 'Space Grotesk', -apple-system, sans-serif;
         color: #F5F1E8;
-        opacity: 0;
-        transition: opacity 0.25s ease;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: none;
       }
-      .tour-3d-modal.active {
+      #tour3dModal.active {
         display: flex;
-        opacity: 1;
       }
 
       /* Top HUD */
@@ -602,75 +459,81 @@
         left: 0;
         right: 0;
         z-index: 20;
-        padding: max(12px, env(safe-area-inset-top)) 16px 14px;
-        background: linear-gradient(180deg, rgba(14, 12, 19, 0.95) 0%, rgba(14, 12, 19, 0.6) 70%, transparent 100%);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        padding: 12px 16px;
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
+        background: linear-gradient(180deg, rgba(14, 12, 19, 0.95) 0%, rgba(14, 12, 19, 0.6) 70%, transparent 100%);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
       }
       .tour-brand-group {
         display: flex;
         flex-direction: column;
+        gap: 2px;
         min-width: 0;
       }
-      .tour-live-badge {
-        display: inline-flex;
+      .tour-badge-row {
+        display: flex;
         align-items: center;
         gap: 6px;
+      }
+      .tour-live-badge {
+        background: #FF4D6D;
+        color: #fff;
         font-size: 9px;
         font-weight: 800;
-        letter-spacing: 0.16em;
+        padding: 2px 7px;
+        border-radius: 999px;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: #3FDDE0;
-        margin-bottom: 2px;
+        animation: tourPulse 2s infinite ease-in-out;
       }
-      .tour-radar-dot {
-        width: 7px;
-        height: 7px;
-        background: #3FDDE0;
-        border-radius: 50%;
-        box-shadow: 0 0 8px #3FDDE0;
-        animation: radarPulse 1.4s infinite;
+      @keyframes tourPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.8; transform: scale(0.96); }
       }
-      @keyframes radarPulse {
-        0% { transform: scale(0.9); opacity: 1; }
-        50% { transform: scale(1.4); opacity: 0.5; }
-        100% { transform: scale(0.9); opacity: 1; }
+      .tour-type-badge {
+        background: rgba(255, 210, 63, 0.15);
+        color: #FFD23F;
+        border: 1px solid rgba(255, 210, 63, 0.35);
+        font-size: 9px;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+        letter-spacing: 0.05em;
       }
       .tour-spot-title {
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: clamp(14px, 4vw, 20px);
-        font-weight: 700;
-        color: #fff;
-        margin: 0;
+        font-family: 'Syne', 'Anton', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        color: #F5F1E8;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
+        max-width: 260px;
+        margin: 0;
       }
       .tour-spot-tag {
         font-size: 11px;
-        color: rgba(245, 241, 232, 0.7);
+        color: rgba(245, 241, 232, 0.75);
       }
 
       .tour-top-controls {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         flex-shrink: 0;
       }
       .tour-hud-btn {
         background: rgba(255, 255, 255, 0.12);
         border: 1px solid rgba(255, 255, 255, 0.2);
         color: #F5F1E8;
-        padding: 7px 11px;
+        padding: 6px 11px;
         border-radius: 8px;
         font-family: 'Space Grotesk', sans-serif;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
         cursor: pointer;
         display: inline-flex;
@@ -678,7 +541,7 @@
         gap: 5px;
         transition: all 0.15s;
         touch-action: manipulation;
-        min-height: 38px;
+        min-height: 36px;
         text-decoration: none;
       }
       .tour-hud-btn:hover {
@@ -695,20 +558,20 @@
         background: #FF4D6D;
         color: #fff;
         border-color: #FF4D6D;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 800;
-        padding: 7px 14px;
+        padding: 6px 12px;
       }
       .tour-close-btn:hover {
         background: #e03353;
         color: #fff;
       }
-      @media (max-width: 600px) {
+      @media (max-width: 640px) {
         .hud-btn-lbl { display: none; }
-        .tour-hud-btn { padding: 7px 10px; }
+        .tour-hud-btn { padding: 6px 8px; }
       }
 
-      /* Viewport */
+      /* Viewport Container */
       .tour-viewport-container {
         position: relative;
         width: 100%;
@@ -756,8 +619,8 @@
         pointer-events: none;
       }
       .tour-spinner {
-        width: 44px;
-        height: 44px;
+        width: 42px;
+        height: 42px;
         border: 3px solid rgba(255, 210, 63, 0.2);
         border-top-color: #FFD23F;
         border-right-color: #FF4D6D;
@@ -778,17 +641,17 @@
         color: rgba(245, 241, 232, 0.6);
       }
 
-      /* Compass */
+      /* Compass Dial */
       .tour-compass-indicator {
         position: absolute;
-        top: 80px;
+        top: 75px;
         right: 18px;
         z-index: 15;
-        background: rgba(14, 12, 19, 0.7);
+        background: rgba(14, 12, 19, 0.75);
         border: 1px solid rgba(255, 210, 63, 0.4);
         border-radius: 50%;
-        width: 40px;
-        height: 40px;
+        width: 38px;
+        height: 38px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -802,7 +665,7 @@
         transition: transform 0.1s linear;
       }
 
-      /* Hotspots in 3D scene */
+      /* Hotspots in 3D Scene */
       .tour-hotspots-layer {
         position: absolute;
         inset: 0;
@@ -814,19 +677,19 @@
         transform: translate(-50%, -50%);
         pointer-events: auto;
         cursor: pointer;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 6px;
-        background: rgba(14, 12, 19, 0.88);
+        background: rgba(14, 12, 19, 0.92);
         border: 2px solid #FFD23F;
         color: #fff;
         padding: 6px 12px;
         border-radius: 999px;
         font-size: 11px;
         font-weight: 800;
-        letter-spacing: 0.04em;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7), 0 0 14px rgba(255, 210, 63, 0.4);
-        transition: transform 0.15s, background 0.15s;
+        letter-spacing: 0.03em;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75), 0 0 14px rgba(255, 210, 63, 0.4);
+        transition: transform 0.12s ease, background 0.12s ease;
         white-space: nowrap;
       }
       .tour-hotspot-pin:hover {
@@ -834,12 +697,394 @@
         background: #FFD23F;
         color: #14121A;
       }
+      .tour-hotspot-pin.editor-pin {
+        border-color: #06D6A0;
+        background: rgba(6, 214, 160, 0.25);
+        color: #fff;
+      }
+      .hotspot-del-btn {
+        background: #FF4D6D;
+        color: #fff;
+        border: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        font-size: 10px;
+        font-weight: 900;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 4px;
+        transition: background 0.15s, transform 0.15s;
+      }
+      .hotspot-del-btn:hover {
+        background: #ff1c45;
+        transform: scale(1.15);
+      }
       .tour-hotspot-pulse {
         width: 8px;
         height: 8px;
-        background: #FF4D6D;
         border-radius: 50%;
-        box-shadow: 0 0 6px #FF4D6D;
+        background: #FFD23F;
+        box-shadow: 0 0 8px #FFD23F;
+        animation: hsPulse 1.5s infinite;
+      }
+      @keyframes hsPulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.4); opacity: 0.6; }
+      }
+
+      /* Editor Tool Bar Overlay */
+      .tour-editor-bar {
+        position: absolute;
+        top: 70px;
+        left: 16px;
+        z-index: 25;
+        background: rgba(14, 12, 19, 0.94);
+        border: 1.5px solid #06D6A0;
+        border-radius: 10px;
+        padding: 8px 12px;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        animation: slideInBar 0.2s ease-out;
+      }
+      @keyframes slideInBar {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .tour-editor-bar.active {
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .tour-editor-pill {
+        background: rgba(6, 214, 160, 0.2);
+        color: #06D6A0;
+        border: 1px solid rgba(6, 214, 160, 0.4);
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        font-family: monospace;
+      }
+      .tour-editor-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .tour-ed-btn {
+        background: #06D6A0;
+        color: #0d1b1e;
+        border: none;
+        padding: 6px 11px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.15s;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+      }
+      .tour-ed-btn:hover {
+        background: #05b386;
+        transform: translateY(-1px);
+      }
+      .tour-ed-btn.tour-ed-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+      }
+      .tour-ed-btn.tour-ed-secondary:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .tour-ed-btn.tour-ed-danger {
+        background: rgba(255, 77, 109, 0.2);
+        color: #FF4D6D;
+        border: 1px solid rgba(255, 77, 109, 0.5);
+      }
+      .tour-ed-btn.tour-ed-danger:hover {
+        background: #FF4D6D;
+        color: #fff;
+      }
+      .tour-ed-btn.tour-ed-save {
+        background: linear-gradient(135deg, #FFD23F 0%, #FF4D6D 100%);
+        color: #14121A;
+        font-weight: 900;
+      }
+      .tour-ed-btn.tour-ed-save:hover {
+        transform: translateY(-1px) scale(1.03);
+        box-shadow: 0 4px 14px rgba(255, 77, 109, 0.4);
+      }
+
+      /* Modal Dialog Overlays & Cards */
+      .tour-dialog-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        background: rgba(10, 8, 14, 0.82);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        animation: fadeInDialog 0.2s ease-out;
+      }
+      @keyframes fadeInDialog {
+        from { opacity: 0; transform: scale(0.96); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      .tour-dialog-card {
+        background: #14121A;
+        border: 2px solid #06D6A0;
+        border-radius: 14px;
+        width: 100%;
+        max-width: 480px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(6, 214, 160, 0.2);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .tour-dialog-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .tour-dialog-title {
+        font-size: 13px;
+        font-weight: 800;
+        color: #FFD23F;
+        letter-spacing: 0.03em;
+      }
+      .tour-dialog-close {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+        padding: 4px 8px;
+      }
+      .tour-dialog-close:hover {
+        color: #FF4D6D;
+      }
+      .tour-dialog-body {
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-height: 70vh;
+        overflow-y: auto;
+      }
+      .tour-dialog-info {
+        font-size: 11px;
+        font-weight: 700;
+        color: #06D6A0;
+        background: rgba(6, 214, 160, 0.1);
+        padding: 6px 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(6, 214, 160, 0.25);
+      }
+      .tour-field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .tour-field-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.9);
+      }
+      .tour-dialog-input, .tour-dialog-select {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1.5px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        padding: 9px 11px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .tour-dialog-input:focus, .tour-dialog-select:focus {
+        border-color: #FFD23F;
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .tour-dialog-select option {
+        background: #14121A;
+        color: #fff;
+      }
+      .tour-quick-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+      }
+      .tour-chip {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .tour-chip:hover {
+        background: #FFD23F;
+        color: #14121A;
+        border-color: #FFD23F;
+      }
+      .tour-source-tabs {
+        display: flex;
+        gap: 6px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        padding-bottom: 8px;
+      }
+      .tour-src-tab {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.8);
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .tour-src-tab.active {
+        background: #FFD23F;
+        color: #14121A;
+        border-color: #FFD23F;
+        font-weight: 800;
+      }
+      .tour-dropzone {
+        border: 2px dashed rgba(255, 210, 63, 0.5);
+        background: rgba(255, 210, 63, 0.04);
+        border-radius: 10px;
+        padding: 18px 12px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+      .tour-dropzone:hover {
+        border-color: #FFD23F;
+        background: rgba(255, 210, 63, 0.1);
+      }
+      .dropzone-icon {
+        font-size: 22px;
+      }
+      .dropzone-text {
+        font-size: 11px;
+        font-weight: 700;
+        color: #FFD23F;
+      }
+      .dropzone-hint {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.6);
+      }
+      .tour-upload-status {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 7px 10px;
+        border-radius: 6px;
+        margin-top: 6px;
+        text-align: center;
+      }
+      .tour-presets-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 8px;
+      }
+      .preset-card-btn {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
+        color: #fff;
+        padding: 9px;
+        border-radius: 8px;
+        text-align: left;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        transition: all 0.15s;
+      }
+      .preset-card-btn:hover {
+        border-color: #FFD23F;
+        background: rgba(255, 210, 63, 0.12);
+      }
+      .preset-card-btn.selected {
+        border-color: #06D6A0;
+        background: rgba(6, 214, 160, 0.18);
+      }
+      .preset-card-name {
+        font-size: 11px;
+        font-weight: 800;
+        color: #FFD23F;
+      }
+      .preset-card-tag {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.6);
+      }
+      .tour-dialog-footer {
+        padding: 10px 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .tour-dialog-btn {
+        padding: 7px 14px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        border: none;
+        transition: all 0.15s;
+      }
+      .tour-dialog-btn-cancel {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+      .tour-dialog-btn-cancel:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .tour-dialog-btn-confirm {
+        background: #06D6A0;
+        color: #0d1b1e;
+      }
+      .tour-dialog-btn-confirm:hover {
+        background: #05b386;
+        transform: translateY(-1px);
+      }
+      .tour-dialog-btn-secondary {
+        background: rgba(6, 214, 160, 0.15);
+        color: #06D6A0;
+        border: 1px solid rgba(6, 214, 160, 0.3);
+        width: 100%;
+      }
+      .tour-dialog-btn-secondary:hover {
+        background: rgba(6, 214, 160, 0.25);
+      }
+      .tour-dialog-btn-danger {
+        background: rgba(255, 77, 109, 0.2);
+        color: #FF4D6D;
+        border: 1px solid rgba(255, 77, 109, 0.4);
+      }
+      .tour-dialog-btn-danger:hover {
+        background: #FF4D6D;
+        color: #fff;
       }
 
       /* Bottom HUD */
@@ -849,13 +1094,13 @@
         left: 0;
         right: 0;
         z-index: 20;
-        padding: 14px 16px max(14px, env(safe-area-inset-bottom));
+        padding: 12px 16px max(12px, env(safe-area-inset-bottom));
         background: linear-gradient(0deg, rgba(14, 12, 19, 0.96) 0%, rgba(14, 12, 19, 0.7) 65%, transparent 100%);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
       }
       .tour-scene-selector {
         display: flex;
@@ -871,7 +1116,7 @@
         background: rgba(255, 255, 255, 0.1);
         border: 1px solid rgba(255, 255, 255, 0.2);
         color: #F5F1E8;
-        padding: 6px 14px;
+        padding: 5px 12px;
         border-radius: 999px;
         font-family: 'Space Grotesk', sans-serif;
         font-size: 11px;
@@ -890,6 +1135,89 @@
         border-color: #FFD23F;
         font-weight: 800;
         box-shadow: 0 2px 10px rgba(255, 210, 63, 0.3);
+      }
+      .tour-scene-pill-wrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 2px 4px 2px 2px;
+        border-radius: 999px;
+      }
+      .tour-pill-edit-btn, .tour-pill-del-btn {
+        background: rgba(14, 12, 19, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        color: #fff;
+        border-radius: 50%;
+        width: 22px;
+        height: 22px;
+        font-size: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .tour-pill-edit-btn:hover {
+        background: #FFD23F;
+        color: #14121A;
+        border-color: #FFD23F;
+        transform: scale(1.15);
+      }
+      .tour-pill-del-btn:hover {
+        background: #FF4D6D;
+        color: #fff;
+        border-color: #FF4D6D;
+        transform: scale(1.15);
+      }
+      .manage-room-row {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1.5px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        transition: all 0.15s;
+      }
+      .manage-room-row.current-scene {
+        border-color: #06D6A0;
+        background: rgba(6, 214, 160, 0.08);
+      }
+      .manage-room-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1;
+        min-width: 0;
+      }
+      .manage-room-title {
+        font-size: 12px;
+        font-weight: 800;
+        color: #FFD23F;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .manage-room-tag {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.65);
+      }
+      .manage-room-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .tour-hs-item {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 6px;
+        padding: 6px 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
       }
       .tour-gesture-hint {
         display: flex;
@@ -936,7 +1264,7 @@
       .tour-cta-btn {
         background: #3FDDE0;
         color: #14121A;
-        padding: 8px 18px;
+        padding: 7px 16px;
         border-radius: 999px;
         font-size: 11px;
         font-weight: 800;
@@ -950,10 +1278,923 @@
         background: #FFD23F;
         transform: translateY(-1px);
       }
+
+      /* ========================================================= */
+      /* 360 ROOM SCANNER & EQUIRECTANGULAR STITCHER HUD STYLES    */
+      /* ========================================================= */
+      .tour-camera-scanner-container {
+        width: 100vw;
+        height: 100vh;
+        max-width: 100%;
+        max-height: 100%;
+        background: #0d0b12;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+      }
+      .scan-header {
+        padding: 10px 16px;
+        background: rgba(14, 12, 19, 0.95);
+        border-bottom: 1.5px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        z-index: 20;
+      }
+      .scan-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .scan-title {
+        font-size: 13px;
+        font-weight: 900;
+        color: #FFD23F;
+        letter-spacing: 0.05em;
+      }
+      .scan-pill {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #06D6A0;
+      }
+      .scan-header-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .scan-btn-small {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        color: #fff;
+        padding: 5px 10px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .scan-btn-small:hover {
+        background: #FFD23F;
+        color: #14121A;
+      }
+      .scan-btn-close {
+        background: rgba(255, 77, 109, 0.2);
+        border: 1px solid rgba(255, 77, 109, 0.4);
+        color: #FF4D6D;
+        font-size: 14px;
+        font-weight: 900;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+      }
+      .scan-btn-close:hover {
+        background: #FF4D6D;
+        color: #fff;
+      }
+      .scan-viewfinder-area {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        background: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #scanVideoFeed {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .scan-reticle-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      .scan-center-ring {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 90px;
+        height: 90px;
+        transform: translate(-50%, -50%);
+        border: 2px dashed rgba(255, 210, 63, 0.8);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+      .scan-center-ring.aligned {
+        border-color: #06D6A0;
+        border-style: solid;
+        border-width: 3px;
+        box-shadow: 0 0 25px rgba(6, 214, 160, 0.8);
+        transform: translate(-50%, -50%) scale(1.12);
+      }
+      .scan-crosshair-h {
+        position: absolute;
+        width: 24px;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.6);
+      }
+      .scan-crosshair-v {
+        position: absolute;
+        width: 2px;
+        height: 24px;
+        background: rgba(255, 255, 255, 0.6);
+      }
+      .scan-center-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #FFD23F;
+      }
+      .scan-center-ring.aligned .scan-center-dot {
+        background: #06D6A0;
+        box-shadow: 0 0 10px #06D6A0;
+      }
+      .scan-ring-status {
+        position: absolute;
+        bottom: -28px;
+        font-size: 10px;
+        font-weight: 800;
+        color: #FFD23F;
+        background: rgba(14, 12, 19, 0.85);
+        padding: 2px 8px;
+        border-radius: 999px;
+        white-space: nowrap;
+        border: 1px solid rgba(255, 210, 63, 0.3);
+      }
+      .scan-center-ring.aligned .scan-ring-status {
+        color: #06D6A0;
+        border-color: #06D6A0;
+        background: rgba(6, 214, 160, 0.15);
+      }
+      .scan-nodes-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      .scan-node-marker {
+        position: absolute;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        font-weight: 900;
+        transition: transform 0.1s linear, opacity 0.2s;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+      }
+      .scan-node-marker.pending {
+        background: rgba(255, 210, 63, 0.3);
+        border: 2px solid #FFD23F;
+        color: #FFD23F;
+        animation: pulseTarget 1.5s infinite;
+      }
+      .scan-node-marker.captured {
+        background: #06D6A0;
+        border: 2px solid #fff;
+        color: #0d1b1e;
+      }
+      @keyframes pulseTarget {
+        0% { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 0 0 rgba(255, 210, 63, 0.7); }
+        70% { transform: translate(-50%, -50%) scale(1.08); box-shadow: 0 0 0 10px rgba(255, 210, 63, 0); }
+        100% { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 0 0 rgba(255, 210, 63, 0); }
+      }
+      .scan-guide-arrow {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(14, 12, 19, 0.9);
+        border: 1.5px solid #FFD23F;
+        border-radius: 999px;
+        padding: 5px 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+      }
+      .guide-arrow-icon {
+        font-size: 14px;
+        color: #FFD23F;
+        font-weight: 900;
+      }
+      .guide-arrow-text {
+        font-size: 11px;
+        font-weight: 800;
+        color: #fff;
+      }
+      .scan-floating-hud {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        right: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        pointer-events: auto;
+      }
+      .scan-progress-box {
+        background: rgba(14, 12, 19, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 6px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 170px;
+      }
+      .scan-progress-bar-bg {
+        width: 100%;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .scan-progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #FFD23F 0%, #06D6A0 100%);
+        transition: width 0.3s;
+      }
+      .scan-auto-snap-toggle {
+        background: rgba(14, 12, 19, 0.88);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 6px 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #fff;
+        user-select: none;
+      }
+      .scan-flash-fx {
+        position: absolute;
+        inset: 0;
+        background: #fff;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.05s ease-out;
+      }
+      .scan-flash-fx.flash {
+        opacity: 0.9;
+        transition: none;
+      }
+      .scan-ribbon-section {
+        background: rgba(14, 12, 19, 0.95);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 8px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        z-index: 15;
+      }
+      .scan-ribbon-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .scan-strip-container {
+        width: 100%;
+        height: 70px;
+        background: #000;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      #panoStitchPreviewCanvas {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .scan-slots-track {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+      .scan-slot-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.6);
+        white-space: nowrap;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .scan-slot-pill.active {
+        border-color: #FFD23F;
+        color: #FFD23F;
+        background: rgba(255, 210, 63, 0.15);
+      }
+      .scan-slot-pill.captured {
+        border-color: #06D6A0;
+        color: #06D6A0;
+        background: rgba(6, 214, 160, 0.15);
+      }
+      .scan-bottom-bar {
+        background: #14121A;
+        border-top: 1.5px solid rgba(255, 255, 255, 0.1);
+        padding: 10px 16px max(10px, env(safe-area-inset-bottom));
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        z-index: 20;
+        flex-wrap: wrap;
+      }
+      .scan-bottom-left, .scan-bottom-right {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .scan-ctrl-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .scan-ctrl-btn:hover {
+        background: rgba(255, 255, 255, 0.16);
+      }
+      .scan-btn-danger {
+        background: rgba(255, 77, 109, 0.15);
+        color: #FF4D6D;
+        border-color: rgba(255, 77, 109, 0.35);
+      }
+      .scan-btn-danger:hover {
+        background: #FF4D6D;
+        color: #fff;
+      }
+      .scan-btn-success {
+        background: linear-gradient(135deg, #FFD23F 0%, #06D6A0 100%);
+        color: #14121A;
+        border: none;
+        padding: 10px 18px;
+        font-weight: 900;
+        font-size: 12px;
+        box-shadow: 0 2px 12px rgba(6, 214, 160, 0.3);
+      }
+      .scan-btn-success:hover {
+        transform: translateY(-1px) scale(1.02);
+        box-shadow: 0 4px 18px rgba(6, 214, 160, 0.5);
+      }
+      .scan-shutter-btn {
+        background: radial-gradient(circle, #fff 40%, #e2e8f0 70%);
+        border: 4px solid #FFD23F;
+        color: #14121A;
+        border-radius: 999px;
+        padding: 8px 22px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: all 0.15s;
+        box-shadow: 0 4px 16px rgba(255, 210, 63, 0.5);
+      }
+      .scan-shutter-btn:hover {
+        transform: scale(1.06);
+        background: #fff;
+      }
+      .scan-shutter-btn:active {
+        transform: scale(0.95);
+      }
+      .shutter-inner {
+        font-size: 18px;
+      }
+      .shutter-text {
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+      }
     `;
     document.head.appendChild(style);
+
+    const modal = document.createElement('div');
+    modal.id = 'tour3dModal';
+    modal.innerHTML = `
+      <!-- Top HUD Bar -->
+      <div class="tour-hud-top">
+        <div class="tour-brand-group">
+          <div class="tour-badge-row">
+            <span class="tour-live-badge">● 360° LIVE VIEW</span>
+            <span class="tour-type-badge" id="tourTypeBadge">360° PHOTOSPHERE</span>
+          </div>
+          <h2 class="tour-spot-title" id="tourSpotTitle">SpotLIGHT 360° Tour</h2>
+          <span class="tour-spot-tag" id="tourSpotTag">Downtown Salt Lake City, UT</span>
+        </div>
+
+        <div class="tour-top-controls">
+          <button type="button" class="tour-hud-btn" id="tourEditModeBtn" title="Place & Edit Navigation Hotspots">
+            <span>✏️</span><span class="hud-btn-lbl">BUILD TOUR</span>
+          </button>
+          <button type="button" class="tour-hud-btn" id="tourAutoRotateBtn" title="Toggle 360 Auto-Pan">
+            <span>🔄</span><span class="hud-btn-lbl">AUTO-PAN</span>
+          </button>
+          <button type="button" class="tour-hud-btn" id="tourGyroBtn" title="Device Gyro Look">
+            <span>🧭</span><span class="hud-btn-lbl">GYRO</span>
+          </button>
+          <button type="button" class="tour-hud-btn" id="tourResetBtn" title="Center View">
+            <span>🎯</span><span class="hud-btn-lbl">CENTER</span>
+          </button>
+          <button type="button" class="tour-hud-btn" id="tourFullscreenBtn" title="Toggle Fullscreen">
+            <span>⛶</span>
+          </button>
+          <a href="#" target="_blank" rel="noopener noreferrer" class="tour-hud-btn" id="tourExternalLaunchBtn" style="display:none;" title="Open in External App">
+            <span>↗</span><span class="hud-btn-lbl">EXTERNAL</span>
+          </a>
+          <button type="button" class="tour-hud-btn tour-close-btn" id="tourCloseBtn" title="Exit 3D Tour">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Editor Action Bar (When in Tour Builder Mode) -->
+      <div class="tour-editor-bar" id="tourEditorBar">
+        <span class="tour-editor-pill">🛠️ TOUR BUILDER</span>
+        <span id="tourCamAnglePill" class="tour-editor-pill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
+        <div class="tour-editor-actions">
+          <button type="button" class="tour-ed-btn" onclick="window.openPlaceHotspotDialog()" title="Place interactive door hotspot at camera angle">
+            📍 PLACE DOOR PIN
+          </button>
+          <button type="button" class="tour-ed-btn" style="background:#FFD23F;color:#14121A;font-weight:900;" onclick="window.open360CameraScanner('new_room')" title="Scan room with your device camera and stitch into 360 photo">
+            📸 360 CAMERA SCAN
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openAddRoomDialog()" title="Add another 360 space">
+            + NEW ROOM
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openEditRoomDialog()" title="Edit current room name, 360 photo, or blurb">
+            ✏️ EDIT THIS ROOM
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-danger" onclick="window.confirmDeleteCurrentRoom()" title="Delete this room from tour">
+            🗑️ DELETE THIS ROOM
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openManageRoomsDialog()" title="View and organize all rooms">
+            📑 ALL ROOMS
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-save" id="tourSaveEveryoneBtn" onclick="window.saveTourChangesToMagazine()" title="Save tour live to cloud for all visitors">
+            💾 SAVE TOUR FOR EVERYONE
+          </button>
+        </div>
+      </div>
+
+      <!-- Main 3D Viewport -->
+      <div class="tour-viewport-container" id="tourViewportContainer">
+        <!-- Three.js Canvas -->
+        <canvas class="tour-3d-canvas" id="tour3dCanvas"></canvas>
+
+        <!-- External Embed Frame (Kuula, ThingLink, Matterport, 360Cities, YouTube VR) -->
+        <iframe class="tour-embed-frame" id="tourEmbedFrame" style="display:none;" allow="xr-spatial-tracking; vr; accelerometer; gyroscope; fullscreen" allowfullscreen></iframe>
+
+        <!-- Hotspots Layer -->
+        <div class="tour-hotspots-layer" id="tourHotspotsLayer"></div>
+
+        <!-- Compass Overlay -->
+        <div class="tour-compass-indicator" id="tourCompass">
+          <span class="compass-dial" id="compassDial">▲ N</span>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="tour-loader" id="tourLoader">
+          <div class="tour-spinner"></div>
+          <div class="tour-loader-text" id="tourLoaderTitle">INITIALIZING 360° SPACE...</div>
+          <div class="tour-loader-sub" id="tourLoaderSub">Rendering realistic spherical photosphere</div>
+        </div>
+
+        <!-- 1. PLACE HOTSPOT DIALOG -->
+        <div class="tour-dialog-overlay" id="tourPlaceHotspotModal" style="display:none;">
+          <div class="tour-dialog-card">
+            <div class="tour-dialog-header">
+              <span class="tour-dialog-title">📍 Place Interactive Hotspot</span>
+              <button type="button" class="tour-dialog-close" onclick="window.closePlaceHotspotDialog()">✕</button>
+            </div>
+            <div class="tour-dialog-body">
+              <div class="tour-dialog-info" id="placeHsAngleInfo">
+                📐 Targeting Camera: Yaw 0°, Pitch 0°
+              </div>
+              <div class="tour-field-group">
+                <label class="tour-field-label">Hotspot Label (Text shown on marker)</label>
+                <input type="text" class="tour-dialog-input" id="newHsLabelInput" placeholder="e.g., 🚪 Step Inside Studio" value="🚪 Step Inside Space">
+                <div class="tour-quick-chips">
+                  <span class="tour-chip" onclick="window.setQuickHsLabel('🚪 Step Inside Studio')">🚪 Step Inside</span>
+                  <span class="tour-chip" onclick="window.setQuickHsLabel('☕ Espresso Bar')">☕ Coffee Bar</span>
+                  <span class="tour-chip" onclick="window.setQuickHsLabel('📍 Mountain View Patio')">📍 Sky Patio</span>
+                  <span class="tour-chip" onclick="window.setQuickHsLabel('🍸 VIP Speakeasy')">🍸 VIP Lounge</span>
+                  <span class="tour-chip" onclick="window.setQuickHsLabel('🚪 Walk Back Outside')">🚪 Walk Back</span>
+                </div>
+              </div>
+              <div class="tour-field-group">
+                <label class="tour-field-label">Destination (Which 360 Room does this open?)</label>
+                <select class="tour-dialog-select" id="newHsTargetSceneSelect"></select>
+              </div>
+            </div>
+            <div class="tour-dialog-footer">
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closePlaceHotspotDialog()">CANCEL</button>
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.confirmPlaceHotspot()">📍 DROP PIN HERE</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. ADD NEW 360 ROOM DIALOG -->
+        <div class="tour-dialog-overlay" id="tourAddRoomModal" style="display:none;">
+          <div class="tour-dialog-card">
+            <div class="tour-dialog-header">
+              <span class="tour-dialog-title">🚪 Add New 360° Room / Space</span>
+              <button type="button" class="tour-dialog-close" onclick="window.closeAddRoomDialog()">✕</button>
+            </div>
+            <div class="tour-dialog-body">
+              <div class="tour-field-group">
+                <label class="tour-field-label">Room / Space Name</label>
+                <input type="text" class="tour-dialog-input" id="newRoomNameInput" placeholder="e.g. VIP Speakeasy & Lounge" value="New 360° Room">
+              </div>
+
+              <!-- Source Tabs -->
+              <div class="tour-source-tabs">
+                <button type="button" class="tour-src-tab active" id="tabBtnUpload" onclick="window.switchAddRoomTab('upload')">📸 Upload 360 Photo</button>
+                <button type="button" class="tour-src-tab" id="tabBtnCamera" onclick="window.switchAddRoomTab('camera')">📷 360 Camera Scan</button>
+                <button type="button" class="tour-src-tab" id="tabBtnPreset" onclick="window.switchAddRoomTab('preset')">🌄 Utah 360 Presets</button>
+                <button type="button" class="tour-src-tab" id="tabBtnUrl" onclick="window.switchAddRoomTab('url')">🔗 Paste 360 URL / Embed</button>
+              </div>
+
+              <!-- Tab 1: Upload File -->
+              <div id="roomTabUpload">
+                <div class="tour-dropzone" onclick="document.getElementById('roomFileInput').click()">
+                  <span class="dropzone-icon">☁️</span>
+                  <span class="dropzone-text">Tap or Drop 360° Equirectangular Photo</span>
+                  <span class="dropzone-hint">JPG, PNG, or WEBP panoramic photos supported</span>
+                  <input type="file" id="roomFileInput" accept="image/*" style="display:none;" onchange="window.handleRoomFileUpload(event)">
+                </div>
+                <div id="roomUploadStatus" class="tour-upload-status" style="display:none;"></div>
+              </div>
+
+              <!-- Tab 1.5: In-Room Camera Scanner -->
+              <div id="roomTabCamera" style="display:none;text-align:center;padding:16px 8px;">
+                <div style="font-size:36px;margin-bottom:8px;">📸</div>
+                <div style="font-size:13px;font-weight:800;color:#FFD23F;margin-bottom:6px;">Scan & Stitch Room with Device Camera</div>
+                <p style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:14px;line-height:1.4;">
+                  Rotate your phone or laptop camera all around the room following target dots (like Teleport/HDReye). Our in-browser engine captures each angle and seamlessly stitches them into a full 360° photosphere!
+                </p>
+                <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" style="background:#FFD23F;color:#14121A;font-size:12px;padding:9px 18px;font-weight:900;" onclick="window.closeAddRoomDialog(); window.open360CameraScanner('new_room');">
+                  ⚡ LAUNCH 360 CAMERA SCANNER
+                </button>
+              </div>
+
+              <!-- Tab 2: Presets -->
+              <div id="roomTabPreset" style="display:none;">
+                <div class="tour-presets-grid" id="presetPanosGrid"></div>
+              </div>
+
+              <!-- Tab 3: URL -->
+              <div id="roomTabUrl" style="display:none;">
+                <div class="tour-field-group">
+                  <label class="tour-field-label">360° Photo URL, Kuula, ThingLink, or Matterport Link</label>
+                  <input type="text" class="tour-dialog-input" id="newRoomUrlInput" placeholder="Paste Kuula, ThingLink, Matterport, or 360° image URL">
+                  <small style="color:rgba(255,255,255,0.6);font-size:10px;">Supports Kuula, ThingLink, 360Cities, Matterport, Momento360, Polycam, YouTube 360, and direct 360 image URLs</small>
+                </div>
+              </div>
+            </div>
+            <div class="tour-dialog-footer">
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeAddRoomDialog()">CANCEL</button>
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.confirmAdd360Room()">🚪 CREATE & STEP INSIDE ROOM</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. EDIT EXISTING 360 ROOM DIALOG -->
+        <div class="tour-dialog-overlay" id="tourEditRoomModal" style="display:none;">
+          <div class="tour-dialog-card">
+            <div class="tour-dialog-header">
+              <span class="tour-dialog-title" id="editRoomModalTitle">✏️ Edit 360° Room</span>
+              <button type="button" class="tour-dialog-close" onclick="window.closeEditRoomDialog()">✕</button>
+            </div>
+            <div class="tour-dialog-body">
+              <input type="hidden" id="editRoomTargetIndex" value="0">
+              
+              <div class="tour-field-group">
+                <label class="tour-field-label">Room / Space Name</label>
+                <input type="text" class="tour-dialog-input" id="editRoomNameInput" placeholder="e.g. VIP Speakeasy & Lounge">
+              </div>
+
+              <div class="tour-field-group">
+                <label class="tour-field-label">Tag / Subtitle</label>
+                <input type="text" class="tour-dialog-input" id="editRoomTagInput" placeholder="e.g. Creative Studio · Interior">
+              </div>
+
+              <div class="tour-field-group">
+                <label class="tour-field-label">Change 360° Photo / Panorama Source</label>
+                <!-- Source Tabs -->
+                <div class="tour-source-tabs">
+                  <button type="button" class="tour-src-tab active" id="editTabBtnUpload" onclick="window.switchEditRoomTab('upload')">📸 Upload New 360</button>
+                  <button type="button" class="tour-src-tab" id="editTabBtnCamera" onclick="window.switchEditRoomTab('camera')">📷 360 Camera Scan</button>
+                  <button type="button" class="tour-src-tab" id="editTabBtnPreset" onclick="window.switchEditRoomTab('preset')">🌄 Utah Presets</button>
+                  <button type="button" class="tour-src-tab" id="editTabBtnUrl" onclick="window.switchEditRoomTab('url')">🔗 Paste URL / Embed</button>
+                </div>
+
+                <!-- Tab 1: Upload File -->
+                <div id="editRoomTabUpload">
+                  <div class="tour-dropzone" onclick="document.getElementById('editRoomFileInput').click()">
+                    <span class="dropzone-icon">☁️</span>
+                    <span class="dropzone-text">Tap or Drop New 360° Photo</span>
+                    <span class="dropzone-hint">Uploads directly to your Supabase Cloud Storage</span>
+                    <input type="file" id="editRoomFileInput" accept="image/*" style="display:none;" onchange="window.handleEditRoomFileUpload(event)">
+                  </div>
+                  <div id="editRoomUploadStatus" class="tour-upload-status" style="display:none;"></div>
+                </div>
+
+                <!-- Tab 1.5: In-Room Camera Scanner -->
+                <div id="editRoomTabCamera" style="display:none;text-align:center;padding:16px 8px;">
+                  <div style="font-size:36px;margin-bottom:8px;">📸</div>
+                  <div style="font-size:13px;font-weight:800;color:#FFD23F;margin-bottom:6px;">Re-Scan This Room with Camera</div>
+                  <p style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:14px;line-height:1.4;">
+                    Take pictures all around the space to replace this room's 360° photo with a fresh real-time stitched photosphere.
+                  </p>
+                  <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" style="background:#FFD23F;color:#14121A;font-size:12px;padding:9px 18px;font-weight:900;" onclick="window.closeEditRoomDialog(); window.open360CameraScanner('replace_room');">
+                    ⚡ LAUNCH 360 CAMERA SCANNER
+                  </button>
+                </div>
+
+                <!-- Tab 2: Presets -->
+                <div id="editRoomTabPreset" style="display:none;">
+                  <div class="tour-presets-grid" id="editPresetPanosGrid"></div>
+                </div>
+
+                <!-- Tab 3: URL -->
+                <div id="editRoomTabUrl" style="display:none;">
+                  <input type="text" class="tour-dialog-input" id="editRoomUrlInput" placeholder="Paste Kuula, ThingLink, Matterport, or 360° image URL">
+                  <small style="color:rgba(255,255,255,0.6);font-size:10px;margin-top:4px;display:block;">Supports Kuula, ThingLink, 360Cities, Matterport, Momento360, Polycam, YouTube 360, and direct 360 image URLs</small>
+                </div>
+              </div>
+
+              <div class="tour-field-group">
+                <label class="tour-field-label">Description / Blurb</label>
+                <textarea class="tour-dialog-input" id="editRoomBlurbInput" rows="2" placeholder="Brief blurb about this 360° space..."></textarea>
+              </div>
+
+              <!-- Hotspots in this room -->
+              <div class="tour-field-group">
+                <label class="tour-field-label" style="display:flex;justify-content:space-between;align-items:center;">
+                  <span>🚪 Doors / Hotspots in This Room (<span id="editRoomHsCount">0</span>)</span>
+                </label>
+                <div id="editRoomHotspotsList" style="max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;"></div>
+              </div>
+            </div>
+            <div class="tour-dialog-footer" style="justify-content:space-between;">
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-danger" id="editRoomDeleteBtn" onclick="window.confirmDeleteFromEditModal()" title="Delete this room permanently">
+                🗑️ DELETE THIS ROOM
+              </button>
+              <div style="display:flex;gap:8px;">
+                <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeEditRoomDialog()">CANCEL</button>
+                <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.confirmSaveEditRoom()">💾 SAVE ROOM CHANGES</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. MANAGE ALL ROOMS DIALOG -->
+        <div class="tour-dialog-overlay" id="tourManageRoomsModal" style="display:none;">
+          <div class="tour-dialog-card" style="max-width:520px;">
+            <div class="tour-dialog-header">
+              <span class="tour-dialog-title">📑 All 360° Rooms in Tour</span>
+              <button type="button" class="tour-dialog-close" onclick="window.closeManageRoomsDialog()">✕</button>
+            </div>
+            <div class="tour-dialog-body">
+              <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px;">
+                Switch to any room, edit details & 360 photos, or delete old/messed up rooms:
+              </div>
+              <div id="manageRoomsList" style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto;"></div>
+            </div>
+            <div class="tour-dialog-footer" style="justify-content:space-between;">
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" style="background:#06D6A0;color:#0d1b1e;" onclick="window.closeManageRoomsDialog(); window.openAddRoomDialog();">
+                + ADD ANOTHER ROOM
+              </button>
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeManageRoomsDialog()">CLOSE</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. ADMIN AUTH DIALOG FOR SAVING TO CLOUD -->
+        <div class="tour-dialog-overlay" id="tourAdminAuthModal" style="display:none;">
+          <div class="tour-dialog-card" style="border-color:#FFD23F;max-width:440px;">
+            <div class="tour-dialog-header">
+              <span class="tour-dialog-title" style="color:#FFD23F;">🔐 Save Tour Live to Cloud</span>
+              <button type="button" class="tour-dialog-close" onclick="window.closeTourAdminAuthModal()">✕</button>
+            </div>
+            <div class="tour-dialog-body">
+              <div style="font-size:12px;color:rgba(255,255,255,0.9);line-height:1.5;">
+                To publish this 360° Walkthrough live to Supabase Cloud for all visitors across the world, enter your administrator password:
+              </div>
+              <div class="tour-field-group" style="margin-top:6px;">
+                <label class="tour-field-label">Admin Password</label>
+                <input type="password" class="tour-dialog-input" id="tourAdminPasswordInput" placeholder="Enter admin password..." onkeydown="if(event.key==='Enter') window.submitTourAdminUnlock()">
+              </div>
+              <div id="tourAdminAuthStatus" style="display:none;font-size:11px;padding:6px 10px;border-radius:6px;"></div>
+            </div>
+            <div class="tour-dialog-footer">
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeTourAdminAuthModal()">CANCEL</button>
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" id="tourAdminUnlockBtn" style="background:#FFD23F;color:#14121A;font-weight:900;" onclick="window.submitTourAdminUnlock()">
+                🔐 UNLOCK & SAVE TO CLOUD
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. EDIT / DELETE HOTSPOT MODAL -->
+        <div class="tour-dialog-overlay" id="tourEditHotspotModal" style="display:none;">
+          <div class="tour-dialog-card">
+            <div class="tour-dialog-header">
+              <span class="tour-dialog-title">✏️ Edit Hotspot Pin</span>
+              <button type="button" class="tour-dialog-close" onclick="window.closeEditHotspotDialog()">✕</button>
+            </div>
+            <div class="tour-dialog-body">
+              <input type="hidden" id="editHsIndex" value="-1">
+              <div class="tour-field-group">
+                <label class="tour-field-label">Label</label>
+                <input type="text" class="tour-dialog-input" id="editHsLabelInput">
+              </div>
+              <div class="tour-field-group">
+                <label class="tour-field-label">Target Room</label>
+                <select class="tour-dialog-select" id="editHsTargetSceneSelect"></select>
+              </div>
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-secondary" onclick="window.realignHotspotToCurrentCamera()">
+                🎯 Re-Align to Current View Angle
+              </button>
+            </div>
+            <div class="tour-dialog-footer" style="justify-content:space-between;">
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-danger" onclick="window.confirmDeleteHotspot()">🗑️ DELETE HOTSPOT</button>
+              <div style="display:flex;gap:8px;">
+                <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeEditHotspotDialog()">CANCEL</button>
+                <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.saveHotspotEdit()">SAVE</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. IN-ROOM 360 CAMERA SCANNER & EQUIRECTANGULAR STITCHER MODAL -->
+        <div class="tour-dialog-overlay" id="tourCameraScanModal" style="display:none; z-index:100; padding:0; background:rgba(0,0,0,0.95);">
+          <div class="tour-camera-scanner-container">
+            <!-- Scanner Header -->
+            <div class="scan-header">
+              <div class="scan-header-left">
+                <span class="scan-title">📸 360° ROOM SCANNER & STITCHER</span>
+                <span class="scan-pill" id="scanSensorModePill">📳 GYRO SENSOR ACTIVE</span>
+                <span class="scan-pill" id="scanAnglePill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
+              </div>
+              <div class="scan-header-right">
+                <button type="button" class="scan-btn-small" onclick="window.toggleCameraFacingMode()" title="Switch Front/Rear Camera">
+                  🔄 SWITCH CAMERA
+                </button>
+                <button type="button" class="scan-btn-close" onclick="window.close360CameraScanner()">✕</button>
+              </div>
+            </div>
+
+            <!-- Viewfinder Area -->
+            <div class="scan-viewfinder-area" id="scanViewfinderArea">
+              <!-- Live Video Feed -->
+              <video id="scanVideoFeed" autoplay playsinline muted></video>
+              <canvas id="scanWorkCanvas" style="display:none;"></canvas>
+
+              <!-- Target Reticle & 360 Orbit Nodes Overlay -->
+              <div class="scan-reticle-overlay" id="scanReticleOverlay">
+                <!-- Center Target Ring -->
+                <div class="scan-center-ring" id="scanCenterRing">
+                  <div class="scan-crosshair-h"></div>
+                  <div class="scan-crosshair-v"></div>
+                  <div class="scan-center-dot"></div>
+                  <span class="scan-ring-status" id="scanRingStatus">ROTATE PHONE TO DOT</span>
+                </div>
+
+                <!-- 360 Target Node Dots Layer -->
+                <div class="scan-nodes-layer" id="scanNodesLayer"></div>
+
+                <!-- Guidance Arrow -->
+                <div class="scan-guide-arrow" id="scanGuideArrow">
+                  <span class="guide-arrow-icon" id="scanGuideIcon">➔</span>
+                  <span class="guide-arrow-text" id="scanGuideText">Rotate camera to align with golden target dots</span>
+                </div>
+
+                <!-- Flash Animation -->
+                <div class="scan-flash-fx" id="scanFlashFx"></div>
+              </div>
+
+              <!-- Live Floating Stats -->
+              <div class="scan-floating-hud">
+                <div class="scan-progress-box">
+                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 12 ANGLES CAPTURED (0%)</span>
+                  <div class="scan-progress-bar-bg">
+                    <div class="scan-progress-bar-fill" id="scanProgressBarFill" style="width:0%;"></div>
+                  </div>
+                </div>
+                <div class="scan-auto-snap-toggle" onclick="window.toggleAutoCaptureOnAlign()">
+                  <input type="checkbox" id="scanAutoSnapCheck" checked>
+                  <label for="scanAutoSnapCheck" style="cursor:pointer;font-size:11px;font-weight:700;">⚡ Auto-Snap on Align</label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Panoramic Stitched Strip Preview -->
+            <div class="scan-ribbon-section">
+              <div class="scan-ribbon-header">
+                <span style="font-size:11px;font-weight:800;color:#FFD23F;">🖼️ LIVE 360° EQUIRECTANGULAR PANORAMA PREVIEW</span>
+                <span style="font-size:10px;color:rgba(255,255,255,0.6);" id="scanRibbonHint">Watch your room seamlessly stitch together in real-time</span>
+              </div>
+              <div class="scan-strip-container">
+                <canvas id="panoStitchPreviewCanvas" width="1024" height="200"></canvas>
+              </div>
+              <!-- Angle Slots Ribbon -->
+              <div class="scan-slots-track" id="scanSlotsTrack"></div>
+            </div>
+
+            <!-- Bottom Action Controls -->
+            <div class="scan-bottom-bar">
+              <div class="scan-bottom-left">
+                <button type="button" class="scan-ctrl-btn scan-btn-danger" onclick="window.resetCurrent360Scan()">
+                  🗑️ RESET SCAN
+                </button>
+                <button type="button" class="scan-ctrl-btn" onclick="window.manualStepAngle(-30)">
+                  ◀ PREV ANGLE
+                </button>
+                <button type="button" class="scan-ctrl-btn" onclick="window.manualStepAngle(30)">
+                  NEXT ANGLE ▶
+                </button>
+              </div>
+
+              <div class="scan-bottom-center">
+                <button type="button" class="scan-shutter-btn" id="scanShutterBtn" onclick="window.captureCurrentScanAngle()">
+                  <span class="shutter-inner">📸</span>
+                  <span class="shutter-text">SNAP ANGLE</span>
+                </button>
+              </div>
+
+              <div class="scan-bottom-right">
+                <button type="button" class="scan-ctrl-btn scan-btn-success" id="scanFinishUseBtn" onclick="window.finishAndUse360Stitch()">
+                  ✨ STITCH & USE 360° ROOM (SAVE)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom HUD Controls & Room Switcher -->
+      <div class="tour-hud-bottom">
+        <div class="tour-scene-selector" id="tourSceneSelector"></div>
+        <div class="tour-gesture-hint" id="tourGestureHint">
+          <span>👆 Drag to Look Around</span>
+          <span>•</span>
+          <span>🚪 Tap Door Markers to Walk Through</span>
+          <span>•</span>
+          <span>🔍 Pinch or Scroll to Zoom</span>
+        </div>
+        <div class="tour-bottom-actions">
+          <div class="tour-zoom-pill" id="tourZoomPill">
+            <button type="button" class="zoom-btn" id="tourZoomOut" title="Zoom Out">−</button>
+            <span class="zoom-level" id="tourZoomLevel">75%</span>
+            <button type="button" class="zoom-btn" id="tourZoomIn" title="Zoom In">+</button>
+          </div>
+          <a href="#" target="_blank" rel="noopener noreferrer" class="tour-cta-btn" id="tourCtaBtn" style="display:none;">
+            VISIT WEBSITE ↗
+          </a>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    bindViewerEvents();
   }
 
+  /**
+   * Event Listeners & Interaction Binding
+   */
   function bindViewerEvents() {
     const modal = document.getElementById('tour3dModal');
     if (!modal) return;
@@ -961,6 +2202,7 @@
     const closeBtn = document.getElementById('tourCloseBtn');
     const autoRotateBtn = document.getElementById('tourAutoRotateBtn');
     const gyroBtn = document.getElementById('tourGyroBtn');
+    const editModeBtn = document.getElementById('tourEditModeBtn');
     const resetBtn = document.getElementById('tourResetBtn');
     const fullscreenBtn = document.getElementById('tourFullscreenBtn');
     const zoomInBtn = document.getElementById('tourZoomIn');
@@ -968,6 +2210,7 @@
     const container = document.getElementById('tourViewportContainer');
 
     if (closeBtn) closeBtn.onclick = () => window.close3dTourModal();
+    if (editModeBtn) editModeBtn.onclick = () => window.toggleTourEditorMode();
 
     window.addEventListener('keydown', (e) => {
       if (!modal.classList.contains('active')) return;
@@ -980,9 +2223,9 @@
         targetYaw += 15;
         isAutoRotating = false;
       } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-        targetPitch = Math.min(80, targetPitch + 10);
+        targetPitch = Math.min(85, targetPitch + 10);
       } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
-        targetPitch = Math.max(-80, targetPitch - 10);
+        targetPitch = Math.max(-85, targetPitch - 10);
       } else if (e.key === '+' || e.key === '=') {
         adjustZoom(-8);
       } else if (e.key === '-' || e.key === '_') {
@@ -1048,7 +2291,7 @@
 
     if (container) {
       container.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.tour-hotspot-pin') || e.target.closest('button') || e.target.closest('iframe')) return;
+        if (e.target.closest('.tour-hotspot-pin') || e.target.closest('button') || e.target.closest('iframe') || e.target.closest('.tour-dialog-overlay')) return;
         isDragging = true;
         isAutoRotating = false;
         startX = e.clientX;
@@ -1066,9 +2309,9 @@
         lastX = e.clientX;
         lastY = e.clientY;
 
-        const sensitivity = fov / 480;
+        const sensitivity = fov / 500;
         targetYaw -= dx * sensitivity;
-        targetPitch = Math.max(-80, Math.min(80, targetPitch + dy * sensitivity));
+        targetPitch = Math.max(-85, Math.min(85, targetPitch + dy * sensitivity));
 
         velX = -dx * sensitivity;
         velY = dy * sensitivity;
@@ -1085,7 +2328,7 @@
       }, { passive: false });
 
       container.addEventListener('touchstart', (e) => {
-        if (e.target.closest('.tour-hotspot-pin') || e.target.closest('button') || e.target.closest('iframe')) return;
+        if (e.target.closest('.tour-hotspot-pin') || e.target.closest('button') || e.target.closest('iframe') || e.target.closest('.tour-dialog-overlay')) return;
         isAutoRotating = false;
 
         if (e.touches.length === 1) {
@@ -1096,7 +2339,6 @@
           lastY = startY;
           velX = 0;
           velY = 0;
-          lastPinchDist = null;
         } else if (e.touches.length === 2) {
           isDragging = false;
           lastPinchDist = Math.hypot(
@@ -1107,20 +2349,15 @@
       }, { passive: true });
 
       container.addEventListener('touchmove', (e) => {
-        if (e.touches.length === 1 && isDragging) {
-          const x = e.touches[0].clientX;
-          const y = e.touches[0].clientY;
-          const dx = x - lastX;
-          const dy = y - lastY;
-          lastX = x;
-          lastY = y;
+        if (isDragging && e.touches.length === 1) {
+          const dx = e.touches[0].clientX - lastX;
+          const dy = e.touches[0].clientY - lastY;
+          lastX = e.touches[0].clientX;
+          lastY = e.touches[0].clientY;
 
-          const sensitivity = fov / 440;
+          const sensitivity = fov / 500;
           targetYaw -= dx * sensitivity;
-          targetPitch = Math.max(-80, Math.min(80, targetPitch + dy * sensitivity));
-
-          velX = -dx * sensitivity;
-          velY = dy * sensitivity;
+          targetPitch = Math.max(-85, Math.min(85, targetPitch + dy * sensitivity));
         } else if (e.touches.length === 2 && lastPinchDist !== null) {
           const dist = Math.hypot(
             e.touches[0].clientX - e.touches[1].clientX,
@@ -1137,17 +2374,10 @@
         lastPinchDist = null;
       }, { passive: true });
 
-      if (typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => {
-          resizeCanvas();
-        });
-        resizeObserver.observe(container);
-      }
+      window.addEventListener('resize', () => {
+        resizeThreeViewport();
+      });
     }
-
-    window.addEventListener('resize', () => {
-      resizeCanvas();
-    });
   }
 
   function adjustZoom(delta) {
@@ -1183,64 +2413,56 @@
 
     const orientation = window.orientation || 0;
     if (orientation === 0) {
-      targetPitch = Math.max(-80, Math.min(80, beta - 45));
+      targetPitch = Math.max(-85, Math.min(85, beta - 45));
       targetYaw += gamma * 0.05;
     } else if (orientation === 90) {
-      targetPitch = Math.max(-80, Math.min(80, -gamma));
+      targetPitch = Math.max(-85, Math.min(85, -gamma));
       targetYaw += beta * 0.05;
     } else if (orientation === -90) {
-      targetPitch = Math.max(-80, Math.min(80, gamma));
+      targetPitch = Math.max(-85, Math.min(85, gamma));
       targetYaw -= beta * 0.05;
     }
   }
 
-  function resizeCanvas() {
-    if (!canvas) canvas = document.getElementById('tour3dCanvas');
-    if (!canvas) return;
+  function resizeThreeViewport() {
     const container = document.getElementById('tourViewportContainer');
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    
-    let rectW = 0;
-    let rectH = 0;
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      rectW = rect.width;
-      rectH = rect.height;
-    }
-    if (!rectW || !rectH) {
-      rectW = window.innerWidth || 800;
-      rectH = window.innerHeight || 600;
-    }
+    if (!container) return;
 
-    const w = Math.max(100, Math.floor(rectW * dpr));
-    const h = Math.max(100, Math.floor(rectH * dpr));
+    const rect = container.getBoundingClientRect();
+    const width = Math.max(100, Math.floor(rect.width || window.innerWidth || 800));
+    const height = Math.max(100, Math.floor(rect.height || window.innerHeight || 600));
 
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
+    if (threeRenderer && threeCamera) {
+      threeRenderer.setSize(width, height);
+      threeCamera.aspect = width / height;
+      threeCamera.updateProjectionMatrix();
     }
   }
 
   /**
-   * High-Performance 360° Equirectangular Sphere Projection Renderer
+   * Main High-Performance Animation Loop
    */
   function renderFrame() {
-    if (!canvas) canvas = document.getElementById('tour3dCanvas');
-    if (!canvas) return;
-
-    const embedFrame = document.getElementById('tourEmbedFrame');
-    if (embedFrame && embedFrame.style.display === 'block') {
-      // Embed iframe active: do not render WebGL/Canvas loop
+    const modal = document.getElementById('tour3dModal');
+    if (!modal || !modal.classList.contains('active')) {
+      animFrameId = null;
       return;
     }
 
-    if (canvas.width <= 10 || canvas.height <= 10) {
-      resizeCanvas();
+    const embedFrame = document.getElementById('tourEmbedFrame');
+    if (embedFrame && embedFrame.style.display === 'block') {
+      animFrameId = requestAnimationFrame(renderFrame);
+      return;
     }
 
-    yaw += (targetYaw - yaw) * 0.14;
-    pitch += (targetPitch - pitch) * 0.14;
-    fov += (targetFov - fov) * 0.14;
+    if (!threeRenderer || !threeCamera || !threeScene) {
+      initThreeEngine();
+    }
+
+    // Smooth Camera Inertia
+    yaw += (targetYaw - yaw) * 0.15;
+    pitch += (targetPitch - pitch) * 0.15;
+    fov += (targetFov - fov) * 0.15;
 
     if (isAutoRotating && !isDragging && !gyroEnabled) {
       targetYaw += autoRotateSpeed;
@@ -1255,157 +2477,169 @@
       compassDial.style.transform = `rotate(${Math.round(yaw)}deg)`;
     }
 
-    const w = canvas.width || 800;
-    const h = canvas.height || 600;
-
-    if (!ctx) ctx = canvas.getContext('2d');
-
-    const renderImg = (imageLoaded && currentImage) ? currentImage : getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-main');
-
-    if (renderImg) {
-      const imgW = renderImg.naturalWidth || renderImg.width || 2048;
-      const imgH = renderImg.naturalHeight || renderImg.height || 1024;
-
-      const fovH = fov * (Math.PI / 180);
-      const fovV = fovH * (h / w);
-
-      const normYaw = ((yaw + 180) % 360 + 360) % 360;
-      const centerU = normYaw / 360;
-      const clampedPitch = Math.max(-80, Math.min(80, pitch));
-      const centerV = 0.5 - (clampedPitch / 180);
-
-      const spanU = Math.min(0.99, fovH / (2 * Math.PI));
-      const spanV = Math.min(0.92, fovV / Math.PI);
-
-      const srcW = spanU * imgW;
-      const srcH = spanV * imgH;
-      const srcX = (centerU * imgW) - (srcW / 2);
-      const srcY = Math.max(0, Math.min(imgH - srcH, (centerV * imgH) - (srcH / 2)));
-
-      ctx.clearRect(0, 0, w, h);
-
-      if (srcX < 0) {
-        const leftWidth = -srcX;
-        const leftRatio = leftWidth / srcW;
-        ctx.drawImage(
-          renderImg,
-          imgW - leftWidth, srcY, leftWidth, srcH,
-          0, 0, w * leftRatio, h
-        );
-        ctx.drawImage(
-          renderImg,
-          0, srcY, srcW - leftWidth, srcH,
-          w * leftRatio, 0, w * (1 - leftRatio), h
-        );
-      } else if (srcX + srcW > imgW) {
-        const rightWidth = (srcX + srcW) - imgW;
-        const mainWidth = srcW - rightWidth;
-        const mainRatio = mainWidth / srcW;
-        ctx.drawImage(
-          renderImg,
-          srcX, srcY, mainWidth, srcH,
-          0, 0, w * mainRatio, h
-        );
-        ctx.drawImage(
-          renderImg,
-          0, srcY, rightWidth, srcH,
-          w * mainRatio, 0, w * (1 - mainRatio), h
-        );
-      } else {
-        ctx.drawImage(
-          renderImg,
-          srcX, srcY, srcW, srcH,
-          0, 0, w, h
-        );
-      }
-
-      const grad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.max(w, h) * 0.88);
-      grad.addColorStop(0, 'rgba(0,0,0,0)');
-      grad.addColorStop(1, 'rgba(8,6,12,0.3)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, w, h);
-
-    } else {
-      ctx.fillStyle = '#14121A';
-      ctx.fillRect(0, 0, w, h);
+    const camAnglePill = document.getElementById('tourCamAnglePill');
+    if (camAnglePill && isEditorMode) {
+      camAnglePill.textContent = `YAW: ${Math.round(yaw)}° · PITCH: ${Math.round(pitch)}° · FOV: ${Math.round(fov)}°`;
     }
 
-    updateHotspotsPositions(w, h);
+    if (threeCamera && threeRenderer && threeScene) {
+      threeCamera.fov = fov;
+      threeCamera.updateProjectionMatrix();
+
+      // Convert spherical yaw & pitch to 3D Cartesian look-at vector
+      const phi = THREE.MathUtils.degToRad(90 - pitch);
+      const theta = THREE.MathUtils.degToRad(yaw);
+
+      const target = new THREE.Vector3(
+        500 * Math.sin(phi) * Math.cos(theta),
+        500 * Math.cos(phi),
+        500 * Math.sin(phi) * Math.sin(theta)
+      );
+
+      threeCamera.lookAt(target);
+      threeRenderer.render(threeScene, threeCamera);
+
+      // Project Hotspot 3D Vectors onto 2D Screen with Zero Distortion
+      updateHotspotPositions3D(threeCamera);
+    }
 
     animFrameId = requestAnimationFrame(renderFrame);
   }
 
-  function updateHotspotsPositions() {
+  /**
+   * Synchronizes Persistent Hotspot DOM Nodes (Called on Scene Load / Edit)
+   */
+  function syncHotspotsDom() {
     const layer = document.getElementById('tourHotspotsLayer');
     if (!layer) return;
+    layer.innerHTML = '';
 
-    const currentScene = activeSceneList[activeSceneIndex];
-    if (!currentScene || !currentScene.hotspots || currentScene.hotspots.length === 0) {
-      layer.innerHTML = '';
-      return;
-    }
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene || !Array.isArray(curScene.hotspots)) return;
 
-    const container = document.getElementById('tourViewportContainer');
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
+    curScene.hotspots.forEach((hs, idx) => {
+      const pin = document.createElement('div');
+      pin.className = 'tour-hotspot-pin' + (isEditorMode ? ' editor-pin' : '');
+      pin.dataset.hsIndex = idx;
+      pin.style.display = 'none';
 
-    const fovH = fov * (Math.PI / 180);
-    const fovV = fovH * (rect.height / rect.width);
+      const pulse = document.createElement('span');
+      pulse.className = 'tour-hotspot-pulse';
+      pin.appendChild(pulse);
 
-    let html = '';
-    currentScene.hotspots.forEach((hs) => {
-      let dYaw = hs.yaw - yaw;
-      while (dYaw > 180) dYaw -= 360;
-      while (dYaw < -180) dYaw += 360;
+      const lbl = document.createElement('span');
+      lbl.textContent = hs.label;
+      pin.appendChild(lbl);
 
-      const dPitch = hs.pitch - pitch;
+      if (isEditorMode) {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'hotspot-del-btn';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Delete Hotspot';
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          window.deleteHotspot(idx, e);
+        };
+        pin.appendChild(delBtn);
 
-      const radYaw = dYaw * (Math.PI / 180);
-      const radPitch = dPitch * (Math.PI / 180);
-
-      if (Math.abs(radYaw) < fovH / 1.7 && Math.abs(radPitch) < fovV / 1.7) {
-        const screenX = (rect.width / 2) + (radYaw / fovH) * rect.width;
-        const screenY = (rect.height / 2) - (radPitch / fovV) * rect.height;
-
-        html += `
-          <div class="tour-hotspot-pin" style="left:${screenX}px; top:${screenY}px;" onclick="window.switchTourScene('${hs.targetScene}')">
-            <span class="tour-hotspot-pulse"></span>
-            <span>${hs.label}</span>
-          </div>
-        `;
+        pin.onclick = (e) => {
+          if (e.target.closest('.hotspot-del-btn')) return;
+          window.editHotspotDetails(idx, e);
+        };
+      } else {
+        pin.onclick = (e) => {
+          e.stopPropagation();
+          window.switchTourScene(hs.targetScene);
+        };
       }
-    });
 
-    layer.innerHTML = html;
+      layer.appendChild(pin);
+    });
   }
 
-  function loadScene(sceneIndex) {
-    if (sceneIndex < 0 || sceneIndex >= activeSceneList.length) sceneIndex = 0;
-    activeSceneIndex = sceneIndex;
-    const scene = activeSceneList[sceneIndex];
-    if (!scene) return;
+  /**
+   * Updates Hotspot Screen Coordinates with 3D Vector Math
+   */
+  function updateHotspotPositions3D(camera) {
+    const layer = document.getElementById('tourHotspotsLayer');
+    const container = document.getElementById('tourViewportContainer');
+    if (!layer || !container) return;
 
-    const loader = document.getElementById('tourLoader');
-    const loaderTitle = document.getElementById('tourLoaderTitle');
-    const loaderSub = document.getElementById('tourLoaderSub');
-    if (loader) loader.classList.remove('hidden');
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene || !Array.isArray(curScene.hotspots)) return;
+
+    const rect = container.getBoundingClientRect();
+    const w = rect.width || window.innerWidth;
+    const h = rect.height || window.innerHeight;
+    const pins = layer.querySelectorAll('.tour-hotspot-pin');
+
+    curScene.hotspots.forEach((hs, idx) => {
+      const pin = pins[idx];
+      if (!pin) return;
+
+      const phi = THREE.MathUtils.degToRad(90 - hs.pitch);
+      const theta = THREE.MathUtils.degToRad(hs.yaw);
+
+      const v = new THREE.Vector3(
+        500 * Math.sin(phi) * Math.cos(theta),
+        500 * Math.cos(phi),
+        500 * Math.sin(phi) * Math.sin(theta)
+      );
+
+      // Project onto Camera Screen Space (-1 to +1)
+      v.project(camera);
+
+      // Check if within view frustum in front of camera
+      if (v.z < 1) {
+        const screenX = (v.x * 0.5 + 0.5) * w;
+        const screenY = (-v.y * 0.5 + 0.5) * h;
+
+        if (screenX >= -80 && screenX <= w + 80 && screenY >= -80 && screenY <= h + 80) {
+          pin.style.display = 'inline-flex';
+          pin.style.left = `${screenX}px`;
+          pin.style.top = `${screenY}px`;
+        } else {
+          pin.style.display = 'none';
+        }
+      } else {
+        pin.style.display = 'none';
+      }
+    });
+  }
+
+  /**
+   * Loads a Scene into View
+   */
+  function loadScene(index) {
+    if (!activeSceneList || activeSceneList.length === 0) return;
+    if (index < 0) index = 0;
+    if (index >= activeSceneList.length) index = activeSceneList.length - 1;
+
+    activeSceneIndex = index;
+    const scene = activeSceneList[index];
+    if (!scene) return;
 
     const titleEl = document.getElementById('tourSpotTitle');
     const tagEl = document.getElementById('tourSpotTag');
-    const badgeEl = document.getElementById('tourProviderBadge');
-    const ctaEl = document.getElementById('tourCtaLink');
+    const badgeEl = document.getElementById('tourTypeBadge');
+    const ctaEl = document.getElementById('tourCtaBtn');
     const externalLaunchBtn = document.getElementById('tourExternalLaunchBtn');
+    const loader = document.getElementById('tourLoader');
+    const loaderTitle = document.getElementById('tourLoaderTitle');
+    const loaderSub = document.getElementById('tourLoaderSub');
     const compassEl = document.getElementById('tourCompass');
     const zoomPill = document.getElementById('tourZoomPill');
     const gestureHint = document.getElementById('tourGestureHint');
+    const embedFrame = document.getElementById('tourEmbedFrame');
+    const canvasEl = document.getElementById('tour3dCanvas');
 
-    const rawTour = scene.tourUrl || currentTourData?.tourUrl || scene.panoUrl || currentTourData?.panoUrl || '';
-    const norm = normalize3dTourUrl(rawTour);
+    const norm = normalize3dTourUrl(scene.tourUrl || scene.panoUrl || currentTourData?.tourUrl || currentTourData?.panoUrl || '');
 
-    if (titleEl) titleEl.textContent = scene.name || currentTourData?.title || '360° Location Scan';
-    if (tagEl) tagEl.textContent = `📍 ${scene.location || 'Wasatch Front, UT'} · ${scene.tag || norm.provider || '360° Spatial Scan'}`;
-    if (badgeEl) badgeEl.textContent = norm.provider && norm.provider !== 'none' ? `360° ${norm.provider.toUpperCase()} SPACE` : '360° 3D IMMERSIVE SPACE';
+    if (titleEl) titleEl.textContent = scene.name || currentTourData?.title || 'SpotLIGHT 360° Space';
+    if (tagEl) tagEl.textContent = `📍 ${scene.location || 'Wasatch Front, UT'} · ${scene.tag || norm.provider || '360° Spatial Photosphere'}`;
+    if (badgeEl) badgeEl.textContent = norm.provider && norm.provider !== 'none' ? `360° ${norm.provider.toUpperCase()}` : '360° PHOTOSPHERE';
 
     if (ctaEl) {
       if (currentTourData?.link && currentTourData.link !== '#') {
@@ -1417,7 +2651,6 @@
       }
     }
 
-    // Direct external launch button for provider links
     if (externalLaunchBtn) {
       const orig = scene.originalUrl || norm.originalUrl || norm.url;
       if (orig && (orig.startsWith('http://') || orig.startsWith('https://'))) {
@@ -1431,11 +2664,8 @@
 
     renderSceneSelector();
 
-    const embedFrame = document.getElementById('tourEmbedFrame');
-    const canvasEl = document.getElementById('tour3dCanvas');
-
     if (norm.isEmbed) {
-      // External 360 / VR Embed (360Cities, Kuula, Matterport, Polycam, etc.)
+      // 1. External Embed (Kuula, ThingLink, Matterport, 360Cities, Momento360, YouTube VR)
       if (loaderTitle) loaderTitle.textContent = `LOADING ${norm.provider.toUpperCase()} 360°...`;
       if (loaderSub) loaderSub.textContent = 'Launching interactive immersive viewer';
 
@@ -1452,21 +2682,14 @@
           if (loader) loader.classList.add('hidden');
         };
 
-        // Safety timeout in case provider iframe blocks onload event
         setTimeout(() => {
           if (loader) loader.classList.add('hidden');
         }, 1200);
       }
-
-      // Stop canvas animation frame
-      if (animFrameId) {
-        cancelAnimationFrame(animFrameId);
-        animFrameId = null;
-      }
       return;
     }
 
-    // Equirectangular 360° Photo / Canvas Sphere
+    // 2. Three.js High-Definition 360 Photosphere
     if (compassEl) compassEl.style.display = 'flex';
     if (zoomPill) zoomPill.style.display = 'inline-flex';
     if (gestureHint) gestureHint.style.display = 'flex';
@@ -1479,27 +2702,19 @@
       canvasEl.style.display = 'block';
     }
 
-    currentImage = getSceneProceduralCanvas(scene.id);
-    imageLoaded = true;
-
-    if (loader) {
-      setTimeout(() => loader.classList.add('hidden'), 200);
-    }
+    initThreeEngine();
+    resizeThreeViewport();
 
     const targetUrl = norm.isImage ? norm.url : (scene.panoUrl || currentTourData?.panoUrl);
-    if (targetUrl && targetUrl !== currentPanoUrl && (targetUrl.startsWith('http') || targetUrl.startsWith('data:') || targetUrl.startsWith('blob:') || targetUrl.startsWith('/'))) {
+    if (targetUrl && (targetUrl.startsWith('http') || targetUrl.startsWith('data:') || targetUrl.startsWith('blob:') || targetUrl.startsWith('/'))) {
       currentPanoUrl = targetUrl;
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        currentImage = img;
-        imageLoaded = true;
-      };
-      img.onerror = () => {
-        currentImage = getSceneProceduralCanvas(scene.id);
-      };
-      img.src = targetUrl;
+      loadThreePanoTexture(targetUrl);
+    } else {
+      const procCanvas = getSceneProceduralCanvas(scene.id);
+      loadThreePanoTexture(procCanvas);
     }
+
+    syncHotspotsDom();
 
     if (!animFrameId) {
       animFrameId = requestAnimationFrame(renderFrame);
@@ -1510,123 +2725,1715 @@
     const sel = document.getElementById('tourSceneSelector');
     if (!sel) return;
 
-    if (activeSceneList.length <= 1) {
+    if (activeSceneList.length <= 1 && !isEditorMode) {
       sel.style.display = 'none';
       return;
     }
 
     sel.style.display = 'flex';
-    sel.innerHTML = activeSceneList.map((sc, idx) => `
-      <button type="button" class="tour-scene-pill ${idx === activeSceneIndex ? 'active' : ''}" onclick="window.setTourSceneIndex(${idx})">
-        ${sc.name.split('·')[1]?.trim() || sc.name}
+    sel.innerHTML = activeSceneList.map((sc, i) => `
+      <div class="tour-scene-pill-wrap">
+        <button type="button" class="tour-scene-pill ${i === activeSceneIndex ? 'active' : ''}" onclick="window.switchTourSceneIndex(${i})">
+          ${sc.name.split('·')[1]?.trim() || sc.name}
+        </button>
+        ${isEditorMode ? `
+          <button type="button" class="tour-pill-edit-btn" onclick="event.stopPropagation(); window.openEditRoomDialog(${i})" title="Edit Room: ${sc.name}">✏️</button>
+          ${activeSceneList.length > 1 ? `
+            <button type="button" class="tour-pill-del-btn" onclick="event.stopPropagation(); window.deleteTourRoom(${i})" title="Delete Room: ${sc.name}">🗑️</button>
+          ` : ''}
+        ` : ''}
+      </div>
+    `).join('') + (isEditorMode ? `
+      <button type="button" class="tour-scene-pill" style="border-style:dashed;border-color:#06D6A0;color:#06D6A0;background:rgba(6,214,160,0.1);display:inline-flex;align-items:center;gap:4px;" onclick="window.openAddRoomDialog()">
+        <span>+</span> Add Room
       </button>
-    `).join('');
+    ` : '');
   }
 
-  window.setTourSceneIndex = function (idx) {
-    loadScene(idx);
+  // ==========================================
+  // TOUR BUILDER & HOTSPOT ACTIONS
+  // ==========================================
+
+  window.toggleTourEditorMode = function (forceState) {
+    if (typeof forceState === 'boolean') {
+      isEditorMode = forceState;
+    } else {
+      isEditorMode = !isEditorMode;
+    }
+
+    const editBtn = document.getElementById('tourEditModeBtn');
+    const editorBar = document.getElementById('tourEditorBar');
+
+    if (editBtn) editBtn.classList.toggle('active', isEditorMode);
+    if (editorBar) editorBar.classList.toggle('active', isEditorMode);
+
+    syncHotspotsDom();
+
+    if (typeof showToast === 'function') {
+      showToast(isEditorMode ? '🛠️ Tour Builder Mode: Look around, add rooms & drop doors!' : '👁️ View Mode Active');
+    }
   };
 
-  window.switchTourScene = function (sceneId) {
-    const idx = activeSceneList.findIndex(s => s.id === sceneId);
-    if (idx !== -1) {
-      loadScene(idx);
-      if (typeof showToast === 'function') {
-        showToast(`📍 Stepped into: ${activeSceneList[idx].name}`);
+  // 1. PLACE HOTSPOT
+  window.openPlaceHotspotDialog = function () {
+    const modal = document.getElementById('tourPlaceHotspotModal');
+    if (!modal) return;
+
+    const angleInfo = document.getElementById('placeHsAngleInfo');
+    if (angleInfo) {
+      angleInfo.textContent = `📐 Targeting Camera Orientation: Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°`;
+    }
+
+    const select = document.getElementById('newHsTargetSceneSelect');
+    if (select) {
+      select.innerHTML = activeSceneList.map((sc, i) => `
+        <option value="${sc.id}" ${i !== activeSceneIndex ? 'selected' : ''}>
+          ${sc.name} (${sc.tag || 'Room'})
+        </option>
+      `).join('');
+    }
+
+    modal.style.display = 'flex';
+  };
+
+  window.closePlaceHotspotDialog = function () {
+    const modal = document.getElementById('tourPlaceHotspotModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.setQuickHsLabel = function (label) {
+    const inp = document.getElementById('newHsLabelInput');
+    if (inp) inp.value = label;
+  };
+
+  window.confirmPlaceHotspot = function () {
+    const labelInp = document.getElementById('newHsLabelInput');
+    const select = document.getElementById('newHsTargetSceneSelect');
+
+    const label = (labelInp && labelInp.value.trim()) ? labelInp.value.trim() : '🚪 Step Inside Room';
+    const targetScene = select ? select.value : (activeSceneList[0]?.id || 'slc-entrance');
+
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+
+    if (!Array.isArray(curScene.hotspots)) {
+      curScene.hotspots = [];
+    }
+
+    curScene.hotspots.push({
+      pitch: Math.round(pitch),
+      yaw: Math.round(yaw),
+      label: label,
+      targetScene: targetScene
+    });
+
+    window.closePlaceHotspotDialog();
+    syncHotspotsDom();
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast(`📍 Placed hotspot "${label}" at Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°!`);
+    }
+  };
+
+  // 2. ADD NEW ROOM
+  window.openAddRoomDialog = function () {
+    const modal = document.getElementById('tourAddRoomModal');
+    if (!modal) return;
+
+    window._lastUploadedRoomPanoUrl = null;
+    window._selectedPresetPanoUrl = null;
+
+    const nameInp = document.getElementById('newRoomNameInput');
+    if (nameInp) nameInp.value = `Room ${activeSceneList.length + 1}`;
+
+    const urlInp = document.getElementById('newRoomUrlInput');
+    if (urlInp) urlInp.value = '';
+
+    const statusEl = document.getElementById('roomUploadStatus');
+    if (statusEl) {
+      statusEl.style.display = 'none';
+      statusEl.textContent = '';
+    }
+
+    // Populate Presets Grid
+    const grid = document.getElementById('presetPanosGrid');
+    if (grid) {
+      grid.innerHTML = PRESET_360_PANOS.map((p, idx) => `
+        <button type="button" class="preset-card-btn" onclick="window.selectPreset360Pano(${idx}, this)">
+          <span class="preset-card-name">${p.name}</span>
+          <span class="preset-card-tag">${p.tag}</span>
+        </button>
+      `).join('');
+    }
+
+    window.switchAddRoomTab('upload');
+    modal.style.display = 'flex';
+  };
+
+  window.closeAddRoomDialog = function () {
+    const modal = document.getElementById('tourAddRoomModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.switchAddRoomTab = function (tab) {
+    const tabUpload = document.getElementById('roomTabUpload');
+    const tabCamera = document.getElementById('roomTabCamera');
+    const tabPreset = document.getElementById('roomTabPreset');
+    const tabUrl = document.getElementById('roomTabUrl');
+
+    const btnUpload = document.getElementById('tabBtnUpload');
+    const btnCamera = document.getElementById('tabBtnCamera');
+    const btnPreset = document.getElementById('tabBtnPreset');
+    const btnUrl = document.getElementById('tabBtnUrl');
+
+    if (tabUpload) tabUpload.style.display = (tab === 'upload') ? 'block' : 'none';
+    if (tabCamera) tabCamera.style.display = (tab === 'camera') ? 'block' : 'none';
+    if (tabPreset) tabPreset.style.display = (tab === 'preset') ? 'block' : 'none';
+    if (tabUrl) tabUrl.style.display = (tab === 'url') ? 'block' : 'none';
+
+    if (btnUpload) btnUpload.classList.toggle('active', tab === 'upload');
+    if (btnCamera) btnCamera.classList.toggle('active', tab === 'camera');
+    if (btnPreset) btnPreset.classList.toggle('active', tab === 'preset');
+    if (btnUrl) btnUrl.classList.toggle('active', tab === 'url');
+  };
+
+  window.handleRoomFileUpload = async function (e) {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+
+    const statusEl = document.getElementById('roomUploadStatus');
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(255, 210, 63, 0.15)';
+      statusEl.style.color = '#FFD23F';
+      statusEl.textContent = `⏳ Uploading "${file.name}" to Cloud Storage...`;
+    }
+
+    try {
+      let uploadFn = window.uploadToSupabaseStorage;
+      if (typeof uploadFn === 'function') {
+        const result = await uploadFn(file);
+        window._lastUploadedRoomPanoUrl = result.url;
+        if (statusEl) {
+          statusEl.style.background = 'rgba(6, 214, 160, 0.15)';
+          statusEl.style.color = '#06D6A0';
+          statusEl.textContent = `✅ 360° Photo Ready: ${file.name}`;
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          window._lastUploadedRoomPanoUrl = ev.target.result;
+          if (statusEl) {
+            statusEl.style.background = 'rgba(6, 214, 160, 0.15)';
+            statusEl.style.color = '#06D6A0';
+            statusEl.textContent = `✅ 360° Photo Ready: ${file.name}`;
+          }
+        };
+        reader.readAsDataURL(file);
       }
+
+      const nameInp = document.getElementById('newRoomNameInput');
+      if (nameInp && !nameInp.value.trim()) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+        nameInp.value = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+      }
+    } catch (err) {
+      console.error('[SpotLIGHT 360] Upload error:', err);
+      if (statusEl) {
+        statusEl.style.background = 'rgba(255, 77, 109, 0.15)';
+        statusEl.style.color = '#FF4D6D';
+        statusEl.textContent = '❌ Upload failed. Please try another image or paste URL.';
+      }
+    }
+  };
+
+  window.selectPreset360Pano = function (idx, btn) {
+    document.querySelectorAll('.preset-card-btn').forEach(b => b.classList.remove('selected'));
+    if (btn) btn.classList.add('selected');
+    const preset = PRESET_360_PANOS[idx];
+    if (preset) {
+      window._selectedPresetPanoUrl = preset.url;
+      const nameInp = document.getElementById('newRoomNameInput');
+      if (nameInp && (!nameInp.value.trim() || nameInp.value.startsWith('Room '))) {
+        nameInp.value = preset.name.replace(/^[^\s]+\s+/, '');
+      }
+    }
+  };
+
+  window.confirmAdd360Room = function () {
+    const nameInp = document.getElementById('newRoomNameInput');
+    const urlInp = document.getElementById('newRoomUrlInput');
+
+    const name = (nameInp && nameInp.value.trim()) ? nameInp.value.trim() : 'Custom 360° Room';
+
+    let panoUrl = '';
+    const tabUpload = document.getElementById('roomTabUpload');
+    const tabPreset = document.getElementById('roomTabPreset');
+
+    if (tabUpload && tabUpload.style.display !== 'none' && window._lastUploadedRoomPanoUrl) {
+      panoUrl = window._lastUploadedRoomPanoUrl;
+    } else if (tabPreset && tabPreset.style.display !== 'none' && window._selectedPresetPanoUrl) {
+      panoUrl = window._selectedPresetPanoUrl;
+    } else if (urlInp && urlInp.value.trim()) {
+      panoUrl = urlInp.value.trim();
+    } else if (window._lastUploadedRoomPanoUrl) {
+      panoUrl = window._lastUploadedRoomPanoUrl;
+    } else if (window._selectedPresetPanoUrl) {
+      panoUrl = window._selectedPresetPanoUrl;
+    }
+
+    const newId = 'scene-' + Date.now().toString(36);
+    const newScene = {
+      id: newId,
+      name: name,
+      location: currentTourData?.location || 'Salt Lake City, UT',
+      tag: 'Custom 360° Space',
+      panoUrl: panoUrl,
+      tourUrl: panoUrl.includes('kuula.co') || panoUrl.includes('thinglink.com') || panoUrl.includes('matterport.com') || panoUrl.includes('360cities.net') || panoUrl.includes('momento360.com') ? panoUrl : '',
+      blurb: 'Interactive 360° walk-in space',
+      hotspots: [
+        { pitch: 0, yaw: 180, label: '🚪 Back to Previous Room', targetScene: activeSceneList[activeSceneIndex]?.id || activeSceneList[0]?.id }
+      ]
+    };
+
+    activeSceneList.push(newScene);
+    window.closeAddRoomDialog();
+    window.saveTourChangesToMagazine();
+    renderSceneSelector();
+    loadScene(activeSceneList.length - 1);
+
+    if (typeof showToast === 'function') {
+      showToast(`🎉 New 360° Room "${name}" added! Look around and place doors.`);
+    }
+  };
+
+  // ==========================================
+  // 3. EDIT EXISTING ROOM / SPACE
+  // ==========================================
+
+  window.openEditRoomDialog = function (sceneIdx) {
+    const modal = document.getElementById('tourEditRoomModal');
+    if (!modal) return;
+
+    const idx = (typeof sceneIdx === 'number' && sceneIdx >= 0 && sceneIdx < activeSceneList.length) ? sceneIdx : activeSceneIndex;
+    const scene = activeSceneList[idx];
+    if (!scene) return;
+
+    window._lastUploadedEditRoomPanoUrl = null;
+    window._selectedEditPresetPanoUrl = null;
+
+    const idxInp = document.getElementById('editRoomTargetIndex');
+    const titleEl = document.getElementById('editRoomModalTitle');
+    const nameInp = document.getElementById('editRoomNameInput');
+    const tagInp = document.getElementById('editRoomTagInput');
+    const urlInp = document.getElementById('editRoomUrlInput');
+    const blurbInp = document.getElementById('editRoomBlurbInput');
+    const delBtn = document.getElementById('editRoomDeleteBtn');
+    const statusEl = document.getElementById('editRoomUploadStatus');
+
+    if (idxInp) idxInp.value = idx;
+    if (titleEl) titleEl.textContent = `✏️ Edit Room: ${scene.name}`;
+    if (nameInp) nameInp.value = scene.name || '';
+    if (tagInp) tagInp.value = scene.tag || '';
+    if (urlInp) urlInp.value = scene.tourUrl || scene.panoUrl || '';
+    if (blurbInp) blurbInp.value = scene.blurb || '';
+    if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
+
+    // Delete button logic (cannot delete if it's the only room)
+    if (delBtn) {
+      if (activeSceneList.length <= 1) {
+        delBtn.style.opacity = '0.4';
+        delBtn.style.cursor = 'not-allowed';
+        delBtn.title = 'Cannot delete the only room in a tour';
+      } else {
+        delBtn.style.opacity = '1';
+        delBtn.style.cursor = 'pointer';
+        delBtn.title = `Delete "${scene.name}" permanently`;
+      }
+    }
+
+    // Populate Presets Grid
+    const grid = document.getElementById('editPresetPanosGrid');
+    if (grid) {
+      grid.innerHTML = PRESET_360_PANOS.map((p, pIdx) => `
+        <button type="button" class="preset-card-btn ${scene.panoUrl === p.url ? 'selected' : ''}" onclick="window.selectEditPreset360Pano(${pIdx}, this)">
+          <span class="preset-card-name">${p.name}</span>
+          <span class="preset-card-tag">${p.tag}</span>
+        </button>
+      `).join('');
+    }
+
+    // Populate Hotspots in this room
+    const hsList = document.getElementById('editRoomHotspotsList');
+    const hsCount = document.getElementById('editRoomHsCount');
+    const hotspots = Array.isArray(scene.hotspots) ? scene.hotspots : [];
+    if (hsCount) hsCount.textContent = hotspots.length;
+    if (hsList) {
+      if (hotspots.length === 0) {
+        hsList.innerHTML = `<div style="font-size:10px;color:rgba(255,255,255,0.45);font-style:italic;">No door pins in this room yet. Use "+ PLACE DOOR PIN" in builder mode.</div>`;
+      } else {
+        hsList.innerHTML = hotspots.map((h, hIdx) => {
+          const targetSc = activeSceneList.find(s => s.id === h.targetScene);
+          const targetName = targetSc ? targetSc.name : 'Another Room';
+          return `
+            <div class="tour-hs-item">
+              <span style="font-weight:700;color:#FFD23F;">${h.label || '🚪 Door Pin'}</span>
+              <span style="font-size:10px;color:rgba(255,255,255,0.6);">➔ ${targetName}</span>
+              <button type="button" class="tour-pill-del-btn" style="width:20px;height:20px;font-size:9px;" onclick="window.deleteHotspotFromEditDialog(${idx}, ${hIdx})" title="Delete this door pin">✕</button>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    window.switchEditRoomTab(scene.panoUrl && scene.panoUrl.startsWith('http') ? 'preset' : 'upload');
+    modal.style.display = 'flex';
+  };
+
+  window.closeEditRoomDialog = function () {
+    const modal = document.getElementById('tourEditRoomModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.switchEditRoomTab = function (tab) {
+    const tabUpload = document.getElementById('editRoomTabUpload');
+    const tabCamera = document.getElementById('editRoomTabCamera');
+    const tabPreset = document.getElementById('editRoomTabPreset');
+    const tabUrl = document.getElementById('editRoomTabUrl');
+
+    const btnUpload = document.getElementById('editTabBtnUpload');
+    const btnCamera = document.getElementById('editTabBtnCamera');
+    const btnPreset = document.getElementById('editTabBtnPreset');
+    const btnUrl = document.getElementById('editTabBtnUrl');
+
+    if (tabUpload) tabUpload.style.display = (tab === 'upload') ? 'block' : 'none';
+    if (tabCamera) tabCamera.style.display = (tab === 'camera') ? 'block' : 'none';
+    if (tabPreset) tabPreset.style.display = (tab === 'preset') ? 'block' : 'none';
+    if (tabUrl) tabUrl.style.display = (tab === 'url') ? 'block' : 'none';
+
+    if (btnUpload) btnUpload.classList.toggle('active', tab === 'upload');
+    if (btnCamera) btnCamera.classList.toggle('active', tab === 'camera');
+    if (btnPreset) btnPreset.classList.toggle('active', tab === 'preset');
+    if (btnUrl) btnUrl.classList.toggle('active', tab === 'url');
+  };
+
+  window.handleEditRoomFileUpload = async function (e) {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+
+    const statusEl = document.getElementById('editRoomUploadStatus');
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(255, 210, 63, 0.15)';
+      statusEl.style.color = '#FFD23F';
+      statusEl.textContent = `⏳ Uploading "${file.name}" to Cloud Storage...`;
+    }
+
+    try {
+      let uploadFn = window.uploadToSupabaseStorage;
+      if (typeof uploadFn === 'function') {
+        const result = await uploadFn(file);
+        window._lastUploadedEditRoomPanoUrl = result.url;
+        if (statusEl) {
+          statusEl.style.background = 'rgba(6, 214, 160, 0.15)';
+          statusEl.style.color = '#06D6A0';
+          statusEl.textContent = `✅ 360° Photo Ready: ${file.name}`;
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          window._lastUploadedEditRoomPanoUrl = ev.target.result;
+          if (statusEl) {
+            statusEl.style.background = 'rgba(6, 214, 160, 0.15)';
+            statusEl.style.color = '#06D6A0';
+            statusEl.textContent = `✅ 360° Photo Ready: ${file.name}`;
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      console.error('[SpotLIGHT 360 Edit] Upload error:', err);
+      if (statusEl) {
+        statusEl.style.background = 'rgba(255, 77, 109, 0.15)';
+        statusEl.style.color = '#FF4D6D';
+        statusEl.textContent = '❌ Upload failed. Try another image or paste URL.';
+      }
+    }
+  };
+
+  window.selectEditPreset360Pano = function (idx, btn) {
+    document.querySelectorAll('#editPresetPanosGrid .preset-card-btn').forEach(b => b.classList.remove('selected'));
+    if (btn) btn.classList.add('selected');
+    const preset = PRESET_360_PANOS[idx];
+    if (preset) {
+      window._selectedEditPresetPanoUrl = preset.url;
+    }
+  };
+
+  window.deleteHotspotFromEditDialog = function (roomIdx, hsIdx) {
+    const scene = activeSceneList[roomIdx];
+    if (!scene || !Array.isArray(scene.hotspots) || !scene.hotspots[hsIdx]) return;
+    scene.hotspots.splice(hsIdx, 1);
+    syncHotspotsDom();
+    window.openEditRoomDialog(roomIdx);
+    window.saveTourChangesToMagazine();
+  };
+
+  window.confirmSaveEditRoom = function () {
+    const idxInp = document.getElementById('editRoomTargetIndex');
+    const idx = parseInt(idxInp ? idxInp.value : '0', 10);
+    const scene = activeSceneList[idx];
+    if (!scene) return;
+
+    const nameInp = document.getElementById('editRoomNameInput');
+    const tagInp = document.getElementById('editRoomTagInput');
+    const urlInp = document.getElementById('editRoomUrlInput');
+    const blurbInp = document.getElementById('editRoomBlurbInput');
+
+    if (nameInp && nameInp.value.trim()) scene.name = nameInp.value.trim();
+    if (tagInp && tagInp.value.trim()) scene.tag = tagInp.value.trim();
+    if (blurbInp) scene.blurb = blurbInp.value.trim();
+
+    // Check updated 360 photo source
+    const tabUpload = document.getElementById('editRoomTabUpload');
+    const tabPreset = document.getElementById('editRoomTabPreset');
+
+    if (tabUpload && tabUpload.style.display !== 'none' && window._lastUploadedEditRoomPanoUrl) {
+      scene.panoUrl = window._lastUploadedEditRoomPanoUrl;
+      scene.tourUrl = '';
+    } else if (tabPreset && tabPreset.style.display !== 'none' && window._selectedEditPresetPanoUrl) {
+      scene.panoUrl = window._selectedEditPresetPanoUrl;
+      scene.tourUrl = '';
+    } else if (urlInp && urlInp.value.trim()) {
+      const u = urlInp.value.trim();
+      if (u.includes('kuula.co') || u.includes('thinglink.com') || u.includes('matterport.com') || u.includes('360cities.net') || u.includes('momento360.com')) {
+        scene.tourUrl = u;
+        scene.panoUrl = '';
+      } else {
+        scene.panoUrl = u;
+        scene.tourUrl = '';
+      }
+    } else if (window._lastUploadedEditRoomPanoUrl) {
+      scene.panoUrl = window._lastUploadedEditRoomPanoUrl;
+      scene.tourUrl = '';
+    } else if (window._selectedEditPresetPanoUrl) {
+      scene.panoUrl = window._selectedEditPresetPanoUrl;
+      scene.tourUrl = '';
+    }
+
+    window.closeEditRoomDialog();
+    renderSceneSelector();
+
+    // If currently viewing this room, refresh view
+    if (idx === activeSceneIndex) {
+      loadScene(activeSceneIndex);
+    }
+
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast(`✅ Room "${scene.name}" updated!`);
+    }
+  };
+
+  // ==========================================
+  // 4. DELETE ROOM / SPACE
+  // ==========================================
+
+  window.deleteTourRoom = function (idx) {
+    if (typeof idx !== 'number' || idx < 0 || idx >= activeSceneList.length) {
+      idx = activeSceneIndex;
+    }
+
+    if (activeSceneList.length <= 1) {
+      if (typeof showToast === 'function') {
+        showToast('⚠️ A tour must have at least 1 room. Create another room first before deleting this one!');
+      } else {
+        alert('A tour must have at least 1 room. Create another room first before deleting this one!');
+      }
+      return;
+    }
+
+    const roomToDelete = activeSceneList[idx];
+    const roomName = roomToDelete ? roomToDelete.name : `Room ${idx + 1}`;
+    const deletedId = roomToDelete?.id;
+
+    if (!confirm(`Are you sure you want to delete "${roomName}"? This will permanently remove this room and any door pins pointing to it.`)) {
+      return;
+    }
+
+    // 1. Remove room from list
+    activeSceneList.splice(idx, 1);
+
+    // 2. Clean up any hotspots in other rooms pointing to the deleted room
+    if (deletedId) {
+      activeSceneList.forEach(sc => {
+        if (Array.isArray(sc.hotspots)) {
+          sc.hotspots = sc.hotspots.filter(h => h.targetScene !== deletedId);
+        }
+      });
+    }
+
+    // 3. Compute new active scene index
+    if (idx === activeSceneIndex) {
+      activeSceneIndex = Math.max(0, idx > 0 ? idx - 1 : 0);
+    } else if (activeSceneIndex > idx) {
+      activeSceneIndex = Math.max(0, activeSceneIndex - 1);
+    }
+    if (activeSceneIndex >= activeSceneList.length) {
+      activeSceneIndex = activeSceneList.length - 1;
+    }
+
+    window.closeEditRoomDialog();
+    window.closeManageRoomsDialog();
+
+    loadScene(activeSceneIndex);
+    renderSceneSelector();
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast(`🗑️ Deleted "${roomName}" from tour!`);
+    }
+  };
+
+  window.confirmDeleteCurrentRoom = function () {
+    window.deleteTourRoom(activeSceneIndex);
+  };
+
+  window.confirmDeleteFromEditModal = function () {
+    const idxInp = document.getElementById('editRoomTargetIndex');
+    const idx = parseInt(idxInp ? idxInp.value : '-1', 10);
+    if (idx >= 0) {
+      window.deleteTourRoom(idx);
+    }
+  };
+
+  // ==========================================
+  // 5. MANAGE ALL ROOMS MODAL
+  // ==========================================
+
+  window.openManageRoomsDialog = function () {
+    const modal = document.getElementById('tourManageRoomsModal');
+    if (!modal) return;
+
+    const listEl = document.getElementById('manageRoomsList');
+    if (listEl) {
+      listEl.innerHTML = activeSceneList.map((sc, i) => {
+        const isCur = (i === activeSceneIndex);
+        const hsCount = Array.isArray(sc.hotspots) ? sc.hotspots.length : 0;
+        return `
+          <div class="manage-room-row ${isCur ? 'current-scene' : ''}">
+            <div class="manage-room-info">
+              <div class="manage-room-title">
+                ${isCur ? '📍 ' : ''}${sc.name}
+              </div>
+              <div class="manage-room-tag">
+                ${sc.tag || '360° Space'} · ${hsCount} door pin${hsCount === 1 ? '' : 's'}
+              </div>
+            </div>
+            <div class="manage-room-actions">
+              ${!isCur ? `
+                <button type="button" class="tour-dialog-btn" style="background:rgba(255,255,255,0.1);color:#fff;padding:5px 10px;font-size:10px;" onclick="window.closeManageRoomsDialog(); window.switchTourSceneIndex(${i})">
+                  👁️ JUMP
+                </button>
+              ` : `
+                <span style="font-size:10px;font-weight:800;color:#06D6A0;padding:4px 8px;">CURRENT</span>
+              `}
+              <button type="button" class="tour-dialog-btn" style="background:#FFD23F;color:#14121A;padding:5px 10px;font-size:10px;" onclick="window.closeManageRoomsDialog(); window.openEditRoomDialog(${i})">
+                ✏️ EDIT
+              </button>
+              ${activeSceneList.length > 1 ? `
+                <button type="button" class="tour-dialog-btn tour-dialog-btn-danger" style="padding:5px 10px;font-size:10px;" onclick="window.deleteTourRoom(${i})">
+                  🗑️
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    modal.style.display = 'flex';
+  };
+
+  window.closeManageRoomsDialog = function () {
+    const modal = document.getElementById('tourManageRoomsModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  // ==========================================
+  // 6. ADMIN AUTH UNLOCK DIALOG (FOR SAVING TO CLOUD)
+  // ==========================================
+
+  window.openTourAdminAuthModal = function () {
+    const modal = document.getElementById('tourAdminAuthModal');
+    if (!modal) return;
+    const statusEl = document.getElementById('tourAdminAuthStatus');
+    if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
+    const pwd = document.getElementById('tourAdminPasswordInput');
+    if (pwd) { pwd.value = ''; }
+    modal.style.display = 'flex';
+    setTimeout(() => { if (pwd) pwd.focus(); }, 100);
+  };
+
+  window.closeTourAdminAuthModal = function () {
+    const modal = document.getElementById('tourAdminAuthModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.submitTourAdminUnlock = async function () {
+    const pwdInput = document.getElementById('tourAdminPasswordInput');
+    const statusEl = document.getElementById('tourAdminAuthStatus');
+    const unlockBtn = document.getElementById('tourAdminUnlockBtn');
+    const password = pwdInput ? pwdInput.value.trim() : '';
+
+    if (!password) {
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(255, 77, 109, 0.2)';
+        statusEl.style.color = '#FF4D6D';
+        statusEl.textContent = 'Please enter your admin password.';
+      }
+      return;
+    }
+
+    if (unlockBtn) { unlockBtn.textContent = 'AUTHENTICATING...'; unlockBtn.disabled = true; }
+
+    try {
+      const adminEmail = (typeof ADMIN_EMAIL !== 'undefined') ? ADMIN_EMAIL : 'lfsm111@icloud.com';
+      const sbClient = (typeof sb !== 'undefined') ? sb : (window.sb || (window.supabase && window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)));
+      
+      const { data, error } = await sbClient.auth.signInWithPassword({ email: adminEmail, password });
+      if (error || !data.session) {
+        throw new Error(error?.message || 'Incorrect password');
+      }
+
+      window.isEditorUnlocked = true;
+      if (typeof isEditorUnlocked !== 'undefined') isEditorUnlocked = true;
+      const editorToggleEl = document.getElementById('editorToggle');
+      if (editorToggleEl) editorToggleEl.style.display = 'block';
+
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(6, 214, 160, 0.2)';
+        statusEl.style.color = '#06D6A0';
+        statusEl.textContent = '✅ Authenticated! Saving tour live to Supabase Cloud...';
+      }
+
+      // Perform cloud save
+      if (typeof window.saveMagazineData === 'function' && window.MAGAZINE) {
+        await window.saveMagazineData(window.MAGAZINE);
+      }
+
+      setTimeout(() => {
+        window.closeTourAdminAuthModal();
+        const saveBtn = document.getElementById('tourSaveEveryoneBtn');
+        if (saveBtn) {
+          saveBtn.textContent = '✅ SAVED FOR EVERYONE!';
+          setTimeout(() => { saveBtn.textContent = '💾 SAVE TOUR FOR EVERYONE'; }, 2500);
+        }
+        if (typeof showToast === 'function') {
+          showToast('☁️ 360° Walkthrough Tour Saved to Cloud for Everyone!');
+        }
+      }, 500);
+    } catch (err) {
+      console.error('[SpotLIGHT Auth]', err);
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(255, 77, 109, 0.2)';
+        statusEl.style.color = '#FF4D6D';
+        statusEl.textContent = '❌ Incorrect password. Please try again.';
+      }
+      if (pwdInput) { pwdInput.value = ''; pwdInput.focus(); }
+    } finally {
+      if (unlockBtn) { unlockBtn.textContent = '🔐 UNLOCK & SAVE TO CLOUD'; unlockBtn.disabled = false; }
+    }
+  };
+
+  // ==========================================
+  // 7. EDIT / DELETE HOTSPOT DIALOG
+  // ==========================================
+  window.editHotspotDetails = function (index, event) {
+    if (event) { event.stopPropagation(); event.preventDefault(); }
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene || !curScene.hotspots || !curScene.hotspots[index]) return;
+    const hs = curScene.hotspots[index];
+
+    const modal = document.getElementById('tourEditHotspotModal');
+    if (!modal) return;
+
+    const idxInp = document.getElementById('editHsIndex');
+    const labelInp = document.getElementById('editHsLabelInput');
+    const select = document.getElementById('editHsTargetSceneSelect');
+
+    if (idxInp) idxInp.value = index;
+    if (labelInp) labelInp.value = hs.label;
+
+    if (select) {
+      select.innerHTML = activeSceneList.map(sc => `
+        <option value="${sc.id}" ${sc.id === hs.targetScene ? 'selected' : ''}>
+          ${sc.name}
+        </option>
+      `).join('');
+    }
+
+    modal.style.display = 'flex';
+  };
+
+  window.closeEditHotspotDialog = function () {
+    const modal = document.getElementById('tourEditHotspotModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.realignHotspotToCurrentCamera = function () {
+    const idxInp = document.getElementById('editHsIndex');
+    const idx = parseInt(idxInp ? idxInp.value : '-1', 10);
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene || !curScene.hotspots || !curScene.hotspots[idx]) return;
+
+    curScene.hotspots[idx].pitch = Math.round(pitch);
+    curScene.hotspots[idx].yaw = Math.round(yaw);
+
+    syncHotspotsDom();
+    if (typeof showToast === 'function') {
+      showToast(`🎯 Hotspot aligned to Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°!`);
+    }
+  };
+
+  window.saveHotspotEdit = function () {
+    const idxInp = document.getElementById('editHsIndex');
+    const labelInp = document.getElementById('editHsLabelInput');
+    const select = document.getElementById('editHsTargetSceneSelect');
+
+    const idx = parseInt(idxInp ? idxInp.value : '-1', 10);
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene || !curScene.hotspots || !curScene.hotspots[idx]) return;
+
+    const hs = curScene.hotspots[idx];
+    if (labelInp) hs.label = labelInp.value.trim() || hs.label;
+    if (select) hs.targetScene = select.value;
+
+    window.closeEditHotspotDialog();
+    syncHotspotsDom();
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast('✅ Hotspot updated!');
+    }
+  };
+
+  window.confirmDeleteHotspot = function () {
+    const idxInp = document.getElementById('editHsIndex');
+    const idx = parseInt(idxInp ? idxInp.value : '-1', 10);
+    window.deleteHotspot(idx);
+    window.closeEditHotspotDialog();
+  };
+
+  window.deleteHotspot = function (index, event) {
+    if (event) { event.stopPropagation(); event.preventDefault(); }
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene || !curScene.hotspots || index < 0 || index >= curScene.hotspots.length) return;
+    
+    curScene.hotspots.splice(index, 1);
+    syncHotspotsDom();
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast('🗑️ Hotspot deleted');
+    }
+  };
+
+  /**
+   * Universal Cloud Persistence for 360 Tours
+   * Updates Magazine, Supabase, LocalCache and Live Views
+   */
+  window.saveTourChangesToMagazine = async function () {
+    const saveBtn = document.getElementById('tourSaveEveryoneBtn');
+    if (saveBtn) {
+      saveBtn.textContent = '⏳ SAVING TO CLOUD...';
+      saveBtn.disabled = true;
+    }
+
+    const tourJson = JSON.stringify({ scenes: activeSceneList });
+
+    // 1. Update active editing ad reference
+    if (window.currentEditingAdRef) {
+      window.currentEditingAdRef.tourConfig = { scenes: activeSceneList };
+      window.currentEditingAdRef.tour3d = tourJson;
+      window.currentEditingAdRef.tourUrl = tourJson;
+    }
+
+    // 2. Update magazine city ad if indices or title match
+    if (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
+      let matchedAd = false;
+      if (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number') {
+        const cIdx = window.currentEditingCityIdx;
+        const aIdx = window.currentEditingAdIdx;
+        if (window.MAGAZINE.cities[cIdx] && Array.isArray(window.MAGAZINE.cities[cIdx].ads) && window.MAGAZINE.cities[cIdx].ads[aIdx]) {
+          window.MAGAZINE.cities[cIdx].ads[aIdx].tour3d = tourJson;
+          window.MAGAZINE.cities[cIdx].ads[aIdx].tourUrl = tourJson;
+          window.MAGAZINE.cities[cIdx].ads[aIdx].tourConfig = { scenes: activeSceneList };
+          matchedAd = true;
+        }
+      }
+      // If not matched by index, find matching ad by title/tag across all cities
+      if (!matchedAd && currentTourData && currentTourData.title) {
+        const searchTitle = currentTourData.title.toLowerCase();
+        for (let ci = 0; ci < window.MAGAZINE.cities.length; ci++) {
+          const city = window.MAGAZINE.cities[ci];
+          if (city && Array.isArray(city.ads)) {
+            for (let ai = 0; ai < city.ads.length; ai++) {
+              const ad = city.ads[ai];
+              if (ad && ad.name && ad.name.toLowerCase() === searchTitle) {
+                ad.tour3d = tourJson;
+                ad.tourUrl = tourJson;
+                ad.tourConfig = { scenes: activeSceneList };
+                matchedAd = true;
+                break;
+              }
+            }
+          }
+          if (matchedAd) break;
+        }
+      }
+    }
+
+    // 3. Update community post if editing community spot
+    if (window.currentEditingSpotId && typeof window.saveCommunitySpotTour === 'function') {
+      try {
+        await window.saveCommunitySpotTour(window.currentEditingSpotId, tourJson);
+      } catch (e) {}
+    }
+
+    // 4. Update local caches
+    try {
+      localStorage.setItem('spotlight_tour_' + (currentTourData?.title || 'active'), tourJson);
+      localStorage.setItem('spotlight_latest_tour', tourJson);
+      if (window.MAGAZINE) {
+        localStorage.setItem('spotlight_magazine_content_v5', JSON.stringify(window.MAGAZINE));
+      }
+    } catch (e) {}
+
+    // 5. Update open input fields in Admin Editor
+    try {
+      const tourInputs = document.querySelectorAll('input[data-ad="tour3d"]');
+      tourInputs.forEach(inp => {
+        const adEl = inp.closest('.ad-editor');
+        if (adEl && typeof window.currentEditingAdIdx === 'number' && +adEl.dataset.ai === window.currentEditingAdIdx) {
+          inp.value = tourJson;
+        } else if (!adEl) {
+          inp.value = tourJson;
+        }
+      });
+    } catch (e) {}
+
+    // 6. Refresh live views
+    if (typeof window.applyMagazineUpdates === 'function') {
+      try { window.applyMagazineUpdates(); } catch (e) {}
+    }
+    if (typeof window.render === 'function') {
+      try { window.render(); } catch (e) {}
+    }
+
+    // 7. Check if user has active admin session or if password unlock modal is needed for Supabase
+    let savedToCloud = false;
+    if (typeof window.saveMagazineData === 'function' && window.MAGAZINE) {
+      try {
+        await window.saveMagazineData(window.MAGAZINE);
+        savedToCloud = true;
+      } catch (err) {
+        console.warn('[SpotLIGHT Tour] Direct Supabase save error:', err);
+        // If save failed because admin authentication is needed:
+        if (!window.isEditorUnlocked) {
+          if (saveBtn) {
+            saveBtn.textContent = '💾 SAVE TOUR FOR EVERYONE';
+            saveBtn.disabled = false;
+          }
+          window.openTourAdminAuthModal();
+          return;
+        }
+      }
+    }
+
+    if (saveBtn) {
+      saveBtn.textContent = savedToCloud ? '✅ SAVED FOR EVERYONE!' : '💾 SAVED LOCALLY';
+      setTimeout(() => {
+        saveBtn.textContent = '💾 SAVE TOUR FOR EVERYONE';
+        saveBtn.disabled = false;
+      }, 2500);
+    }
+
+    if (typeof showToast === 'function') {
+      showToast(savedToCloud ? '☁️ 360° Walkthrough Tour Saved to Cloud for Everyone!' : '💾 360° Tour Saved Locally!');
+    }
+  };
+
+  // =========================================================================
+  // 360° CAMERA CAPTURE & REAL-TIME EQUIRECTANGULAR STITCHER ENGINE
+  // (In-browser spatial panorama scanner inspired by Teleport & HDReye)
+  // =========================================================================
+
+  const SCAN_TOTAL_NODES = 12; // 30° intervals around full 360° sphere
+  const SCAN_ANGLES = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
+
+  let scanMode = 'new_room'; // 'new_room' or 'replace_room'
+  let scanStream = null;
+  let scanCameraFacing = 'environment'; // rear camera by default
+  let scanSlots = [];
+  let scanCurrentYaw = 0;
+  let scanCurrentPitch = 0;
+  let scanBaseYawOffset = 0;
+  let scanHasGyro = false;
+  let scanAutoSnap = true;
+  let scanAlignTimer = null;
+  let scanAlignedAngleIdx = -1;
+  let scanIsDragging = false;
+  let scanDragStartX = 0;
+  let scanDragStartY = 0;
+  let scanDragStartYaw = 0;
+  let scanDragStartPitch = 0;
+  let scanLoopAnimId = null;
+
+  function initScanSlots() {
+    scanSlots = SCAN_ANGLES.map(angle => ({
+      angle: angle,
+      captured: false,
+      imgCanvas: null,
+      timestamp: 0
+    }));
+  }
+
+  function normalizeAngle360(deg) {
+    let d = deg % 360;
+    if (d < 0) d += 360;
+    return d;
+  }
+
+  function angleDiffSigned(target, current) {
+    let diff = (target - current + 180) % 360 - 180;
+    return diff < -180 ? diff + 360 : diff;
+  }
+
+  window.open360CameraScanner = async function (mode = 'new_room') {
+    scanMode = mode;
+    initScanSlots();
+    scanCurrentYaw = 0;
+    scanCurrentPitch = 0;
+    scanBaseYawOffset = 0;
+    scanHasGyro = false;
+    scanAlignedAngleIdx = -1;
+
+    const modal = document.getElementById('tourCameraScanModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
+    clearStitchPreviewCanvas();
+
+    // Start video camera feed
+    await startScannerCameraFeed();
+
+    // Setup Gyroscope & Interactive Drag
+    bindScannerSensors();
+
+    // Start UI Animation Loop
+    if (scanLoopAnimId) cancelAnimationFrame(scanLoopAnimId);
+    runScannerLoop();
+
+    if (typeof showToast === 'function') {
+      showToast('📸 360° Scanner active! Rotate your camera to align with the golden target dots.');
+    }
+  };
+
+  async function startScannerCameraFeed() {
+    const video = document.getElementById('scanVideoFeed');
+    if (!video) return;
+
+    if (scanStream) {
+      scanStream.getTracks().forEach(t => t.stop());
+      scanStream = null;
+    }
+
+    try {
+      const constraints = {
+        video: {
+          facingMode: scanCameraFacing,
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 }
+        },
+        audio: false
+      };
+
+      scanStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = scanStream;
+      await video.play().catch(e => console.warn('Video play deferred:', e));
+    } catch (err) {
+      console.warn('[SpotLIGHT 360 Scanner] Camera stream error with high-res, fallback to standard video:', err);
+      try {
+        scanStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = scanStream;
+        await video.play().catch(e => console.warn('Video play deferred fallback:', e));
+      } catch (err2) {
+        console.error('[SpotLIGHT 360 Scanner] Camera access failed:', err2);
+        const ringStatus = document.getElementById('scanRingStatus');
+        if (ringStatus) {
+          ringStatus.textContent = 'CAMERA BLOCKED · ALLOW PERMISSIONS';
+          ringStatus.style.color = '#FF4D6D';
+        }
+        if (typeof showToast === 'function') {
+          showToast('⚠️ Camera permission needed to scan. Please allow camera in browser settings.');
+        }
+      }
+    }
+  }
+
+  window.toggleCameraFacingMode = async function () {
+    scanCameraFacing = (scanCameraFacing === 'environment') ? 'user' : 'environment';
+    await startScannerCameraFeed();
+    if (typeof showToast === 'function') {
+      showToast(`🔄 Camera switched to: ${scanCameraFacing === 'environment' ? 'Rear / World' : 'Front / Self'}`);
+    }
+  };
+
+  function bindScannerSensors() {
+    const sensorPill = document.getElementById('scanSensorModePill');
+    const viewfinder = document.getElementById('scanViewfinderArea');
+
+    // Request iOS 13+ DeviceOrientation permission if required
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission().then(resp => {
+        if (resp === 'granted') {
+          setupDeviceOrientationListener();
+        } else {
+          setupVirtualDragControls();
+        }
+      }).catch(() => setupVirtualDragControls());
+    } else if (window.DeviceOrientationEvent) {
+      setupDeviceOrientationListener();
+    } else {
+      setupVirtualDragControls();
+    }
+
+    function setupDeviceOrientationListener() {
+      let firstReading = true;
+      const handleOrientation = (e) => {
+        if (e.alpha !== null && e.beta !== null) {
+          scanHasGyro = true;
+          if (sensorPill) {
+            sensorPill.textContent = '📳 GYRO SENSOR ACTIVE';
+            sensorPill.style.color = '#06D6A0';
+            sensorPill.style.borderColor = '#06D6A0';
+          }
+
+          let rawYaw = 360 - (e.alpha || 0); // convert compass angle to standard counter-clockwise
+          let rawPitch = (e.beta || 0) - 90; // normalize phone standing vertical to pitch 0
+
+          if (firstReading) {
+            scanBaseYawOffset = rawYaw;
+            firstReading = false;
+          }
+
+          scanCurrentYaw = normalizeAngle360(rawYaw - scanBaseYawOffset);
+          scanCurrentPitch = Math.max(-85, Math.min(85, rawPitch));
+        }
+      };
+
+      window.addEventListener('deviceorientation', handleOrientation, { passive: true });
+    }
+
+    function setupVirtualDragControls() {
+      if (sensorPill) {
+        sensorPill.textContent = '👆 TOUCH / DRAG SCAN ACTIVE';
+        sensorPill.style.color = '#FFD23F';
+        sensorPill.style.borderColor = '#FFD23F';
+      }
+    }
+
+    // Always attach mouse/touch listeners for manual view dragging or desktop use
+    if (viewfinder && !viewfinder._hasDragListeners) {
+      viewfinder._hasDragListeners = true;
+
+      const onStart = (clientX, clientY) => {
+        scanIsDragging = true;
+        scanDragStartX = clientX;
+        scanDragStartY = clientY;
+        scanDragStartYaw = scanCurrentYaw;
+        scanDragStartPitch = scanCurrentPitch;
+      };
+
+      const onMove = (clientX, clientY) => {
+        if (!scanIsDragging) return;
+        const dx = clientX - scanDragStartX;
+        const dy = clientY - scanDragStartY;
+
+        scanCurrentYaw = normalizeAngle360(scanDragStartYaw - dx * 0.35);
+        scanCurrentPitch = Math.max(-80, Math.min(80, scanDragStartPitch + dy * 0.35));
+      };
+
+      const onEnd = () => {
+        scanIsDragging = false;
+      };
+
+      viewfinder.addEventListener('mousedown', (e) => onStart(e.clientX, e.clientY));
+      window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+      window.addEventListener('mouseup', onEnd);
+
+      viewfinder.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          onStart(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && scanIsDragging) {
+          onMove(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchend', onEnd);
+    }
+  }
+
+  function runScannerLoop() {
+    const anglePill = document.getElementById('scanAnglePill');
+    const centerRing = document.getElementById('scanCenterRing');
+    const ringStatus = document.getElementById('scanRingStatus');
+    const nodesLayer = document.getElementById('scanNodesLayer');
+    const guideArrow = document.getElementById('scanGuideArrow');
+    const guideIcon = document.getElementById('scanGuideIcon');
+    const guideText = document.getElementById('scanGuideText');
+    const viewfinder = document.getElementById('scanViewfinderArea');
+
+    if (anglePill) {
+      anglePill.textContent = `YAW: ${Math.round(scanCurrentYaw)}° · PITCH: ${Math.round(scanCurrentPitch)}°`;
+    }
+
+    if (viewfinder && nodesLayer) {
+      const vw = viewfinder.clientWidth || window.innerWidth;
+      const vh = viewfinder.clientHeight || (window.innerHeight * 0.6);
+      const centerX = vw / 2;
+      const centerY = vh / 2;
+      const fovSpan = 65; // degrees visible horizontally on screen
+
+      let closestUncapturedIdx = -1;
+      let minAngularDistance = 999;
+      let alignedTargetIdx = -1;
+
+      // Render 360 Target Nodes
+      nodesLayer.innerHTML = scanSlots.map((slot, idx) => {
+        const diffYaw = angleDiffSigned(slot.angle, scanCurrentYaw);
+        const diffPitch = 0 - scanCurrentPitch;
+        const angularDist = Math.hypot(diffYaw, diffPitch);
+
+        if (!slot.captured && angularDist < minAngularDistance) {
+          minAngularDistance = angularDist;
+          closestUncapturedIdx = idx;
+        }
+
+        // Project node on 2D viewfinder
+        const screenX = centerX + (diffYaw / fovSpan) * vw;
+        const screenY = centerY - (diffPitch / fovSpan) * vh;
+        const isVisible = Math.abs(diffYaw) < 50 && Math.abs(diffPitch) < 45;
+
+        if (angularDist < 6.5) {
+          alignedTargetIdx = idx;
+        }
+
+        if (!isVisible) return '';
+
+        const isAligned = angularDist < 6.5;
+        const isCaptured = slot.captured;
+
+        let nodeClass = 'scan-target-node';
+        if (isCaptured) nodeClass += ' captured';
+        else if (isAligned) nodeClass += ' aligned';
+
+        return `
+          <div class="${nodeClass}" style="left:${screenX}px; top:${screenY}px;" onclick="window.captureSpecificScanAngle(${idx})">
+            <span>${isCaptured ? '✓' : `${slot.angle}°`}</span>
+          </div>
+        `;
+      }).join('');
+
+      // Update Center Reticle State
+      if (alignedTargetIdx !== -1) {
+        const slot = scanSlots[alignedTargetIdx];
+        if (centerRing) {
+          centerRing.classList.add('aligned');
+          centerRing.classList.toggle('captured', slot.captured);
+        }
+        if (ringStatus) {
+          ringStatus.textContent = slot.captured ? `✓ ANGLE ${slot.angle}° CAPTURED` : `TARGET LOCKED: ${slot.angle}°`;
+          ringStatus.style.color = slot.captured ? '#06D6A0' : '#FFD23F';
+        }
+
+        // Auto-Snap Logic
+        if (scanAutoSnap && !slot.captured) {
+          if (scanAlignedAngleIdx !== alignedTargetIdx) {
+            scanAlignedAngleIdx = alignedTargetIdx;
+            clearTimeout(scanAlignTimer);
+            scanAlignTimer = setTimeout(() => {
+              if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
+                window.captureCurrentScanAngle();
+              }
+            }, 380);
+          }
+        }
+      } else {
+        scanAlignedAngleIdx = -1;
+        clearTimeout(scanAlignTimer);
+        if (centerRing) {
+          centerRing.classList.remove('aligned', 'captured');
+        }
+        if (ringStatus) {
+          ringStatus.textContent = 'ROTATE TO TARGET DOT';
+          ringStatus.style.color = 'rgba(255,255,255,0.7)';
+        }
+      }
+
+      // Guidance Arrow
+      if (closestUncapturedIdx !== -1 && guideArrow && guideText && guideIcon) {
+        const targetSlot = scanSlots[closestUncapturedIdx];
+        const diffYaw = angleDiffSigned(targetSlot.angle, scanCurrentYaw);
+
+        if (Math.abs(diffYaw) > 10) {
+          guideArrow.style.display = 'flex';
+          const direction = diffYaw > 0 ? 'RIGHT ➔' : '⬅ LEFT';
+          guideIcon.textContent = diffYaw > 0 ? '➔' : '⬅';
+          guideText.textContent = `Turn ${direction} ${Math.abs(Math.round(diffYaw))}° for next angle (${targetSlot.angle}°)`;
+        } else {
+          guideArrow.style.display = 'none';
+        }
+      } else if (guideArrow) {
+        guideArrow.style.display = 'none';
+      }
+    }
+
+    const modal = document.getElementById('tourCameraScanModal');
+    if (modal && modal.style.display !== 'none') {
+      scanLoopAnimId = requestAnimationFrame(runScannerLoop);
+    }
+  }
+
+  window.toggleAutoCaptureOnAlign = function () {
+    const chk = document.getElementById('scanAutoSnapCheck');
+    scanAutoSnap = chk ? chk.checked : !scanAutoSnap;
+  };
+
+  window.manualStepAngle = function (delta) {
+    scanCurrentYaw = normalizeAngle360(scanCurrentYaw + delta);
+  };
+
+  window.captureCurrentScanAngle = function () {
+    let closestIdx = 0;
+    let minDiff = 999;
+
+    scanSlots.forEach((slot, idx) => {
+      const diff = Math.abs(angleDiffSigned(slot.angle, scanCurrentYaw));
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = idx;
+      }
+    });
+
+    window.captureSpecificScanAngle(closestIdx);
+  };
+
+  window.captureSpecificScanAngle = function (slotIdx) {
+    const video = document.getElementById('scanVideoFeed');
+    const workCanvas = document.getElementById('scanWorkCanvas');
+    const flashFx = document.getElementById('scanFlashFx');
+    if (!video || !workCanvas || slotIdx < 0 || slotIdx >= scanSlots.length) return;
+
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+    if (vw === 0 || vh === 0) return;
+
+    workCanvas.width = vw;
+    workCanvas.height = vh;
+    const ctx = workCanvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, vw, vh);
+
+    // Save frame in memory canvas
+    const sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = vw;
+    sliceCanvas.height = vh;
+    const sliceCtx = sliceCanvas.getContext('2d');
+    sliceCtx.drawImage(workCanvas, 0, 0);
+
+    scanSlots[slotIdx].captured = true;
+    scanSlots[slotIdx].imgCanvas = sliceCanvas;
+    scanSlots[slotIdx].timestamp = Date.now();
+
+    // Trigger Visual Flash & Haptics
+    if (flashFx) {
+      flashFx.classList.add('flash');
+      setTimeout(() => flashFx.classList.remove('flash'), 220);
+    }
+
+    if (navigator.vibrate) {
+      navigator.vibrate([40]);
+    }
+
+    // Update real-time panorama preview ribbon
+    updateStitchPreviewRibbon();
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
+
+    if (typeof showToast === 'function') {
+      const capturedCount = scanSlots.filter(s => s.captured).length;
+      showToast(`📸 Angle ${scanSlots[slotIdx].angle}° captured! (${capturedCount}/${SCAN_TOTAL_NODES})`);
+    }
+  };
+
+  function updateScanProgressBar() {
+    const capturedCount = scanSlots.filter(s => s.captured).length;
+    const percent = Math.round((capturedCount / SCAN_TOTAL_NODES) * 100);
+
+    const label = document.getElementById('scanProgressLabel');
+    const barFill = document.getElementById('scanProgressBarFill');
+    const finishBtn = document.getElementById('scanFinishUseBtn');
+
+    if (label) label.textContent = `${capturedCount} / ${SCAN_TOTAL_NODES} ANGLES CAPTURED (${percent}%)`;
+    if (barFill) barFill.style.width = `${percent}%`;
+
+    if (finishBtn) {
+      if (capturedCount >= 3) {
+        finishBtn.style.opacity = '1';
+        finishBtn.style.pointerEvents = 'auto';
+        finishBtn.textContent = `✨ STITCH & USE 360° ROOM (${capturedCount}/${SCAN_TOTAL_NODES})`;
+      } else {
+        finishBtn.style.opacity = '0.6';
+        finishBtn.textContent = `✨ STITCH (Capture ${3 - capturedCount} more)`;
+      }
+    }
+  }
+
+  function renderScanSlotsRibbon() {
+    const track = document.getElementById('scanSlotsTrack');
+    if (!track) return;
+
+    track.innerHTML = scanSlots.map((slot, idx) => {
+      const isCaptured = slot.captured;
+      return `
+        <div class="scan-slot-chip ${isCaptured ? 'captured' : ''}" onclick="window.manualJumpToAngle(${slot.angle})">
+          <span style="font-size:10px;font-weight:800;">${slot.angle}°</span>
+          <span style="font-size:9px;">${isCaptured ? '✓ Ready' : '⭕ Pending'}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.manualJumpToAngle = function (angle) {
+    scanCurrentYaw = angle;
+  };
+
+  function clearStitchPreviewCanvas() {
+    const canvas = document.getElementById('panoStitchPreviewCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#1A1822';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Live 360° Equirectangular Preview · Snap angles to build room panorama', canvas.width / 2, canvas.height / 2);
+  }
+
+  function updateStitchPreviewRibbon() {
+    const canvas = document.getElementById('panoStitchPreviewCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const pw = canvas.width;
+    const ph = canvas.height;
+
+    ctx.fillStyle = '#14121A';
+    ctx.fillRect(0, 0, pw, ph);
+
+    const sliceWidth = pw / SCAN_TOTAL_NODES;
+    const blendOverlap = sliceWidth * 0.28;
+
+    scanSlots.forEach((slot, idx) => {
+      if (slot.captured && slot.imgCanvas) {
+        const destX = idx * sliceWidth;
+
+        // Draw with smooth horizontal overlap
+        ctx.save();
+        ctx.drawImage(slot.imgCanvas, 0, 0, slot.imgCanvas.width, slot.imgCanvas.height, destX - blendOverlap / 2, 0, sliceWidth + blendOverlap, ph);
+        ctx.restore();
+      } else {
+        // Empty angle placeholder
+        ctx.fillStyle = 'rgba(255, 210, 63, 0.04)';
+        ctx.fillRect(idx * sliceWidth + 1, 0, sliceWidth - 2, ph);
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.strokeRect(idx * sliceWidth + 1, 0, sliceWidth - 2, ph);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${slot.angle}°`, idx * sliceWidth + sliceWidth / 2, ph / 2);
+      }
+    });
+  }
+
+  window.resetCurrent360Scan = function () {
+    if (confirm('Reset and clear all current captured angles for this room?')) {
+      initScanSlots();
+      renderScanSlotsRibbon();
+      updateScanProgressBar();
+      clearStitchPreviewCanvas();
+      if (typeof showToast === 'function') {
+        showToast('🗑️ 360° Scanner reset. You can start capturing from 0° again.');
+      }
+    }
+  };
+
+  window.close360CameraScanner = function () {
+    const modal = document.getElementById('tourCameraScanModal');
+    if (modal) modal.style.display = 'none';
+
+    if (scanStream) {
+      scanStream.getTracks().forEach(t => t.stop());
+      scanStream = null;
+    }
+
+    if (scanLoopAnimId) {
+      cancelAnimationFrame(scanLoopAnimId);
+      scanLoopAnimId = null;
+    }
+  };
+
+  /**
+   * Stitches all captured slices into a seamless 2:1 High-Resolution Equirectangular Photosphere
+   * and saves it directly to the tour room!
+   */
+  window.finishAndUse360Stitch = async function () {
+    const capturedSlots = scanSlots.filter(s => s.captured && s.imgCanvas);
+    if (capturedSlots.length < 2) {
+      alert('Please capture at least 3-4 angles around the room before stitching.');
+      return;
+    }
+
+    const finishBtn = document.getElementById('scanFinishUseBtn');
+    if (finishBtn) {
+      finishBtn.textContent = '⏳ STITCHING 360° PHOTOSPHERE...';
+      finishBtn.disabled = true;
+    }
+
+    // Full 2:1 Equirectangular Canvas
+    const PANO_W = 2048;
+    const PANO_H = 1024;
+    const panoCanvas = document.createElement('canvas');
+    panoCanvas.width = PANO_W;
+    panoCanvas.height = PANO_H;
+    const pCtx = panoCanvas.getContext('2d');
+
+    // Fill background with warm neutral ambient room tint
+    pCtx.fillStyle = '#22202E';
+    pCtx.fillRect(0, 0, PANO_W, PANO_H);
+
+    const sliceW = PANO_W / SCAN_TOTAL_NODES;
+    const overlapW = sliceW * 0.35; // 35% feathered overlap for seamless transition
+
+    // Render slices onto equirectangular canvas
+    scanSlots.forEach((slot, idx) => {
+      let srcCanvas = slot.imgCanvas;
+
+      // If slot wasn't captured, interpolate from nearest captured slot
+      if (!srcCanvas) {
+        let nearest = capturedSlots.reduce((prev, curr) => {
+          let prevDiff = Math.abs(angleDiffSigned(prev.angle, slot.angle));
+          let currDiff = Math.abs(angleDiffSigned(curr.angle, slot.angle));
+          return currDiff < prevDiff ? curr : prev;
+        });
+        srcCanvas = nearest.imgCanvas;
+      }
+
+      if (srcCanvas) {
+        const destX = idx * sliceW;
+        const destY = PANO_H * 0.15;
+        const destH = PANO_H * 0.70;
+
+        pCtx.save();
+        pCtx.drawImage(
+          srcCanvas,
+          0, 0, srcCanvas.width, srcCanvas.height,
+          destX - overlapW / 2, destY, sliceW + overlapW, destH
+        );
+        pCtx.restore();
+      }
+    });
+
+    // Seamless Ceiling (Zenith) & Floor (Nadir) Infill & Gradient Blending
+    const topGrad = pCtx.createLinearGradient(0, 0, 0, PANO_H * 0.18);
+    topGrad.addColorStop(0, '#3A364B');
+    topGrad.addColorStop(1, 'rgba(58, 54, 75, 0)');
+    pCtx.fillStyle = topGrad;
+    pCtx.fillRect(0, 0, PANO_W, PANO_H * 0.18);
+
+    const btmGrad = pCtx.createLinearGradient(0, PANO_H * 0.82, 0, PANO_H);
+    btmGrad.addColorStop(0, 'rgba(26, 24, 34, 0)');
+    btmGrad.addColorStop(1, '#1A1822');
+    pCtx.fillStyle = btmGrad;
+    pCtx.fillRect(0, PANO_H * 0.82, PANO_W, PANO_H * 0.18);
+
+    // Convert stitched canvas to high quality JPEG
+    const stitchedDataUrl = panoCanvas.toDataURL('image/jpeg', 0.90);
+    let finalPanoUrl = stitchedDataUrl;
+
+    // Upload to Supabase Storage if helper exists
+    if (typeof window.uploadToSupabaseStorage === 'function') {
+      try {
+        const blob = await new Promise(resolve => panoCanvas.toBlob(resolve, 'image/jpeg', 0.90));
+        const scanFile = new File([blob], `360_scan_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const uploaded = await window.uploadToSupabaseStorage(scanFile);
+        if (uploaded && uploaded.url) {
+          finalPanoUrl = uploaded.url;
+        }
+      } catch (err) {
+        console.warn('[SpotLIGHT 360 Scanner] Direct upload failed, using Data URL:', err);
+      }
+    }
+
+    // Integrate into Tour Scenes
+    if (scanMode === 'replace_room') {
+      const curScene = activeSceneList[activeSceneIndex];
+      if (curScene) {
+        curScene.panoUrl = finalPanoUrl;
+        curScene.tourUrl = '';
+        curScene.tag = '360° Real-Time Camera Scan';
+      }
+    } else {
+      // Create Brand New Room
+      const newId = 'scan-room-' + Date.now().toString(36);
+      const roomNum = activeSceneList.length + 1;
+      const newScene = {
+        id: newId,
+        name: `📸 Scanned Room ${roomNum}`,
+        location: currentTourData?.location || 'Salt Lake City, UT',
+        tag: '360° Camera Photosphere',
+        panoUrl: finalPanoUrl,
+        tourUrl: '',
+        blurb: 'Full 360° walk-in space captured and stitched with device camera',
+        hotspots: [
+          { pitch: 0, yaw: 180, label: '🚪 Back to Previous Room', targetScene: activeSceneList[activeSceneIndex]?.id || activeSceneList[0]?.id }
+        ]
+      };
+      activeSceneList.push(newScene);
+      activeSceneIndex = activeSceneList.length - 1;
+    }
+
+    window.close360CameraScanner();
+    window.saveTourChangesToMagazine();
+    renderSceneSelector();
+    loadScene(activeSceneIndex);
+
+    if (finishBtn) {
+      finishBtn.textContent = '✨ STITCH & USE 360° ROOM (SAVE)';
+      finishBtn.disabled = false;
+    }
+
+    if (typeof showToast === 'function') {
+      showToast('🎉 360° Photosphere Stitched & Saved! You are now inside your newly scanned space.');
+    }
+  };
+
+  window.switchTourSceneIndex = function (idx) {
+    if (idx >= 0 && idx < activeSceneList.length) {
+      loadScene(idx);
     }
   };
 
   /**
    * Opens the 3D / 360° Tour Modal
-   * @param {Object} options - { title, tag, location, tourUrl, panoUrl, link, cta, blurb }
    */
   window.open3dTourModal = function (options = {}) {
-    initViewerElements();
-    injectViewerStyles();
-
+    injectTourModalHtml();
     currentTourData = options;
+
     const modal = document.getElementById('tour3dModal');
     if (!modal) return;
 
-    const rawTour = options.tourUrl || options.panoUrl || '';
-    if (rawTour) {
-      const norm = normalize3dTourUrl(rawTour);
-      activeSceneList = [
-        {
-          id: 'custom-spot',
-          name: options.title || '360° Location View',
-          location: options.location || 'Salt Lake City, UT',
-          tag: options.tag || (norm.provider ? `360° ${norm.provider}` : '360° Virtual Space'),
-          panoUrl: norm.isImage ? norm.url : '',
-          tourUrl: norm.isEmbed ? norm.url : '',
-          originalUrl: norm.originalUrl || rawTour,
-          blurb: options.blurb || '',
-          hotspots: []
-        },
-        ...DEMO_SCENES.slice(0, 3)
-      ];
-    } else {
-      activeSceneList = DEMO_SCENES;
+    modal.classList.add('active');
+
+    // Parse custom scenes or stored tour config
+    let loadedScenes = null;
+
+    if (options.scenes && Array.isArray(options.scenes) && options.scenes.length > 0) {
+      loadedScenes = JSON.parse(JSON.stringify(options.scenes));
+    } else if (options.tourUrl && options.tourUrl.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(options.tourUrl);
+        if (parsed.scenes && Array.isArray(parsed.scenes)) {
+          loadedScenes = parsed.scenes;
+        }
+      } catch (e) {}
     }
 
-    activeSceneIndex = 0;
-    yaw = 0;
-    pitch = 0;
-    fov = 75;
+    if (!loadedScenes && (options.tourUrl || options.panoUrl)) {
+      const directNorm = normalize3dTourUrl(options.tourUrl || options.panoUrl);
+      loadedScenes = [
+        {
+          id: 'custom-spot',
+          name: options.title || '360° Interactive Space',
+          location: options.location || 'Wasatch Front, UT',
+          tag: options.tag || directNorm.provider || '360° Scan',
+          tourUrl: directNorm.isEmbed ? directNorm.url : '',
+          panoUrl: directNorm.isImage ? directNorm.url : '',
+          blurb: options.blurb || '',
+          hotspots: []
+        }
+      ];
+    }
+
+    if (!loadedScenes || loadedScenes.length === 0) {
+      if (options.location && options.location.toLowerCase().includes('west jordan')) {
+        loadedScenes = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
+      } else {
+        loadedScenes = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
+      }
+    }
+
+    activeSceneList = loadedScenes;
     targetYaw = 0;
     targetPitch = 0;
     targetFov = 75;
-    isAutoRotating = true;
-
-    canvas = document.getElementById('tour3dCanvas');
-    
-    modal.classList.add('active');
-    
-    resizeCanvas();
-    requestAnimationFrame(() => resizeCanvas());
-    setTimeout(() => resizeCanvas(), 60);
-    setTimeout(() => resizeCanvas(), 250);
+    yaw = 0;
+    pitch = 0;
+    fov = 75;
+    isAutoRotating = false;
 
     loadScene(0);
 
-    if (animFrameId) cancelAnimationFrame(animFrameId);
-    animFrameId = requestAnimationFrame(renderFrame);
-
-    if (typeof showToast === 'function') {
-      showToast(`🔦 Stepped Inside 360° Space: ${options.title || '360 · Salt Lake City'}`);
-    }
+    const autoRotateBtn = document.getElementById('tourAutoRotateBtn');
+    if (autoRotateBtn) autoRotateBtn.classList.remove('active');
   };
 
   window.close3dTourModal = function () {
     const modal = document.getElementById('tour3dModal');
-    if (modal) modal.classList.remove('active');
-
+    if (modal) {
+      modal.classList.remove('active');
+    }
     const embedFrame = document.getElementById('tourEmbedFrame');
-    if (embedFrame) embedFrame.src = 'about:blank';
-
+    if (embedFrame) {
+      embedFrame.src = 'about:blank';
+      embedFrame.style.display = 'none';
+    }
+    disableGyro();
     if (animFrameId) {
       cancelAnimationFrame(animFrameId);
       animFrameId = null;
     }
-    disableGyro();
-
-    if (document.fullscreenElement) {
-      if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-    }
   };
 
-  window.normalize3dTourUrl = normalize3dTourUrl;
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      initViewerElements();
-      injectViewerStyles();
-    });
+  // Auto-initialize UI on load
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    injectTourModalHtml();
   } else {
-    initViewerElements();
-    injectViewerStyles();
+    window.addEventListener('DOMContentLoaded', injectTourModalHtml);
   }
-
-  console.log('[SpotLIGHT] 360° Immersive Viewer Engine initialized with 360Cities & Multi-Provider Embed Normalizer');
 })();
