@@ -3883,20 +3883,34 @@
             sensorPill.style.borderColor = '#06D6A0';
           }
 
-          let rawYaw = 360 - (e.alpha || 0); // convert compass angle to standard counter-clockwise
-          let rawPitch = (e.beta || 0) - 90; // normalize phone standing vertical to pitch 0
+          // Prefer webkitCompassHeading (true compass) when available — far more stable than alpha
+          let rawYaw;
+          if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+            rawYaw = e.webkitCompassHeading; // 0 = North, clockwise
+          } else {
+            rawYaw = 360 - (e.alpha || 0);
+          }
+          // beta: 90 = phone upright vertical → pitch 0
+          let rawPitch = (e.beta || 90) - 90;
+          rawPitch = Math.max(-80, Math.min(80, rawPitch));
 
           if (firstReading) {
             scanBaseYawOffset = rawYaw;
+            scanSmoothYaw = 0;
+            scanSmoothPitch = rawPitch;
             firstReading = false;
           }
 
           const targetYaw = normalizeAngle360(rawYaw - scanBaseYawOffset);
-          const targetPitch = Math.max(-85, Math.min(85, rawPitch));
-          // Low-pass filter so circles don't jump (Teleport / HDReye feel)
+          const targetPitch = rawPitch;
+
+          // Heavy low-pass on yaw (horizon circles were jittery); lighter on pitch
+          // 0.08 ≈ very stable / anchored to walls; 0.18 for pitch so tilt still feels responsive
           let dy = angleDiffSigned(targetYaw, scanSmoothYaw);
-          scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.22);
-          scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.22;
+          // Deadzone: ignore tiny compass noise under 0.6°
+          if (Math.abs(dy) < 0.6) dy = 0;
+          scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.08);
+          scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.18;
           scanCurrentYaw = scanSmoothYaw;
           scanCurrentPitch = scanSmoothPitch;
         }
@@ -4206,13 +4220,15 @@
     if (barFill) barFill.style.width = `${percent}%`;
 
     if (finishBtn) {
-      if (capturedCount >= 12) { // enough for a usable sphere
+      if (capturedCount >= 8) {
         finishBtn.style.opacity = '1';
         finishBtn.style.pointerEvents = 'auto';
+        finishBtn.disabled = false;
         finishBtn.textContent = `✨ STITCH & USE 360° ROOM (${capturedCount}/${SCAN_TOTAL_NODES})`;
       } else {
         finishBtn.style.opacity = '0.6';
-        finishBtn.textContent = `✨ STITCH (need ${12 - capturedCount} more · aim for all 28)`;
+        finishBtn.disabled = false;
+        finishBtn.textContent = `✨ STITCH (need ${8 - capturedCount} more · aim for all 28)`;
       }
     }
   }
@@ -4325,8 +4341,8 @@
    */
   window.finishAndUse360Stitch = async function () {
     const capturedSlots = scanSlots.filter(s => s.captured && s.imgCanvas);
-    if (capturedSlots.length < 12) {
-      alert('Please capture at least 12 of the 28 targets (include some UP and DOWN) for a clean 360°. All 28 = best.');
+    if (capturedSlots.length < 8) {
+      alert('Please capture at least 8 targets (include some UP and DOWN). More = cleaner 360°.');
       return;
     }
 
@@ -4336,224 +4352,234 @@
       finishBtn.disabled = true;
     }
 
-    // Proper spherical projection stitch → true equirectangular 2:1
-    // Each phone photo is projected onto the sphere using its capture yaw/pitch
-    const PANO_W = 2048;  // good quality, fast enough in-browser
-    const PANO_H = 1024;
-    const panoCanvas = document.createElement('canvas');
-    panoCanvas.width = PANO_W;
-    panoCanvas.height = PANO_H;
-    const pCtx = panoCanvas.getContext('2d');
-    pCtx.fillStyle = '#1a1822';
-    pCtx.fillRect(0, 0, PANO_W, PANO_H);
+    // Let the button text paint before heavy work
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-    // Accumulator for weighted blending
-    const acc = pCtx.createImageData(PANO_W, PANO_H);
-    const aData = acc.data;
-    const wSum = new Float32Array(PANO_W * PANO_H);
+    try {
+      const PANO_W = 2048;
+      const PANO_H = 1024;
+      const panoCanvas = document.createElement('canvas');
+      panoCanvas.width = PANO_W;
+      panoCanvas.height = PANO_H;
+      const pCtx = panoCanvas.getContext('2d');
+      pCtx.fillStyle = '#1a1822';
+      pCtx.fillRect(0, 0, PANO_W, PANO_H);
 
-    // Phone camera horizontal FOV estimate (degrees) — typical smartphone ~60-70°
-    const CAM_HFOV = 64;
-    const CAM_VFOV = CAM_HFOV * 0.75;
+      const acc = pCtx.createImageData(PANO_W, PANO_H);
+      const aData = acc.data;
+      const wSum = new Float32Array(PANO_W * PANO_H);
 
-    const deg2rad = Math.PI / 180;
-    const rad2deg = 180 / Math.PI;
+      // Slightly wider FOV so overlaps blend better
+      const CAM_HFOV = 70;
+      const CAM_VFOV = 52;
+      const deg2rad = Math.PI / 180;
 
-    // Only use actually captured frames (no fake fill from nearest — that caused warping)
-    const frames = scanSlots.filter(s => s.captured && s.imgCanvas);
+      const frames = scanSlots.filter(s => s.captured && s.imgCanvas);
+      let done = 0;
 
-    for (const slot of frames) {
-      const src = slot.imgCanvas;
-      const sw = src.width;
-      const sh = src.height;
-      const sCtx = src.getContext('2d', { willReadFrequently: true });
-      const sImg = sCtx.getImageData(0, 0, sw, sh);
-      const sData = sImg.data;
-
-      const yaw0 = slot.yaw * deg2rad;
-      const pitch0 = slot.pitch * deg2rad;
-      const hFov2 = (CAM_HFOV / 2) * deg2rad;
-      const vFov2 = (CAM_VFOV / 2) * deg2rad;
-      const tanH = Math.tan(hFov2);
-      const tanV = Math.tan(vFov2);
-
-      // Precompute camera rotation (yaw around Y, then pitch around X)
-      const cy = Math.cos(yaw0), sy = Math.sin(yaw0);
-      const cp = Math.cos(pitch0), sp = Math.sin(pitch0);
-
-      // Only iterate the equirect region this photo can cover (much faster)
-      const yawSpan = CAM_HFOV + 12;
-      const pitchSpan = CAM_VFOV + 12;
-      let lonMin = slot.yaw - yawSpan / 2;
-      let lonMax = slot.yaw + yawSpan / 2;
-      const latMin = Math.max(-89, slot.pitch - pitchSpan / 2);
-      const latMax = Math.min(89, slot.pitch + pitchSpan / 2);
-
-      const py0 = Math.max(0, Math.floor((0.5 - latMax / 180) * PANO_H));
-      const py1 = Math.min(PANO_H - 1, Math.ceil((0.5 - latMin / 180) * PANO_H));
-
-      // Handle yaw wrap
-      const ranges = [];
-      if (lonMin < 0) {
-        ranges.push([lonMin + 360, 360]);
-        ranges.push([0, lonMax]);
-      } else if (lonMax > 360) {
-        ranges.push([lonMin, 360]);
-        ranges.push([0, lonMax - 360]);
-      } else {
-        ranges.push([lonMin, lonMax]);
-      }
-
-      for (let py = py0; py <= py1; py++) {
-        const lat = (0.5 - py / PANO_H) * Math.PI;
-        const cosLat = Math.cos(lat);
-        const sinLat = Math.sin(lat);
-
-        for (const [lo0, lo1] of ranges) {
-          const px0 = Math.max(0, Math.floor((lo0 / 360) * PANO_W));
-          const px1 = Math.min(PANO_W - 1, Math.ceil((lo1 / 360) * PANO_W));
-
-          for (let px = px0; px <= px1; px++) {
-            const lon = (px / PANO_W) * 2 * Math.PI - Math.PI;
-
-            const dirX = cosLat * Math.sin(lon);
-            const dirY = sinLat;
-            const dirZ = cosLat * Math.cos(lon);
-
-            // Into camera space
-            const x1 = dirX * cy - dirZ * sy;
-            const z1 = dirX * sy + dirZ * cy;
-            const y2 = dirY * cp + z1 * sp;
-            const z2 = -dirY * sp + z1 * cp;
-
-            if (z2 <= 0.08) continue;
-
-            const u = x1 / z2;
-            const v = y2 / z2;
-            if (Math.abs(u) > tanH || Math.abs(v) > tanV) continue;
-
-            const sx = (0.5 + u / (2 * tanH)) * sw;
-            const sy = (0.5 - v / (2 * tanV)) * sh;
-            if (sx < 1 || sx >= sw - 2 || sy < 1 || sy >= sh - 2) continue;
-
-            const ix = sx | 0;
-            const iy = sy | 0;
-            const srcIdx = (iy * sw + ix) * 4;
-
-            const wu = 1 - Math.abs(u / tanH);
-            const wv = 1 - Math.abs(v / tanV);
-            const weight = Math.pow(Math.max(0, wu * wv), 1.4);
-            if (weight < 0.03) continue;
-
-            const dstIdx = py * PANO_W + px;
-            const di = dstIdx * 4;
-            aData[di]     += sData[srcIdx]     * weight;
-            aData[di + 1] += sData[srcIdx + 1] * weight;
-            aData[di + 2] += sData[srcIdx + 2] * weight;
-            wSum[dstIdx]  += weight;
-          }
+      for (const slot of frames) {
+        done++;
+        if (finishBtn) {
+          finishBtn.textContent = `⏳ PROJECTING ${done}/${frames.length}…`;
         }
-      }
-    }
+        // Yield so UI stays responsive
+        await new Promise(r => setTimeout(r, 0));
 
-    // Normalize weighted sum → final pixels
-    for (let i = 0; i < PANO_W * PANO_H; i++) {
-      const w = wSum[i];
-      const di = i * 4;
-      if (w > 0.01) {
-        aData[di]     = Math.min(255, aData[di]     / w);
-        aData[di + 1] = Math.min(255, aData[di + 1] / w);
-        aData[di + 2] = Math.min(255, aData[di + 2] / w);
-        aData[di + 3] = 255;
-      } else {
-        // Uncovered = dark neutral (small gaps get filled by nearby later if any)
-        aData[di] = 20; aData[di + 1] = 18; aData[di + 2] = 28; aData[di + 3] = 255;
-      }
-    }
-    pCtx.putImageData(acc, 0, 0);
+        const src = slot.imgCanvas;
+        // Downsample source for speed (max ~960 wide)
+        const maxW = 960;
+        let sw = src.width, sh = src.height;
+        let sData, workW = sw, workH = sh;
+        if (sw > maxW) {
+          workW = maxW;
+          workH = Math.round(sh * (maxW / sw));
+          const tmpC = document.createElement('canvas');
+          tmpC.width = workW; tmpC.height = workH;
+          const tctx = tmpC.getContext('2d');
+          tctx.drawImage(src, 0, 0, workW, workH);
+          sData = tctx.getImageData(0, 0, workW, workH).data;
+          sw = workW; sh = workH;
+        } else {
+          sData = src.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, sw, sh).data;
+        }
 
-    // Light fill for any remaining tiny holes (simple blur pass on dark pixels)
-    const filled = pCtx.getImageData(0, 0, PANO_W, PANO_H);
-    const fd = filled.data;
-    for (let y = 1; y < PANO_H - 1; y++) {
-      for (let x = 1; x < PANO_W - 1; x++) {
-        const i = (y * PANO_W + x) * 4;
-        if (fd[i] <= 22 && fd[i+1] <= 20 && fd[i+2] <= 30) {
-          let r=0,g=0,b=0,n=0;
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const j = ((y+dy) * PANO_W + (x+dx+PANO_W)%PANO_W) * 4;
-              if (fd[j] > 22 || fd[j+1] > 20) {
-                r += fd[j]; g += fd[j+1]; b += fd[j+2]; n++;
-              }
+        const yaw0 = slot.yaw * deg2rad;
+        const pitch0 = slot.pitch * deg2rad;
+        const tanH = Math.tan((CAM_HFOV / 2) * deg2rad);
+        const tanV = Math.tan((CAM_VFOV / 2) * deg2rad);
+        const cy = Math.cos(yaw0), sy = Math.sin(yaw0);
+        const cp = Math.cos(pitch0), sp = Math.sin(pitch0);
+
+        const yawSpan = CAM_HFOV + 16;
+        const pitchSpan = CAM_VFOV + 16;
+        let lonMin = slot.yaw - yawSpan / 2;
+        let lonMax = slot.yaw + yawSpan / 2;
+        const latMin = Math.max(-89, slot.pitch - pitchSpan / 2);
+        const latMax = Math.min(89, slot.pitch + pitchSpan / 2);
+
+        const py0 = Math.max(0, Math.floor((0.5 - latMax / 180) * PANO_H));
+        const py1 = Math.min(PANO_H - 1, Math.ceil((0.5 - latMin / 180) * PANO_H));
+
+        const ranges = [];
+        if (lonMin < 0) {
+          ranges.push([lonMin + 360, 360]);
+          ranges.push([0, lonMax]);
+        } else if (lonMax > 360) {
+          ranges.push([lonMin, 360]);
+          ranges.push([0, lonMax - 360]);
+        } else {
+          ranges.push([lonMin, lonMax]);
+        }
+
+        for (let py = py0; py <= py1; py++) {
+          const lat = (0.5 - py / PANO_H) * Math.PI;
+          const cosLat = Math.cos(lat);
+          const sinLat = Math.sin(lat);
+
+          for (const [lo0, lo1] of ranges) {
+            const px0 = Math.max(0, Math.floor((lo0 / 360) * PANO_W));
+            const px1 = Math.min(PANO_W - 1, Math.ceil((lo1 / 360) * PANO_W));
+
+            for (let px = px0; px <= px1; px++) {
+              const lon = (px / PANO_W) * 2 * Math.PI - Math.PI;
+              const dirX = cosLat * Math.sin(lon);
+              const dirY = sinLat;
+              const dirZ = cosLat * Math.cos(lon);
+
+              const x1 = dirX * cy - dirZ * sy;
+              const z1 = dirX * sy + dirZ * cy;
+              const y2 = dirY * cp + z1 * sp;
+              const z2 = -dirY * sp + z1 * cp;
+              if (z2 <= 0.08) continue;
+
+              const u = x1 / z2;
+              const v = y2 / z2;
+              if (Math.abs(u) > tanH || Math.abs(v) > tanV) continue;
+
+              const sx = (0.5 + u / (2 * tanH)) * sw;
+              const sy = (0.5 - v / (2 * tanV)) * sh;
+              if (sx < 1 || sx >= sw - 2 || sy < 1 || sy >= sh - 2) continue;
+
+              const ix = sx | 0;
+              const iy = sy | 0;
+              const srcIdx = (iy * sw + ix) * 4;
+
+              const wu = 1 - Math.abs(u / tanH);
+              const wv = 1 - Math.abs(v / tanV);
+              const weight = Math.pow(Math.max(0, wu * wv), 1.35);
+              if (weight < 0.04) continue;
+
+              const dstIdx = py * PANO_W + px;
+              const di = dstIdx * 4;
+              aData[di]     += sData[srcIdx]     * weight;
+              aData[di + 1] += sData[srcIdx + 1] * weight;
+              aData[di + 2] += sData[srcIdx + 2] * weight;
+              wSum[dstIdx]  += weight;
             }
           }
-          if (n > 0) {
-            fd[i] = r/n; fd[i+1] = g/n; fd[i+2] = b/n;
+        }
+      }
+
+      // Normalize
+      for (let i = 0; i < PANO_W * PANO_H; i++) {
+        const w = wSum[i];
+        const di = i * 4;
+        if (w > 0.01) {
+          aData[di]     = Math.min(255, aData[di] / w);
+          aData[di + 1] = Math.min(255, aData[di + 1] / w);
+          aData[di + 2] = Math.min(255, aData[di + 2] / w);
+          aData[di + 3] = 255;
+        } else {
+          aData[di] = 20; aData[di + 1] = 18; aData[di + 2] = 28; aData[di + 3] = 255;
+        }
+      }
+      pCtx.putImageData(acc, 0, 0);
+
+      // Fill tiny holes
+      const filled = pCtx.getImageData(0, 0, PANO_W, PANO_H);
+      const fd = filled.data;
+      for (let y = 1; y < PANO_H - 1; y++) {
+        for (let x = 1; x < PANO_W - 1; x++) {
+          const i = (y * PANO_W + x) * 4;
+          if (fd[i] <= 22 && fd[i + 1] <= 20 && fd[i + 2] <= 30) {
+            let r = 0, g = 0, b = 0, n = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const j = ((y + dy) * PANO_W + (x + dx + PANO_W) % PANO_W) * 4;
+                if (fd[j] > 22 || fd[j + 1] > 20) {
+                  r += fd[j]; g += fd[j + 1]; b += fd[j + 2]; n++;
+                }
+              }
+            }
+            if (n > 0) {
+              fd[i] = r / n; fd[i + 1] = g / n; fd[i + 2] = b / n;
+            }
           }
         }
       }
-    }
-    pCtx.putImageData(filled, 0, 0);
+      pCtx.putImageData(filled, 0, 0);
 
-    // Convert stitched canvas to high quality JPEG
-    const stitchedDataUrl = panoCanvas.toDataURL('image/jpeg', 0.90);
-    let finalPanoUrl = stitchedDataUrl;
+      if (finishBtn) finishBtn.textContent = '⏳ SAVING…';
+      await new Promise(r => setTimeout(r, 0));
 
-    // Upload to Supabase Storage if helper exists
-    if (typeof window.uploadToSupabaseStorage === 'function') {
-      try {
-        const blob = await new Promise(resolve => panoCanvas.toBlob(resolve, 'image/jpeg', 0.90));
-        const scanFile = new File([blob], `360_scan_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        const uploaded = await window.uploadToSupabaseStorage(scanFile);
-        if (uploaded && uploaded.url) {
-          finalPanoUrl = uploaded.url;
+      const stitchedDataUrl = panoCanvas.toDataURL('image/jpeg', 0.88);
+      let finalPanoUrl = stitchedDataUrl;
+
+      if (typeof window.uploadToSupabaseStorage === 'function') {
+        try {
+          const blob = await new Promise(resolve => panoCanvas.toBlob(resolve, 'image/jpeg', 0.88));
+          const scanFile = new File([blob], `360_scan_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          const uploaded = await window.uploadToSupabaseStorage(scanFile);
+          if (uploaded && uploaded.url) finalPanoUrl = uploaded.url;
+        } catch (err) {
+          console.warn('[SpotLIGHT 360 Scanner] Upload failed, using Data URL:', err);
         }
-      } catch (err) {
-        console.warn('[SpotLIGHT 360 Scanner] Direct upload failed, using Data URL:', err);
       }
-    }
 
-    // Integrate into Tour Scenes
-    if (scanMode === 'replace_room') {
-      const curScene = activeSceneList[activeSceneIndex];
-      if (curScene) {
-        curScene.panoUrl = finalPanoUrl;
-        curScene.tourUrl = '';
-        curScene.tag = '360° Real-Time Camera Scan';
+      if (scanMode === 'replace_room') {
+        const curScene = activeSceneList[activeSceneIndex];
+        if (curScene) {
+          curScene.panoUrl = finalPanoUrl;
+          curScene.tourUrl = '';
+          curScene.tag = '360° Real-Time Camera Scan';
+        }
+      } else {
+        const newId = 'scan-room-' + Date.now().toString(36);
+        const roomNum = activeSceneList.length + 1;
+        const newScene = {
+          id: newId,
+          name: `📸 Scanned Room ${roomNum}`,
+          location: currentTourData?.location || 'Salt Lake City, UT',
+          tag: '360° Camera Photosphere',
+          panoUrl: finalPanoUrl,
+          tourUrl: '',
+          blurb: 'Full 360° walk-in space captured and stitched with device camera',
+          hotspots: [
+            { pitch: 0, yaw: 180, label: '🚪 Back to Previous Room', targetScene: activeSceneList[activeSceneIndex]?.id || activeSceneList[0]?.id }
+          ]
+        };
+        activeSceneList.push(newScene);
+        activeSceneIndex = activeSceneList.length - 1;
       }
-    } else {
-      // Create Brand New Room
-      const newId = 'scan-room-' + Date.now().toString(36);
-      const roomNum = activeSceneList.length + 1;
-      const newScene = {
-        id: newId,
-        name: `📸 Scanned Room ${roomNum}`,
-        location: currentTourData?.location || 'Salt Lake City, UT',
-        tag: '360° Camera Photosphere',
-        panoUrl: finalPanoUrl,
-        tourUrl: '',
-        blurb: 'Full 360° walk-in space captured and stitched with device camera',
-        hotspots: [
-          { pitch: 0, yaw: 180, label: '🚪 Back to Previous Room', targetScene: activeSceneList[activeSceneIndex]?.id || activeSceneList[0]?.id }
-        ]
-      };
-      activeSceneList.push(newScene);
-      activeSceneIndex = activeSceneList.length - 1;
-    }
 
-    window.close360CameraScanner();
-    window.saveTourChangesToMagazine();
-    renderSceneSelector();
-    loadScene(activeSceneIndex);
+      window.close360CameraScanner();
+      if (typeof window.saveTourChangesToMagazine === 'function') {
+        window.saveTourChangesToMagazine();
+      }
+      renderSceneSelector();
+      loadScene(activeSceneIndex);
 
-    if (finishBtn) {
-      finishBtn.textContent = '✨ STITCH & USE 360° ROOM (SAVE)';
-      finishBtn.disabled = false;
-    }
-
-    if (typeof showToast === 'function') {
-      showToast('🎉 360° Photosphere Stitched & Saved! You are now inside your newly scanned space.');
+      if (typeof showToast === 'function') {
+        showToast('🎉 360° Photosphere Stitched & Saved!');
+      }
+    } catch (err) {
+      console.error('[SpotLIGHT 360 Scanner] Stitch failed:', err);
+      alert('Stitch failed: ' + (err && err.message ? err.message : String(err)));
+    } finally {
+      if (finishBtn) {
+        finishBtn.textContent = '✨ STITCH & USE 360° ROOM (SAVE)';
+        finishBtn.disabled = false;
+      }
     }
   };
 
