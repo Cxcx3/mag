@@ -4519,134 +4519,270 @@
    * and saves it directly to the tour room!
    */
   window.finishAndUse360Stitch = async function () {
-    var capturedList = scanSlots.filter(function(s) { return s.captured && s.imgCanvas; });
+    var capturedList = [];
+    for (var ci = 0; ci < scanSlots.length; ci++) {
+      if (scanSlots[ci].captured && scanSlots[ci].imgCanvas) capturedList.push(scanSlots[ci]);
+    }
     if (capturedList.length < 6) {
-      alert('Please capture at least 8 targets (aim at every glowing blue dot — up, around, and down).');
+      alert('Please capture at least 6 targets (up, around, and down). More dots = cleaner 360°.');
       return;
     }
 
     var finishBtn = document.getElementById('scanFinishUseBtn');
     if (finishBtn) {
-      finishBtn.textContent = '⏳ STITCHING 360°…';
+      finishBtn.textContent = '⏳ STITCHING SPHERE…';
       finishBtn.disabled = true;
     }
-
-    await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
+    await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
 
     try {
-      var PANO_W = 2048;
-      var PANO_H = 1024;
-      var panoCanvas = document.createElement('canvas');
-      panoCanvas.width = PANO_W;
-      panoCanvas.height = PANO_H;
-      var pCtx = panoCanvas.getContext('2d');
-      pCtx.fillStyle = '#1a1822';
-      pCtx.fillRect(0, 0, PANO_W, PANO_H);
+      // Equirectangular output (2:1) — standard for Three.js / Kuula-style viewers
+      var OUT_W = 2048;
+      var OUT_H = 1024;
+      var outCanvas = document.createElement('canvas');
+      outCanvas.width = OUT_W;
+      outCanvas.height = OUT_H;
+      var outCtx = outCanvas.getContext('2d');
+      outCtx.fillStyle = '#14121A';
+      outCtx.fillRect(0, 0, OUT_W, OUT_H);
 
-      // Simple reliable placement: each photo goes to its yaw column + pitch row
-      // with soft edge blending — no complex projection vars that can clash
-      var rowDefs = [
-        { key: 'up',   y0: 0,                         h: Math.round(PANO_H * 0.28) },
-        { key: 'mid',  y0: Math.round(PANO_H * 0.24), h: Math.round(PANO_H * 0.52) },
-        { key: 'down', y0: Math.round(PANO_H * 0.72), h: Math.round(PANO_H * 0.28) }
-      ];
+      var accum = outCtx.createImageData(OUT_W, OUT_H);
+      var pix = accum.data;
+      var weightBuf = new Float32Array(OUT_W * OUT_H);
 
-      function rowForPitch(p) {
-        if (p > 25) return rowDefs[0];
-        if (p < -25) return rowDefs[2];
-        return rowDefs[1];
-      }
+      // Phone camera approximate FOV (wider = more overlap, fewer black gaps)
+      var H_FOV = 72;  // degrees horizontal
+      var V_FOV = 54;  // degrees vertical
+      var DEG2RAD = Math.PI / 180;
+      var halfH = (H_FOV / 2) * DEG2RAD;
+      var halfV = (V_FOV / 2) * DEG2RAD;
+      var tanHalfH = Math.tan(halfH);
+      var tanHalfV = Math.tan(halfV);
 
       var fi;
       for (fi = 0; fi < capturedList.length; fi++) {
-        if (finishBtn) finishBtn.textContent = '⏳ STITCHING ' + (fi + 1) + '/' + capturedList.length + '…';
-        await new Promise(function(r) { setTimeout(r, 0); });
+        if (finishBtn) {
+          finishBtn.textContent = '⏳ STITCHING ' + (fi + 1) + '/' + capturedList.length + '…';
+        }
+        await new Promise(function (r) { setTimeout(r, 0); });
 
         var slot = capturedList[fi];
         var srcCanvas = slot.imgCanvas;
-        if (!srcCanvas) continue;
+        if (!srcCanvas || !srcCanvas.width) continue;
 
-        var row = rowForPitch(slot.pitch);
-        var colW = (row.key === 'mid') ? (PANO_W / 12) : (PANO_W / 6);
-        var centerX = (slot.yaw / 360) * PANO_W;
-        var drawW = Math.round(colW * 1.55);
-        var drawH = row.h;
-        var drawX = Math.round(centerX - drawW / 2);
-        var drawY = row.y0;
-
-        // Soft-edge temp canvas
-        var tmp = document.createElement('canvas');
-        tmp.width = drawW;
-        tmp.height = drawH;
-        var tCtx = tmp.getContext('2d');
+        // Downsample source for speed
+        var maxSrcW = 800;
         var srcW = srcCanvas.width;
         var srcH = srcCanvas.height;
-        var cropTop = Math.round(srcH * 0.08);
-        var cropH = Math.round(srcH * 0.84);
-        tCtx.drawImage(srcCanvas, 0, cropTop, srcW, cropH, 0, 0, drawW, drawH);
+        var workCanvas = srcCanvas;
+        var workW = srcW;
+        var workH = srcH;
+        if (srcW > maxSrcW) {
+          workW = maxSrcW;
+          workH = Math.round(srcH * (maxSrcW / srcW));
+          workCanvas = document.createElement('canvas');
+          workCanvas.width = workW;
+          workCanvas.height = workH;
+          workCanvas.getContext('2d').drawImage(srcCanvas, 0, 0, workW, workH);
+        }
+        var srcPixels = workCanvas.getContext('2d', { willReadFrequently: true })
+          .getImageData(0, 0, workW, workH).data;
 
-        // Fade left/right edges
-        var imgData = tCtx.getImageData(0, 0, drawW, drawH);
-        var pix = imgData.data;
-        var fade = Math.max(10, Math.round(drawW * 0.22));
-        var yy, xx, a, pi;
-        for (yy = 0; yy < drawH; yy++) {
-          for (xx = 0; xx < drawW; xx++) {
-            a = 1;
-            if (xx < fade) a = xx / fade;
-            else if (xx > drawW - fade) a = (drawW - xx) / fade;
-            if (yy < 8) a *= yy / 8;
-            if (yy > drawH - 8) a *= (drawH - yy) / 8;
-            pi = (yy * drawW + xx) * 4 + 3;
-            pix[pi] = Math.round(255 * Math.max(0, Math.min(1, a)));
+        // Camera orientation for this shot (degrees → radians)
+        var camYaw = slot.yaw * DEG2RAD;
+        var camPitch = slot.pitch * DEG2RAD;
+        var cosYaw = Math.cos(camYaw);
+        var sinYaw = Math.sin(camYaw);
+        var cosPitch = Math.cos(camPitch);
+        var sinPitch = Math.sin(camPitch);
+
+        // Only iterate panorama pixels that this shot can cover
+        var yawPad = H_FOV * 0.6 + 8;
+        var pitchPad = V_FOV * 0.6 + 8;
+        var lon0 = slot.yaw - yawPad;
+        var lon1 = slot.yaw + yawPad;
+        var lat0 = Math.max(-89.5, slot.pitch - pitchPad);
+        var lat1 = Math.min(89.5, slot.pitch + pitchPad);
+
+        // Convert lat/lon span to pixel rows/cols (with wrap)
+        var rowTop = Math.max(0, Math.floor((0.5 - lat1 / 180) * OUT_H));
+        var rowBot = Math.min(OUT_H - 1, Math.ceil((0.5 - lat0 / 180) * OUT_H));
+
+        var lonRanges = [];
+        if (lon0 < 0) {
+          lonRanges.push([lon0 + 360, 360]);
+          lonRanges.push([0, lon1]);
+        } else if (lon1 > 360) {
+          lonRanges.push([lon0, 360]);
+          lonRanges.push([0, lon1 - 360]);
+        } else {
+          lonRanges.push([lon0, lon1]);
+        }
+
+        var row, col, ri;
+        for (row = rowTop; row <= rowBot; row++) {
+          // Latitude of this output row (−90..+90 → −π/2..π/2)
+          var latRad = (0.5 - row / OUT_H) * Math.PI;
+          var cosLat = Math.cos(latRad);
+          var sinLat = Math.sin(latRad);
+
+          for (ri = 0; ri < lonRanges.length; ri++) {
+            var colLeft = Math.max(0, Math.floor((lonRanges[ri][0] / 360) * OUT_W));
+            var colRight = Math.min(OUT_W - 1, Math.ceil((lonRanges[ri][1] / 360) * OUT_W));
+
+            for (col = colLeft; col <= colRight; col++) {
+              // Longitude of this output column (−π..π)
+              var lonRad = (col / OUT_W) * 2 * Math.PI - Math.PI;
+
+              // Direction on unit sphere (equirectangular convention)
+              var dirX = cosLat * Math.sin(lonRad);
+              var dirY = sinLat;
+              var dirZ = cosLat * Math.cos(lonRad);
+
+              // Rotate world direction into camera frame (inverse of yaw then pitch)
+              // 1) undo yaw (rotate around Y)
+              var rx = dirX * cosYaw + dirZ * sinYaw;
+              var rz = -dirX * sinYaw + dirZ * cosYaw;
+              var ry = dirY;
+              // 2) undo pitch (rotate around X)
+              var camX = rx;
+              var camY = ry * cosPitch + rz * sinPitch;
+              var camZ = -ry * sinPitch + rz * cosPitch;
+
+              // Must be in front of camera
+              if (camZ <= 0.05) continue;
+
+              // Project to camera image plane
+              var u = camX / camZ;
+              var v = camY / camZ;
+              if (Math.abs(u) > tanHalfH || Math.abs(v) > tanHalfV) continue;
+
+              // Map to source pixel (center = principal point)
+              var srcPX = (0.5 + u / (2 * tanHalfH)) * workW;
+              var srcPY = (0.5 - v / (2 * tanHalfV)) * workH;
+              if (srcPX < 1 || srcPX >= workW - 2 || srcPY < 1 || srcPY >= workH - 2) continue;
+
+              var ix = srcPX | 0;
+              var iy = srcPY | 0;
+              var srcIndex = (iy * workW + ix) * 4;
+
+              // Soft weight: stronger in center of frame for seamless blend
+              var wu = 1 - Math.abs(u / tanHalfH);
+              var wv = 1 - Math.abs(v / tanHalfV);
+              var wgt = wu * wv;
+              wgt = wgt * wgt; // favor center more
+              if (wgt < 0.02) continue;
+
+              var outIndex = row * OUT_W + col;
+              var di = outIndex * 4;
+              pix[di]     += srcPixels[srcIndex]     * wgt;
+              pix[di + 1] += srcPixels[srcIndex + 1] * wgt;
+              pix[di + 2] += srcPixels[srcIndex + 2] * wgt;
+              weightBuf[outIndex] += wgt;
+            }
           }
         }
-        tCtx.putImageData(imgData, 0, 0);
-
-        // Draw (and wrap around 0/360 seam)
-        pCtx.drawImage(tmp, drawX, drawY);
-        if (drawX < 0) pCtx.drawImage(tmp, drawX + PANO_W, drawY);
-        if (drawX + drawW > PANO_W) pCtx.drawImage(tmp, drawX - PANO_W, drawY);
       }
 
-      if (finishBtn) finishBtn.textContent = '⏳ SAVING…';
-      await new Promise(function(r) { setTimeout(r, 0); });
+      // Normalize weighted blend
+      var i;
+      for (i = 0; i < OUT_W * OUT_H; i++) {
+        var w = weightBuf[i];
+        var di2 = i * 4;
+        if (w > 0.008) {
+          pix[di2]     = Math.min(255, pix[di2] / w);
+          pix[di2 + 1] = Math.min(255, pix[di2 + 1] / w);
+          pix[di2 + 2] = Math.min(255, pix[di2 + 2] / w);
+          pix[di2 + 3] = 255;
+        } else {
+          // empty → dark (will try fill next)
+          pix[di2] = 18; pix[di2 + 1] = 16; pix[di2 + 2] = 24; pix[di2 + 3] = 255;
+        }
+      }
+      outCtx.putImageData(accum, 0, 0);
 
-      var stitchedDataUrl = panoCanvas.toDataURL('image/jpeg', 0.88);
-      var finalPanoUrl = stitchedDataUrl;
+      // Hole fill pass (pull color from neighbors, wrap horizontally)
+      if (finishBtn) finishBtn.textContent = '⏳ FILLING GAPS…';
+      await new Promise(function (r) { setTimeout(r, 0); });
+
+      var filled = outCtx.getImageData(0, 0, OUT_W, OUT_H);
+      var fd = filled.data;
+      var pass;
+      for (pass = 0; pass < 3; pass++) {
+        var y, x;
+        for (y = 1; y < OUT_H - 1; y++) {
+          for (x = 0; x < OUT_W; x++) {
+            var ii = (y * OUT_W + x) * 4;
+            // dark hole?
+            if (fd[ii] <= 22 && fd[ii + 1] <= 20 && fd[ii + 2] <= 28) {
+              var sr = 0, sg = 0, sb = 0, sn = 0;
+              var dy, dx;
+              for (dy = -2; dy <= 2; dy++) {
+                for (dx = -2; dx <= 2; dx++) {
+                  if (dx === 0 && dy === 0) continue;
+                  var nx = (x + dx + OUT_W) % OUT_W;
+                  var ny = y + dy;
+                  if (ny < 0 || ny >= OUT_H) continue;
+                  var jj = (ny * OUT_W + nx) * 4;
+                  if (fd[jj] > 22 || fd[jj + 1] > 20) {
+                    sr += fd[jj]; sg += fd[jj + 1]; sb += fd[jj + 2]; sn++;
+                  }
+                }
+              }
+              if (sn > 0) {
+                fd[ii] = sr / sn;
+                fd[ii + 1] = sg / sn;
+                fd[ii + 2] = sb / sn;
+              }
+            }
+          }
+        }
+      }
+      outCtx.putImageData(filled, 0, 0);
+
+      if (finishBtn) finishBtn.textContent = '⏳ SAVING…';
+      await new Promise(function (r) { setTimeout(r, 0); });
+
+      var dataUrl = outCanvas.toDataURL('image/jpeg', 0.9);
+      var finalUrl = dataUrl;
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
-          var blob = await new Promise(function(resolve) { panoCanvas.toBlob(resolve, 'image/jpeg', 0.88); });
-          var scanFile = new File([blob], '360_scan_' + Date.now() + '.jpg', { type: 'image/jpeg' });
-          var uploaded = await window.uploadToSupabaseStorage(scanFile);
-          if (uploaded && uploaded.url) finalPanoUrl = uploaded.url;
+          var blob = await new Promise(function (resolve) {
+            outCanvas.toBlob(resolve, 'image/jpeg', 0.9);
+          });
+          var file = new File([blob], '360_scan_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+          var up = await window.uploadToSupabaseStorage(file);
+          if (up && up.url) finalUrl = up.url;
         } catch (upErr) {
-          console.warn('[SpotLIGHT 360] Upload failed, using data URL:', upErr);
+          console.warn('[SpotLIGHT stitch] upload fallback to data URL', upErr);
         }
       }
 
       if (scanMode === 'replace_room') {
-        var curScene = activeSceneList[activeSceneIndex];
-        if (curScene) {
-          curScene.panoUrl = finalPanoUrl;
-          curScene.tourUrl = '';
-          curScene.tag = '360° Real-Time Camera Scan';
+        var cur = activeSceneList[activeSceneIndex];
+        if (cur) {
+          cur.panoUrl = finalUrl;
+          cur.tourUrl = '';
+          cur.tag = '360° Real-Time Camera Scan';
         }
       } else {
         var newId = 'scan-room-' + Date.now().toString(36);
-        var roomNum = activeSceneList.length + 1;
         var newScene = {
           id: newId,
-          name: '📸 Scanned Room ' + roomNum,
+          name: '📸 Scanned Room ' + (activeSceneList.length + 1),
           location: (currentTourData && currentTourData.location) || 'Salt Lake City, UT',
           tag: '360° Camera Photosphere',
-          panoUrl: finalPanoUrl,
+          panoUrl: finalUrl,
           tourUrl: '',
-          blurb: 'Full 360° walk-in space captured and stitched with device camera',
-          hotspots: [
-            { pitch: 0, yaw: 180, label: '🚪 Back to Previous Room', targetScene: (activeSceneList[activeSceneIndex] && activeSceneList[activeSceneIndex].id) || (activeSceneList[0] && activeSceneList[0].id) }
-          ]
+          blurb: 'Full 360° space stitched from device camera',
+          hotspots: [{
+            pitch: 0,
+            yaw: 180,
+            label: '🚪 Back to Previous Room',
+            targetScene: (activeSceneList[activeSceneIndex] && activeSceneList[activeSceneIndex].id) ||
+              (activeSceneList[0] && activeSceneList[0].id)
+          }]
         };
         activeSceneList.push(newScene);
         activeSceneIndex = activeSceneList.length - 1;
@@ -4660,10 +4796,10 @@
       loadScene(activeSceneIndex);
 
       if (typeof showToast === 'function') {
-        showToast('🎉 360° Photosphere Stitched & Saved!');
+        showToast('🎉 360° sphere stitched — look around!');
       }
     } catch (err) {
-      console.error('[SpotLIGHT 360 Scanner] Stitch failed:', err);
+      console.error('[SpotLIGHT stitch]', err);
       alert('Stitch failed: ' + (err && err.message ? err.message : String(err)));
     } finally {
       if (finishBtn) {
