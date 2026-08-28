@@ -1480,13 +1480,27 @@
         height: 26px;
       }
       .scan-node-marker.aligned {
-        width: 42px;
-        height: 42px;
-        background: rgba(255, 210, 63, 0.95);
+        width: 48px;
+        height: 48px;
+        background: rgba(6, 214, 160, 0.95);
         border: 3px solid #fff;
-        color: #14121A;
-        box-shadow: 0 0 20px rgba(255, 210, 63, 0.85), 0 0 0 3px rgba(255, 210, 63, 0.35);
+        color: #0d1b1e;
+        box-shadow: 0 0 24px rgba(6, 214, 160, 0.9), 0 0 0 4px rgba(6, 214, 160, 0.35);
+        z-index: 9;
+      }
+      /* HDReye-style primary target (next blue/white dot to aim at) */
+      .scan-node-marker.next-target {
+        width: 36px;
+        height: 36px;
+        background: #fff;
+        border: 3px solid #3B9EFF;
+        box-shadow: 0 0 0 6px rgba(59, 158, 255, 0.35), 0 0 22px rgba(59, 158, 255, 0.7);
         z-index: 8;
+        animation: hdreyePulse 1.2s ease-in-out infinite;
+      }
+      @keyframes hdreyePulse {
+        0%, 100% { box-shadow: 0 0 0 4px rgba(59, 158, 255, 0.3), 0 0 16px rgba(59, 158, 255, 0.55); }
+        50% { box-shadow: 0 0 0 10px rgba(59, 158, 255, 0.2), 0 0 28px rgba(59, 158, 255, 0.8); }
       }
       .scan-center-ring {
         width: 120px;
@@ -2114,7 +2128,7 @@
                 <!-- Guidance Arrow -->
                 <div class="scan-guide-arrow" id="scanGuideArrow">
                   <span class="guide-arrow-icon" id="scanGuideIcon">➔</span>
-                  <span class="guide-arrow-text" id="scanGuideText">Turn your phone/body — circles stay locked to the room · tilt up & down</span>
+                  <span class="guide-arrow-text" id="scanGuideText">Aim the reticle at the glowing blue-white dot · turn phone · auto-snaps when locked</span>
                 </div>
 
                 <!-- Flash Animation -->
@@ -3701,10 +3715,13 @@
 
   // HDReye / Street View style multi-row spherical capture grid
   // Upper row + lower row + horizon = full up/down coverage
+  // HDReye-style spherical capture grid (~16–20 guided shots)
+  // One active target at a time (like their blue dots), rest faint
   const SCAN_ROWS = [
-    { pitch:  38, count: 8  },  // look up
-    { pitch:   0, count: 12 },  // horizon
-    { pitch: -38, count: 8  }   // look down
+    { pitch:  45, count: 4  },  // ceiling / up
+    { pitch:  15, count: 6  },  // upper ring
+    { pitch: -15, count: 6  },  // lower ring
+    { pitch: -45, count: 4  }   // floor / down
   ];
   let SCAN_TOTAL_NODES = 0;
 
@@ -3853,15 +3870,15 @@
     }
   };
 
-  // Keep a single orientation handler so we never stack listeners
+  // Single orientation handlers (never stack)
   let _scanOrientHandler = null;
   let _scanOrientAbsHandler = null;
+  let _scanMotionHandler = null;
 
   function bindScannerSensors() {
     const sensorPill = document.getElementById('scanSensorModePill');
     const viewfinder = document.getElementById('scanViewfinderArea');
 
-    // Remove previous handlers if re-opening scanner
     if (_scanOrientHandler) {
       window.removeEventListener('deviceorientation', _scanOrientHandler);
       _scanOrientHandler = null;
@@ -3870,109 +3887,117 @@
       window.removeEventListener('deviceorientationabsolute', _scanOrientAbsHandler);
       _scanOrientAbsHandler = null;
     }
+    if (_scanMotionHandler) {
+      window.removeEventListener('devicemotion', _scanMotionHandler);
+      _scanMotionHandler = null;
+    }
 
-    function applyOrientation(rawYawDeg, rawPitchDeg) {
+    let firstOrient = true;
+    let lastOrientTs = 0;
+
+    function applyLook(yawDeg, pitchDeg, source) {
+      lastOrientTs = Date.now();
       scanHasGyro = true;
-      if (sensorPill) {
-        sensorPill.textContent = '📳 GYRO · ROTATE PHONE TO AIM';
+      if (sensorPill && !scanIsDragging) {
+        sensorPill.textContent = '📳 GYRO ON · TURN PHONE';
         sensorPill.style.color = '#06D6A0';
         sensorPill.style.borderColor = '#06D6A0';
       }
 
-      // First sample = "forward" zero (like HDReye: room targets relative to start facing)
-      if (typeof applyOrientation._first === 'undefined' || applyOrientation._first) {
-        scanBaseYawOffset = rawYawDeg;
+      if (firstOrient) {
+        scanBaseYawOffset = yawDeg;
         scanSmoothYaw = 0;
-        scanSmoothPitch = rawPitchDeg;
+        scanSmoothPitch = pitchDeg;
         scanCurrentYaw = 0;
-        scanCurrentPitch = rawPitchDeg;
-        applyOrientation._first = false;
+        scanCurrentPitch = pitchDeg;
+        firstOrient = false;
         return;
       }
 
-      // World-relative yaw: how far you turned from start
-      const targetYaw = normalizeAngle360(rawYawDeg - scanBaseYawOffset);
-      const targetPitch = Math.max(-80, Math.min(80, rawPitchDeg));
+      // Don't fight the finger while user is dragging
+      if (scanIsDragging) return;
 
-      // HDReye-like: responsive but not jittery (no heavy deadzone that freezes circles)
+      const targetYaw = normalizeAngle360(yawDeg - scanBaseYawOffset);
+      const targetPitch = Math.max(-85, Math.min(85, pitchDeg));
+
       let dy = angleDiffSigned(targetYaw, scanSmoothYaw);
-      scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.28);
-      scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.28;
-      // When gyro is live, phone motion owns the aim (not finger drag)
-      if (!scanIsDragging) {
-        scanCurrentYaw = scanSmoothYaw;
-        scanCurrentPitch = scanSmoothPitch;
-      }
+      scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.45);
+      scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.45;
+      scanCurrentYaw = scanSmoothYaw;
+      scanCurrentPitch = scanSmoothPitch;
     }
-    applyOrientation._first = true;
 
     function onDeviceOrientation(e) {
-      // Need at least alpha + beta
       if (e.alpha === null || e.beta === null) return;
 
-      let rawYaw;
-      // iOS: webkitCompassHeading is most stable when present
+      var rawYaw;
       if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
         rawYaw = e.webkitCompassHeading;
-      } else if (e.absolute === true || e.type === 'deviceorientationabsolute') {
-        rawYaw = e.alpha; // absolute degrees
+      } else if (e.absolute === true) {
+        rawYaw = e.alpha;
       } else {
-        // Relative alpha — still works for room orbit from start
-        rawYaw = 360 - (e.alpha || 0);
+        rawYaw = 360 - e.alpha;
       }
 
-      // Portrait phone upright: beta ≈ 90 → pitch 0; tilt up → pitch +; down → −
-      let rawPitch = (e.beta || 90) - 90;
-      applyOrientation(rawYaw, rawPitch);
+      // Portrait: beta 90 = level pitch 0
+      var rawPitch = (e.beta != null ? e.beta : 90) - 90;
+      // Landscape adjustments
+      var orient = window.orientation || 0;
+      if (orient === 90) {
+        rawPitch = -(e.gamma != null ? e.gamma : 0);
+      } else if (orient === -90) {
+        rawPitch = (e.gamma != null ? e.gamma : 0);
+      }
+
+      applyLook(rawYaw, rawPitch, 'orient');
     }
 
     function startGyroListeners() {
       _scanOrientHandler = onDeviceOrientation;
-      window.addEventListener('deviceorientation', _scanOrientHandler, { passive: true });
-      // Android absolute orientation when available
+      window.addEventListener('deviceorientation', _scanOrientHandler, true);
       _scanOrientAbsHandler = onDeviceOrientation;
-      window.addEventListener('deviceorientationabsolute', _scanOrientAbsHandler, { passive: true });
+      window.addEventListener('deviceorientationabsolute', _scanOrientAbsHandler, true);
+
       if (sensorPill) {
-        sensorPill.textContent = '📳 WAITING FOR GYRO… rotate phone';
+        sensorPill.textContent = '📳 MOVE PHONE TO ACTIVATE GYRO';
         sensorPill.style.color = '#FFD23F';
         sensorPill.style.borderColor = '#FFD23F';
       }
+
+      // If no orientation event for 2.5s, show drag hint
+      setTimeout(function () {
+        if (!scanHasGyro && sensorPill) {
+          sensorPill.textContent = '👆 DRAG SCREEN TO MOVE CIRCLES';
+          sensorPill.style.color = '#FFD23F';
+        }
+      }, 2500);
     }
 
-    // iOS 13+ requires permission from a user gesture (scanner open is a gesture)
-    if (typeof DeviceOrientationEvent !== 'undefined' &&
-        typeof DeviceOrientationEvent.requestPermission === 'function') {
-      DeviceOrientationEvent.requestPermission()
-        .then(function (resp) {
-          if (resp === 'granted') {
-            startGyroListeners();
-          } else {
-            if (sensorPill) {
-              sensorPill.textContent = '👆 DRAG TO AIM (gyro blocked)';
+    // Request permission (iOS) then start
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(function (resp) {
+            if (resp === 'granted') startGyroListeners();
+            else if (sensorPill) {
+              sensorPill.textContent = '👆 DRAG TO AIM (allow Motion in Settings)';
               sensorPill.style.color = '#FFD23F';
             }
-          }
-        })
-        .catch(function () {
-          startGyroListeners(); // try anyway
-        });
-    } else if (typeof window.DeviceOrientationEvent !== 'undefined') {
-      startGyroListeners();
-    } else {
-      if (sensorPill) {
-        sensorPill.textContent = '👆 DRAG SCREEN TO AIM';
-        sensorPill.style.color = '#FFD23F';
-        sensorPill.style.borderColor = '#FFD23F';
+          })
+          .catch(function () { startGyroListeners(); });
+      } else {
+        startGyroListeners();
       }
+    } catch (err) {
+      startGyroListeners();
     }
 
-    // Finger drag = backup only (desktop / denied gyro). Does not fight active gyro.
+    // ALWAYS allow finger drag so circles are never stuck (works on desktop + as backup)
     if (viewfinder && !viewfinder._hasDragListeners) {
       viewfinder._hasDragListeners = true;
 
-      const onStart = (clientX, clientY) => {
-        // If gyro is driving, ignore finger so circles stay world-locked
-        if (scanHasGyro) return;
+      var onStart = function (clientX, clientY) {
         scanIsDragging = true;
         scanDragStartX = clientX;
         scanDragStartY = clientY;
@@ -3980,31 +4005,50 @@
         scanDragStartPitch = scanCurrentPitch;
       };
 
-      const onMove = (clientX, clientY) => {
-        if (!scanIsDragging || scanHasGyro) return;
-        const dx = clientX - scanDragStartX;
-        const dy = clientY - scanDragStartY;
-        scanCurrentYaw = normalizeAngle360(scanDragStartYaw - dx * 0.35);
-        scanCurrentPitch = Math.max(-80, Math.min(80, scanDragStartPitch + dy * 0.35));
+      var onMove = function (clientX, clientY) {
+        if (!scanIsDragging) return;
+        var dx = clientX - scanDragStartX;
+        var dy = clientY - scanDragStartY;
+        // Drag moves the "look" so world circles slide across the viewfinder
+        scanCurrentYaw = normalizeAngle360(scanDragStartYaw - dx * 0.42);
+        scanCurrentPitch = Math.max(-85, Math.min(85, scanDragStartPitch + dy * 0.42));
         scanSmoothYaw = scanCurrentYaw;
         scanSmoothPitch = scanCurrentPitch;
+        // Drag temporarily owns aim; gyro resumes when finger lifts
+        if (sensorPill && !scanHasGyro) {
+          sensorPill.textContent = '👆 DRAGGING · release to use gyro';
+        }
       };
 
-      const onEnd = () => { scanIsDragging = false; };
+      var onEnd = function () {
+        scanIsDragging = false;
+        // Re-sync base so gyro doesn't jump after drag
+        if (scanHasGyro) {
+          // keep current as new smooth target
+        }
+      };
 
-      viewfinder.addEventListener('mousedown', (e) => onStart(e.clientX, e.clientY));
-      window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+      viewfinder.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        onStart(e.clientX, e.clientY);
+      });
+      window.addEventListener('mousemove', function (e) { onMove(e.clientX, e.clientY); });
       window.addEventListener('mouseup', onEnd);
 
-      viewfinder.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 1) onStart(e.touches[0].clientX, e.touches[0].clientY);
+      viewfinder.addEventListener('touchstart', function (e) {
+        if (e.touches.length === 1) {
+          onStart(e.touches[0].clientX, e.touches[0].clientY);
+        }
       }, { passive: true });
 
-      window.addEventListener('touchmove', (e) => {
-        if (e.touches.length === 1) onMove(e.touches[0].clientX, e.touches[0].clientY);
+      window.addEventListener('touchmove', function (e) {
+        if (e.touches.length === 1 && scanIsDragging) {
+          onMove(e.touches[0].clientX, e.touches[0].clientY);
+        }
       }, { passive: true });
 
       window.addEventListener('touchend', onEnd);
+      window.addEventListener('touchcancel', onEnd);
     }
   }
 
@@ -4028,8 +4072,9 @@
       const centerX = vw / 2;
       const centerY = vh / 2;
       // Approximate horizontal & vertical FOV of phone camera on screen
-      const hFov = 64; // match stitch CAM_HFOV so circles map the room accurately
-      const vFov = hFov * (vh / Math.max(vw, 1));
+      // Wider virtual FOV = more guide circles visible at once (HDReye-like density)
+      const hFov = 78;
+      const vFov = Math.max(50, hFov * (vh / Math.max(vw, 1)));
 
       // Create nodes ONCE
       if (!scanNodesInitialized) {
@@ -4051,7 +4096,20 @@
       let minAngularDistance = 999;
       let alignedTargetIdx = -1;
 
-      // Update every node with pure transform (GPU, no layout jump)
+      // First pass: find nearest uncaptured target (HDReye "next blue dot")
+      for (let idx = 0; idx < scanSlots.length; idx++) {
+        const slot = scanSlots[idx];
+        if (slot.captured) continue;
+        const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+        const diffPitch = slot.pitch - scanCurrentPitch;
+        const angularDist = Math.hypot(diffYaw, diffPitch);
+        if (angularDist < minAngularDistance) {
+          minAngularDistance = angularDist;
+          closestUncapturedIdx = idx;
+        }
+      }
+
+      // Update every node — next target is BIG/bright, others faint (HDReye style)
       for (let idx = 0; idx < scanSlots.length; idx++) {
         const slot = scanSlots[idx];
         const el = scanNodeEls[idx];
@@ -4061,37 +4119,38 @@
         const diffPitch = slot.pitch - scanCurrentPitch;
         const angularDist = Math.hypot(diffYaw, diffPitch);
 
-        if (!slot.captured && angularDist < minAngularDistance) {
-          minAngularDistance = angularDist;
-          closestUncapturedIdx = idx;
-        }
-
-        // Project onto viewfinder
+        // Project relative to current look direction (world-locked targets)
         const screenX = centerX + (diffYaw / hFov) * vw;
         const screenY = centerY - (diffPitch / vFov) * vh;
-        const isVisible = Math.abs(diffYaw) < hFov * 0.95 && Math.abs(diffPitch) < vFov * 0.95;
+        const isVisible = Math.abs(diffYaw) < hFov * 1.25 && Math.abs(diffPitch) < vFov * 1.25;
 
-        if (angularDist < 8) {
+        if (!slot.captured && angularDist < 9) {
           alignedTargetIdx = idx;
         }
 
-        // GPU-only positioning — zero glitch
-        el.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
-        el.style.opacity = isVisible ? '1' : '0';
+        el.style.transform = 'translate3d(' + screenX + 'px, ' + screenY + 'px, 0) translate(-50%, -50%)';
         el.style.visibility = isVisible ? 'visible' : 'hidden';
         el.style.pointerEvents = isVisible ? 'auto' : 'none';
 
-        // State classes (HDReye-style: clean white dots → green when done)
         const span = el.querySelector('span');
-        el.classList.remove('pending', 'aligned', 'captured');
+        el.classList.remove('pending', 'aligned', 'captured', 'next-target');
         if (slot.captured) {
           el.classList.add('captured');
+          el.style.opacity = isVisible ? '0.85' : '0';
           if (span) span.textContent = '✓';
-        } else if (angularDist < 8) {
+        } else if (angularDist < 9) {
           el.classList.add('aligned');
+          el.style.opacity = '1';
+          if (span) span.textContent = '●';
+        } else if (idx === closestUncapturedIdx) {
+          // THE active HDReye-style target — large & bright
+          el.classList.add('pending', 'next-target');
+          el.style.opacity = isVisible ? '1' : '0';
           if (span) span.textContent = '';
         } else {
+          // Other remaining targets — small faint dots
           el.classList.add('pending');
+          el.style.opacity = isVisible ? '0.35' : '0';
           if (span) span.textContent = '';
         }
       }
@@ -4115,11 +4174,11 @@
           if (scanAlignedAngleIdx !== alignedTargetIdx) {
             scanAlignedAngleIdx = alignedTargetIdx;
             clearTimeout(scanAlignTimer);
-            scanAlignTimer = setTimeout(() => {
+            scanAlignTimer = setTimeout(function () {
               if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
                 window.captureCurrentScanAngle();
               }
-            }, 450);
+            }, 380);
           }
         }
       } else {
@@ -4376,7 +4435,7 @@
   window.finishAndUse360Stitch = async function () {
     var capturedList = scanSlots.filter(function(s) { return s.captured && s.imgCanvas; });
     if (capturedList.length < 6) {
-      alert('Please capture at least 6 targets (include some UP and DOWN). More = cleaner 360°.');
+      alert('Please capture at least 8 targets (aim at every glowing blue dot — up, around, and down).');
       return;
     }
 
@@ -4401,14 +4460,14 @@
       // Simple reliable placement: each photo goes to its yaw column + pitch row
       // with soft edge blending — no complex projection vars that can clash
       var rowDefs = [
-        { key: 'up',   pitchMin: 15,  y0: 0,                    h: Math.round(PANO_H * 0.30) },
-        { key: 'mid',  pitchMin: -15, y0: Math.round(PANO_H * 0.28), h: Math.round(PANO_H * 0.44) },
-        { key: 'down', pitchMin: -999, y0: Math.round(PANO_H * 0.70), h: Math.round(PANO_H * 0.30) }
+        { key: 'up',   y0: 0,                         h: Math.round(PANO_H * 0.28) },
+        { key: 'mid',  y0: Math.round(PANO_H * 0.24), h: Math.round(PANO_H * 0.52) },
+        { key: 'down', y0: Math.round(PANO_H * 0.72), h: Math.round(PANO_H * 0.28) }
       ];
 
       function rowForPitch(p) {
-        if (p > 15) return rowDefs[0];
-        if (p < -15) return rowDefs[2];
+        if (p > 25) return rowDefs[0];
+        if (p < -25) return rowDefs[2];
         return rowDefs[1];
       }
 
@@ -4422,7 +4481,7 @@
         if (!srcCanvas) continue;
 
         var row = rowForPitch(slot.pitch);
-        var colW = (row.key === 'mid') ? (PANO_W / 12) : (PANO_W / 8);
+        var colW = (row.key === 'mid') ? (PANO_W / 12) : (PANO_W / 6);
         var centerX = (slot.yaw / 360) * PANO_W;
         var drawW = Math.round(colW * 1.55);
         var drawH = row.h;
