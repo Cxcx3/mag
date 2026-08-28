@@ -4542,8 +4542,8 @@
     });
 
     try {
-      var W = 2048;
-      var H = 1024;
+      var W = 2560;
+      var H = 1280;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
@@ -4562,8 +4562,8 @@
       var wSum = new Float32Array(W * H);
 
       // Angular FOV of phone camera (degrees) — wide for good coverage
-      var FOV_H = 75;
-      var FOV_V = 55;
+      var FOV_H = 62;
+      var FOV_V = 48;
 
       var fi;
       for (fi = 0; fi < shots.length; fi++) {
@@ -4580,7 +4580,7 @@
         yawDeg = ((yawDeg % 360) + 360) % 360;
 
         // Downscale
-        var maxW = 640;
+        var maxW = 1024;
         var ww = src.width;
         var wh = src.height;
         var work = src;
@@ -4593,6 +4593,15 @@
           work.getContext('2d').drawImage(src, 0, 0, ww, wh);
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
+
+        // Mild exposure normalize so bright frames don't wash out the blend
+        var sumL = 0, nL = 0;
+        for (var li = 0; li < srcPx.length; li += 32) {
+          sumL += 0.299 * srcPx[li] + 0.587 * srcPx[li + 1] + 0.114 * srcPx[li + 2];
+          nL++;
+        }
+        var avgL = nL ? sumL / nL : 128;
+        var expScale = avgL > 10 ? Math.min(1.35, Math.max(0.75, 140 / avgL)) : 1;
 
         // Region of pano this shot can cover
         var yPad = FOV_H * 0.55 + 6;
@@ -4659,17 +4668,20 @@
               var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) +
                       (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              // Soft edge weight (raised cosine)
-              var wu = 0.5 * (1 + Math.cos(Math.PI * Math.min(1, Math.abs(u))));
-              var wv = 0.5 * (1 + Math.cos(Math.PI * Math.min(1, Math.abs(v))));
+              // Strong center weight — edges of phone photos are soft & distorted
+              var au = Math.min(1, Math.abs(u));
+              var av = Math.min(1, Math.abs(v));
+              var wu = 0.5 * (1 + Math.cos(Math.PI * au));
+              var wv = 0.5 * (1 + Math.cos(Math.PI * av));
               var wt = wu * wv;
-              if (wt < 0.02) continue;
+              wt = wt * wt; // square → prefer sharp photo centers, less ghosting
+              if (wt < 0.04) continue;
 
               var idx = row * W + col;
               var di = idx * 4;
-              data[di]     += r * wt;
-              data[di + 1] += g * wt;
-              data[di + 2] += b * wt;
+              data[di]     += Math.min(255, r * expScale) * wt;
+              data[di + 1] += Math.min(255, g * expScale) * wt;
+              data[di + 2] += Math.min(255, b * expScale) * wt;
               wSum[idx]    += wt;
             }
           }
@@ -4744,12 +4756,12 @@
       if (finishBtn) finishBtn.textContent = '⏳ SAVING…';
       await new Promise(function (r) { setTimeout(r, 0); });
 
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.95);
       var finalUrl = dataUrl;
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
-          var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.9); });
+          var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.95); });
           var file = new File([blob], '360_scan_' + Date.now() + '.jpg', { type: 'image/jpeg' });
           var up = await window.uploadToSupabaseStorage(file);
           if (up && up.url) finalUrl = up.url;
