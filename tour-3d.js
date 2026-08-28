@@ -4525,17 +4525,16 @@
   window.finishAndUse360Stitch = async function () {
     var shots = [];
     for (var si = 0; si < scanSlots.length; si++) {
-      var s = scanSlots[si];
-      if (s.captured && s.imgCanvas) shots.push(s);
+      if (scanSlots[si].captured && scanSlots[si].imgCanvas) shots.push(scanSlots[si]);
     }
-    if (shots.length < 6) {
-      alert('Capture at least 6 targets (include UP and DOWN). More overlap = cleaner Street View look.');
+    if (shots.length < 4) {
+      alert('Capture at least 4 targets first (more = better 360).');
       return;
     }
 
     var finishBtn = document.getElementById('scanFinishUseBtn');
     if (finishBtn) {
-      finishBtn.textContent = '⏳ BUILDING 360° SPHERE…';
+      finishBtn.textContent = '⏳ BUILDING 360°…';
       finishBtn.disabled = true;
     }
     await new Promise(function (r) {
@@ -4549,219 +4548,212 @@
       canvas.width = W;
       canvas.height = H;
       var ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#101018';
+
+      // Start with neutral fill so we never end up pure black
+      ctx.fillStyle = '#2a2835';
       ctx.fillRect(0, 0, W, H);
 
       var imgData = ctx.createImageData(W, H);
       var data = imgData.data;
+      // seed with dark gray so empty areas aren't pure black
+      for (var zi = 0; zi < data.length; zi += 4) {
+        data[zi] = 42; data[zi + 1] = 40; data[zi + 2] = 52; data[zi + 3] = 255;
+      }
       var wSum = new Float32Array(W * H);
 
-      // Phone FOV — wide enough for strong overlap between guided dots
-      var FOV_H = 80;
-      var FOV_V = 60;
-      var D2R = Math.PI / 180;
-      var tanH = Math.tan((FOV_H / 2) * D2R);
-      var tanV = Math.tan((FOV_V / 2) * D2R);
+      // Angular FOV of phone camera (degrees) — wide for good coverage
+      var FOV_H = 75;
+      var FOV_V = 55;
 
-      function sampleBilinear(pixels, pw, ph, fx, fy) {
-        if (fx < 0 || fy < 0 || fx >= pw - 1 || fy >= ph - 1) return null;
-        var x0 = fx | 0;
-        var y0 = fy | 0;
-        var x1 = x0 + 1;
-        var y1 = y0 + 1;
-        var tx = fx - x0;
-        var ty = fy - y0;
-        var i00 = (y0 * pw + x0) * 4;
-        var i10 = (y0 * pw + x1) * 4;
-        var i01 = (y1 * pw + x0) * 4;
-        var i11 = (y1 * pw + x1) * 4;
-        var r = (pixels[i00] * (1 - tx) + pixels[i10] * tx) * (1 - ty) +
-                (pixels[i01] * (1 - tx) + pixels[i11] * tx) * ty;
-        var g = (pixels[i00 + 1] * (1 - tx) + pixels[i10 + 1] * tx) * (1 - ty) +
-                (pixels[i01 + 1] * (1 - tx) + pixels[i11 + 1] * tx) * ty;
-        var b = (pixels[i00 + 2] * (1 - tx) + pixels[i10 + 2] * tx) * (1 - ty) +
-                (pixels[i01 + 2] * (1 - tx) + pixels[i11 + 2] * tx) * ty;
-        return [r, g, b];
-      }
-
-      for (var fi = 0; fi < shots.length; fi++) {
+      var fi;
+      for (fi = 0; fi < shots.length; fi++) {
         if (finishBtn) finishBtn.textContent = '⏳ STITCHING ' + (fi + 1) + '/' + shots.length + '…';
         await new Promise(function (r) { setTimeout(r, 0); });
 
         var slot = shots[fi];
         var src = slot.imgCanvas;
+        if (!src || src.width < 2) continue;
 
-        // Prefer real capture pose; fall back to guide-slot angle
         var yawDeg = (typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw;
         var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
+        // normalize yaw 0..360
+        yawDeg = ((yawDeg % 360) + 360) % 360;
 
-        // Downscale for speed
-        var maxW = 720;
-        var sw = src.width;
-        var sh = src.height;
+        // Downscale
+        var maxW = 640;
+        var ww = src.width;
+        var wh = src.height;
         var work = src;
-        var ww = sw;
-        var wh = sh;
-        if (sw > maxW) {
+        if (ww > maxW) {
           ww = maxW;
-          wh = Math.round(sh * (maxW / sw));
+          wh = Math.round(src.height * (maxW / src.width));
           work = document.createElement('canvas');
           work.width = ww;
           work.height = wh;
           work.getContext('2d').drawImage(src, 0, 0, ww, wh);
         }
-        var srcData = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
+        var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        var yaw = yawDeg * D2R;
-        var pitch = pitchDeg * D2R;
-        var cY = Math.cos(yaw);
-        var sY = Math.sin(yaw);
-        var cP = Math.cos(pitch);
-        var sP = Math.sin(pitch);
+        // Region of pano this shot can cover
+        var yPad = FOV_H * 0.55 + 6;
+        var pPad = FOV_V * 0.55 + 6;
+        var lat0 = Math.max(-90, pitchDeg - pPad);
+        var lat1 = Math.min(90, pitchDeg + pPad);
+        var row0 = Math.max(0, Math.floor((90 - lat1) / 180 * H));
+        var row1 = Math.min(H - 1, Math.ceil((90 - lat0) / 180 * H));
 
-        // Bounding box on pano (with margin)
-        var marginY = FOV_H * 0.65 + 10;
-        var marginP = FOV_V * 0.65 + 10;
-        var latMin = Math.max(-89, pitchDeg - marginP);
-        var latMax = Math.min(89, pitchDeg + marginP);
-        var y0 = Math.max(0, Math.floor((0.5 - latMax / 180) * H));
-        var y1 = Math.min(H - 1, Math.ceil((0.5 - latMin / 180) * H));
-
-        var lonA = yawDeg - marginY;
-        var lonB = yawDeg + marginY;
-        var ranges = [];
+        var lonRanges = [];
+        var lonA = yawDeg - yPad;
+        var lonB = yawDeg + yPad;
         if (lonA < 0) {
-          ranges.push([lonA + 360, 360], [0, lonB]);
+          lonRanges.push([lonA + 360, 360]);
+          lonRanges.push([0, lonB]);
         } else if (lonB > 360) {
-          ranges.push([lonA, 360], [0, lonB - 360]);
+          lonRanges.push([lonA, 360]);
+          lonRanges.push([0, lonB - 360]);
         } else {
-          ranges.push([lonA, lonB]);
+          lonRanges.push([lonA, lonB]);
         }
 
-        for (var py = y0; py <= y1; py++) {
-          // latitude in radians, +90 at top of equirect
-          var lat = (0.5 - py / H) * Math.PI;
-          var cosLat = Math.cos(lat);
-          var sinLat = Math.sin(lat);
+        var row, col, ri;
+        for (row = row0; row <= row1; row++) {
+          var lat = 90 - (row / H) * 180; // +90 top → -90 bottom
 
-          for (var ri = 0; ri < ranges.length; ri++) {
-            var x0 = Math.max(0, Math.floor((ranges[ri][0] / 360) * W));
-            var x1 = Math.min(W - 1, Math.ceil((ranges[ri][1] / 360) * W));
+          for (ri = 0; ri < lonRanges.length; ri++) {
+            var c0 = Math.max(0, Math.floor(lonRanges[ri][0] / 360 * W));
+            var c1 = Math.min(W - 1, Math.ceil(lonRanges[ri][1] / 360 * W));
 
-            for (var px = x0; px <= x1; px++) {
-              // longitude −π..π  (0 = front / center of pano at lon 0)
-              var lon = (px / W) * 2 * Math.PI - Math.PI;
+            for (col = c0; col <= c1; col++) {
+              var lon = (col / W) * 360; // 0..360
 
-              // Unit direction in world space (Y-up)
-              var wx = cosLat * Math.sin(lon);
-              var wy = sinLat;
-              var wz = cosLat * Math.cos(lon);
+              // Signed angular offset from camera aim to this pano direction
+              var dYaw = lon - yawDeg;
+              if (dYaw > 180) dYaw -= 360;
+              if (dYaw < -180) dYaw += 360;
+              var dPitch = lat - pitchDeg;
 
-              // Inverse camera rotation: un-yaw then un-pitch
-              // Camera looks along +Z when yaw=0,pitch=0
-              // 1) rotate by -yaw around Y
-              var x1v = wx * cY - wz * sY;
-              var z1v = wx * sY + wz * cY;
-              var y1v = wy;
-              // 2) rotate by -pitch around X
-              var cx = x1v;
-              var cy = y1v * cP + z1v * sP;
-              var cz = -y1v * sP + z1v * cP;
+              if (Math.abs(dYaw) > FOV_H * 0.5 || Math.abs(dPitch) > FOV_V * 0.5) continue;
 
-              if (cz <= 0.08) continue;
+              // Map angle offset → source image UV (center of photo = camera look)
+              var u = dYaw / (FOV_H * 0.5);   // -1..1
+              var v = dPitch / (FOV_V * 0.5); // -1..1
+              var fx = (0.5 + u * 0.5) * (ww - 1);
+              var fy = (0.5 - v * 0.5) * (wh - 1);
+              if (fx < 0 || fy < 0 || fx >= ww - 1 || fy >= wh - 1) continue;
 
-              var u = cx / cz;
-              var v = cy / cz;
-              if (u < -tanH || u > tanH || v < -tanV || v > tanV) continue;
+              // Bilinear sample
+              var x0 = fx | 0;
+              var y0 = fy | 0;
+              var tx = fx - x0;
+              var ty = fy - y0;
+              var x1 = x0 + 1;
+              var y1 = y0 + 1;
+              var i00 = (y0 * ww + x0) * 4;
+              var i10 = (y0 * ww + x1) * 4;
+              var i01 = (y1 * ww + x0) * 4;
+              var i11 = (y1 * ww + x1) * 4;
+              var r = (srcPx[i00] * (1 - tx) + srcPx[i10] * tx) * (1 - ty) +
+                      (srcPx[i01] * (1 - tx) + srcPx[i11] * tx) * ty;
+              var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) +
+                      (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
+              var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) +
+                      (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              var fx = (0.5 + u / (2 * tanH)) * ww;
-              var fy = (0.5 - v / (2 * tanV)) * wh;
-              var rgb = sampleBilinear(srcData, ww, wh, fx, fy);
-              if (!rgb) continue;
-
-              // Raised-cosine weight → soft seams like Street View
-              var au = Math.abs(u / tanH);
-              var av = Math.abs(v / tanV);
-              var wu = 0.5 * (1 + Math.cos(Math.PI * Math.min(1, au)));
-              var wv = 0.5 * (1 + Math.cos(Math.PI * Math.min(1, av)));
+              // Soft edge weight (raised cosine)
+              var wu = 0.5 * (1 + Math.cos(Math.PI * Math.min(1, Math.abs(u))));
+              var wv = 0.5 * (1 + Math.cos(Math.PI * Math.min(1, Math.abs(v))));
               var wt = wu * wv;
-              if (wt < 0.01) continue;
+              if (wt < 0.02) continue;
 
-              var idx = py * W + px;
+              var idx = row * W + col;
               var di = idx * 4;
-              data[di]     += rgb[0] * wt;
-              data[di + 1] += rgb[1] * wt;
-              data[di + 2] += rgb[2] * wt;
+              data[di]     += r * wt;
+              data[di + 1] += g * wt;
+              data[di + 2] += b * wt;
               wSum[idx]    += wt;
             }
           }
         }
       }
 
-      // Normalize
+      // Normalize where we have coverage
+      var covered = 0;
       for (var i = 0; i < W * H; i++) {
-        var ww2 = wSum[i];
+        var w = wSum[i];
         var di = i * 4;
-        if (ww2 > 0.01) {
-          data[di]     = Math.min(255, data[di] / ww2);
-          data[di + 1] = Math.min(255, data[di + 1] / ww2);
-          data[di + 2] = Math.min(255, data[di + 2] / ww2);
+        if (w > 0.02) {
+          data[di]     = Math.min(255, data[di] / w);
+          data[di + 1] = Math.min(255, data[di + 1] / w);
+          data[di + 2] = Math.min(255, data[di + 2] / w);
           data[di + 3] = 255;
-        } else {
-          data[di] = 16; data[di + 1] = 14; data[di + 2] = 22; data[di + 3] = 255;
+          covered++;
         }
       }
       ctx.putImageData(imgData, 0, 0);
 
-      // Multi-pass inpainting for leftover holes (wrap X)
-      if (finishBtn) finishBtn.textContent = '⏳ BLENDING SEAMS…';
-      await new Promise(function (r) { setTimeout(r, 0); });
-
-      var buf = ctx.getImageData(0, 0, W, H);
-      var bd = buf.data;
-      for (var pass = 0; pass < 4; pass++) {
-        for (var y = 1; y < H - 1; y++) {
-          for (var x = 0; x < W; x++) {
-            var ii = (y * W + x) * 4;
-            if (bd[ii] > 24 || bd[ii + 1] > 22) continue;
-            var sr = 0, sg = 0, sb = 0, sn = 0;
-            for (var dy = -2; dy <= 2; dy++) {
-              for (var dx = -2; dx <= 2; dx++) {
-                if (!dx && !dy) continue;
-                var nx = (x + dx + W) % W;
-                var ny = y + dy;
-                if (ny < 0 || ny >= H) continue;
-                var jj = (ny * W + nx) * 4;
-                if (bd[jj] > 24 || bd[jj + 1] > 22) {
-                  sr += bd[jj]; sg += bd[jj + 1]; sb += bd[jj + 2]; sn++;
+      if (covered < 1000) {
+        // Emergency fallback: simple side-by-side strip so user always sees something
+        console.warn('[stitch] low coverage (' + covered + '), using strip fallback');
+        ctx.fillStyle = '#1a1822';
+        ctx.fillRect(0, 0, W, H);
+        var stripH = Math.floor(H * 0.7);
+        var stripY = Math.floor((H - stripH) / 2);
+        var cellW = Math.floor(W / shots.length);
+        for (var k = 0; k < shots.length; k++) {
+          var sc = shots[k].imgCanvas;
+          if (!sc) continue;
+          ctx.drawImage(sc, 0, 0, sc.width, sc.height, k * cellW, stripY, cellW + 2, stripH);
+        }
+      } else {
+        // Light hole fill
+        if (finishBtn) finishBtn.textContent = '⏳ BLENDING…';
+        await new Promise(function (r) { setTimeout(r, 0); });
+        var buf = ctx.getImageData(0, 0, W, H);
+        var bd = buf.data;
+        for (var pass = 0; pass < 2; pass++) {
+          for (var y = 1; y < H - 1; y++) {
+            for (var x = 0; x < W; x++) {
+              var ii = (y * W + x) * 4;
+              if (bd[ii] > 50 || bd[ii + 1] > 48) continue;
+              // only fill near-empty
+              if (wSum[y * W + x] > 0.02) continue;
+              var sr = 0, sg = 0, sb = 0, sn = 0;
+              for (var dy = -1; dy <= 1; dy++) {
+                for (var dx = -1; dx <= 1; dx++) {
+                  if (!dx && !dy) continue;
+                  var nx = (x + dx + W) % W;
+                  var ny = y + dy;
+                  if (ny < 0 || ny >= H) continue;
+                  var jj = (ny * W + nx) * 4;
+                  if (bd[jj] > 50) {
+                    sr += bd[jj]; sg += bd[jj + 1]; sb += bd[jj + 2]; sn++;
+                  }
                 }
               }
-            }
-            if (sn >= 3) {
-              bd[ii] = sr / sn;
-              bd[ii + 1] = sg / sn;
-              bd[ii + 2] = sb / sn;
+              if (sn > 0) {
+                bd[ii] = sr / sn;
+                bd[ii + 1] = sg / sn;
+                bd[ii + 2] = sb / sn;
+              }
             }
           }
         }
+        ctx.putImageData(buf, 0, 0);
       }
-      ctx.putImageData(buf, 0, 0);
 
       if (finishBtn) finishBtn.textContent = '⏳ SAVING…';
       await new Promise(function (r) { setTimeout(r, 0); });
 
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
       var finalUrl = dataUrl;
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
-          var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.92); });
+          var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.9); });
           var file = new File([blob], '360_scan_' + Date.now() + '.jpg', { type: 'image/jpeg' });
           var up = await window.uploadToSupabaseStorage(file);
           if (up && up.url) finalUrl = up.url;
-        } catch (e) {
-          console.warn('[stitch] upload failed, using data URL');
-        }
+        } catch (e) {}
       }
 
       if (scanMode === 'replace_room') {
@@ -4772,9 +4764,8 @@
           cur.tag = '360° Real-Time Camera Scan';
         }
       } else {
-        var newId = 'scan-room-' + Date.now().toString(36);
         activeSceneList.push({
-          id: newId,
+          id: 'scan-room-' + Date.now().toString(36),
           name: '📸 Scanned Room ' + (activeSceneList.length + 1),
           location: (currentTourData && currentTourData.location) || 'Salt Lake City, UT',
           tag: '360° Camera Photosphere',
@@ -4794,7 +4785,7 @@
       if (typeof window.saveTourChangesToMagazine === 'function') window.saveTourChangesToMagazine();
       renderSceneSelector();
       loadScene(activeSceneIndex);
-      if (typeof showToast === 'function') showToast('🎉 360° sphere ready — drag to look around');
+      if (typeof showToast === 'function') showToast('🎉 360° saved — drag to look around');
     } catch (err) {
       console.error('[stitch]', err);
       alert('Stitch failed: ' + (err && err.message ? err.message : String(err)));
