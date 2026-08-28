@@ -2138,7 +2138,7 @@
               <!-- Live Floating Stats -->
               <div class="scan-floating-hud">
                 <div class="scan-progress-box">
-                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 20 CAPTURED (0%)</span>
+                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 38 CAPTURED (0%)</span>
                   <div class="scan-progress-bar-bg">
                     <div class="scan-progress-bar-fill" id="scanProgressBarFill" style="width:0%;"></div>
                   </div>
@@ -3722,10 +3722,11 @@
   // HDReye-style spherical capture grid (~16–20 guided shots)
   // One active target at a time (like their blue dots), rest faint
   const SCAN_ROWS = [
-    { pitch:  45, count: 4  },  // ceiling / up
-    { pitch:  15, count: 6  },  // upper ring
-    { pitch: -15, count: 6  },  // lower ring
-    { pitch: -45, count: 4  }   // floor / down
+    { pitch:  55, count: 6  },  // ceiling
+    { pitch:  20, count: 8  },  // upper
+    { pitch:  -5, count: 10 },  // horizon (most overlap)
+    { pitch: -30, count: 8  },  // lower
+    { pitch: -55, count: 6  }   // floor
   ];
   let SCAN_TOTAL_NODES = 0;
 
@@ -4364,6 +4365,9 @@
     scanSlots[slotIdx].captured = true;
     scanSlots[slotIdx].imgCanvas = sliceCanvas;
     scanSlots[slotIdx].timestamp = Date.now();
+    // Record real aim at snap time (more accurate than ideal slot angle)
+    scanSlots[slotIdx].captureYaw = scanCurrentYaw;
+    scanSlots[slotIdx].capturePitch = scanCurrentPitch;
 
     // Trigger Visual Flash & Haptics
     if (flashFx) {
@@ -4519,243 +4523,244 @@
    * and saves it directly to the tour room!
    */
   window.finishAndUse360Stitch = async function () {
-    var capturedList = [];
-    for (var ci = 0; ci < scanSlots.length; ci++) {
-      if (scanSlots[ci].captured && scanSlots[ci].imgCanvas) capturedList.push(scanSlots[ci]);
+    var shots = [];
+    for (var si = 0; si < scanSlots.length; si++) {
+      var s = scanSlots[si];
+      if (s.captured && s.imgCanvas) shots.push(s);
     }
-    if (capturedList.length < 6) {
-      alert('Please capture at least 6 targets (up, around, and down). More dots = cleaner 360°.');
+    if (shots.length < 6) {
+      alert('Capture at least 6 targets (include UP and DOWN). More overlap = cleaner Street View look.');
       return;
     }
 
     var finishBtn = document.getElementById('scanFinishUseBtn');
     if (finishBtn) {
-      finishBtn.textContent = '⏳ STITCHING SPHERE…';
+      finishBtn.textContent = '⏳ BUILDING 360° SPHERE…';
       finishBtn.disabled = true;
     }
-    await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
+    await new Promise(function (r) {
+      requestAnimationFrame(function () { requestAnimationFrame(r); });
+    });
 
     try {
-      // Equirectangular output (2:1) — standard for Three.js / Kuula-style viewers
-      var OUT_W = 2048;
-      var OUT_H = 1024;
-      var outCanvas = document.createElement('canvas');
-      outCanvas.width = OUT_W;
-      outCanvas.height = OUT_H;
-      var outCtx = outCanvas.getContext('2d');
-      outCtx.fillStyle = '#14121A';
-      outCtx.fillRect(0, 0, OUT_W, OUT_H);
+      var W = 2048;
+      var H = 1024;
+      var canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#101018';
+      ctx.fillRect(0, 0, W, H);
 
-      var accum = outCtx.createImageData(OUT_W, OUT_H);
-      var pix = accum.data;
-      var weightBuf = new Float32Array(OUT_W * OUT_H);
+      var imgData = ctx.createImageData(W, H);
+      var data = imgData.data;
+      var wSum = new Float32Array(W * H);
 
-      // Phone camera approximate FOV (wider = more overlap, fewer black gaps)
-      var H_FOV = 72;  // degrees horizontal
-      var V_FOV = 54;  // degrees vertical
-      var DEG2RAD = Math.PI / 180;
-      var halfH = (H_FOV / 2) * DEG2RAD;
-      var halfV = (V_FOV / 2) * DEG2RAD;
-      var tanHalfH = Math.tan(halfH);
-      var tanHalfV = Math.tan(halfV);
+      // Phone FOV — wide enough for strong overlap between guided dots
+      var FOV_H = 80;
+      var FOV_V = 60;
+      var D2R = Math.PI / 180;
+      var tanH = Math.tan((FOV_H / 2) * D2R);
+      var tanV = Math.tan((FOV_V / 2) * D2R);
 
-      var fi;
-      for (fi = 0; fi < capturedList.length; fi++) {
-        if (finishBtn) {
-          finishBtn.textContent = '⏳ STITCHING ' + (fi + 1) + '/' + capturedList.length + '…';
-        }
+      function sampleBilinear(pixels, pw, ph, fx, fy) {
+        if (fx < 0 || fy < 0 || fx >= pw - 1 || fy >= ph - 1) return null;
+        var x0 = fx | 0;
+        var y0 = fy | 0;
+        var x1 = x0 + 1;
+        var y1 = y0 + 1;
+        var tx = fx - x0;
+        var ty = fy - y0;
+        var i00 = (y0 * pw + x0) * 4;
+        var i10 = (y0 * pw + x1) * 4;
+        var i01 = (y1 * pw + x0) * 4;
+        var i11 = (y1 * pw + x1) * 4;
+        var r = (pixels[i00] * (1 - tx) + pixels[i10] * tx) * (1 - ty) +
+                (pixels[i01] * (1 - tx) + pixels[i11] * tx) * ty;
+        var g = (pixels[i00 + 1] * (1 - tx) + pixels[i10 + 1] * tx) * (1 - ty) +
+                (pixels[i01 + 1] * (1 - tx) + pixels[i11 + 1] * tx) * ty;
+        var b = (pixels[i00 + 2] * (1 - tx) + pixels[i10 + 2] * tx) * (1 - ty) +
+                (pixels[i01 + 2] * (1 - tx) + pixels[i11 + 2] * tx) * ty;
+        return [r, g, b];
+      }
+
+      for (var fi = 0; fi < shots.length; fi++) {
+        if (finishBtn) finishBtn.textContent = '⏳ STITCHING ' + (fi + 1) + '/' + shots.length + '…';
         await new Promise(function (r) { setTimeout(r, 0); });
 
-        var slot = capturedList[fi];
-        var srcCanvas = slot.imgCanvas;
-        if (!srcCanvas || !srcCanvas.width) continue;
+        var slot = shots[fi];
+        var src = slot.imgCanvas;
 
-        // Downsample source for speed
-        var maxSrcW = 800;
-        var srcW = srcCanvas.width;
-        var srcH = srcCanvas.height;
-        var workCanvas = srcCanvas;
-        var workW = srcW;
-        var workH = srcH;
-        if (srcW > maxSrcW) {
-          workW = maxSrcW;
-          workH = Math.round(srcH * (maxSrcW / srcW));
-          workCanvas = document.createElement('canvas');
-          workCanvas.width = workW;
-          workCanvas.height = workH;
-          workCanvas.getContext('2d').drawImage(srcCanvas, 0, 0, workW, workH);
+        // Prefer real capture pose; fall back to guide-slot angle
+        var yawDeg = (typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw;
+        var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
+
+        // Downscale for speed
+        var maxW = 720;
+        var sw = src.width;
+        var sh = src.height;
+        var work = src;
+        var ww = sw;
+        var wh = sh;
+        if (sw > maxW) {
+          ww = maxW;
+          wh = Math.round(sh * (maxW / sw));
+          work = document.createElement('canvas');
+          work.width = ww;
+          work.height = wh;
+          work.getContext('2d').drawImage(src, 0, 0, ww, wh);
         }
-        var srcPixels = workCanvas.getContext('2d', { willReadFrequently: true })
-          .getImageData(0, 0, workW, workH).data;
+        var srcData = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // Camera orientation for this shot (degrees → radians)
-        var camYaw = slot.yaw * DEG2RAD;
-        var camPitch = slot.pitch * DEG2RAD;
-        var cosYaw = Math.cos(camYaw);
-        var sinYaw = Math.sin(camYaw);
-        var cosPitch = Math.cos(camPitch);
-        var sinPitch = Math.sin(camPitch);
+        var yaw = yawDeg * D2R;
+        var pitch = pitchDeg * D2R;
+        var cY = Math.cos(yaw);
+        var sY = Math.sin(yaw);
+        var cP = Math.cos(pitch);
+        var sP = Math.sin(pitch);
 
-        // Only iterate panorama pixels that this shot can cover
-        var yawPad = H_FOV * 0.6 + 8;
-        var pitchPad = V_FOV * 0.6 + 8;
-        var lon0 = slot.yaw - yawPad;
-        var lon1 = slot.yaw + yawPad;
-        var lat0 = Math.max(-89.5, slot.pitch - pitchPad);
-        var lat1 = Math.min(89.5, slot.pitch + pitchPad);
+        // Bounding box on pano (with margin)
+        var marginY = FOV_H * 0.65 + 10;
+        var marginP = FOV_V * 0.65 + 10;
+        var latMin = Math.max(-89, pitchDeg - marginP);
+        var latMax = Math.min(89, pitchDeg + marginP);
+        var y0 = Math.max(0, Math.floor((0.5 - latMax / 180) * H));
+        var y1 = Math.min(H - 1, Math.ceil((0.5 - latMin / 180) * H));
 
-        // Convert lat/lon span to pixel rows/cols (with wrap)
-        var rowTop = Math.max(0, Math.floor((0.5 - lat1 / 180) * OUT_H));
-        var rowBot = Math.min(OUT_H - 1, Math.ceil((0.5 - lat0 / 180) * OUT_H));
-
-        var lonRanges = [];
-        if (lon0 < 0) {
-          lonRanges.push([lon0 + 360, 360]);
-          lonRanges.push([0, lon1]);
-        } else if (lon1 > 360) {
-          lonRanges.push([lon0, 360]);
-          lonRanges.push([0, lon1 - 360]);
+        var lonA = yawDeg - marginY;
+        var lonB = yawDeg + marginY;
+        var ranges = [];
+        if (lonA < 0) {
+          ranges.push([lonA + 360, 360], [0, lonB]);
+        } else if (lonB > 360) {
+          ranges.push([lonA, 360], [0, lonB - 360]);
         } else {
-          lonRanges.push([lon0, lon1]);
+          ranges.push([lonA, lonB]);
         }
 
-        var row, col, ri;
-        for (row = rowTop; row <= rowBot; row++) {
-          // Latitude of this output row (−90..+90 → −π/2..π/2)
-          var latRad = (0.5 - row / OUT_H) * Math.PI;
-          var cosLat = Math.cos(latRad);
-          var sinLat = Math.sin(latRad);
+        for (var py = y0; py <= y1; py++) {
+          // latitude in radians, +90 at top of equirect
+          var lat = (0.5 - py / H) * Math.PI;
+          var cosLat = Math.cos(lat);
+          var sinLat = Math.sin(lat);
 
-          for (ri = 0; ri < lonRanges.length; ri++) {
-            var colLeft = Math.max(0, Math.floor((lonRanges[ri][0] / 360) * OUT_W));
-            var colRight = Math.min(OUT_W - 1, Math.ceil((lonRanges[ri][1] / 360) * OUT_W));
+          for (var ri = 0; ri < ranges.length; ri++) {
+            var x0 = Math.max(0, Math.floor((ranges[ri][0] / 360) * W));
+            var x1 = Math.min(W - 1, Math.ceil((ranges[ri][1] / 360) * W));
 
-            for (col = colLeft; col <= colRight; col++) {
-              // Longitude of this output column (−π..π)
-              var lonRad = (col / OUT_W) * 2 * Math.PI - Math.PI;
+            for (var px = x0; px <= x1; px++) {
+              // longitude −π..π  (0 = front / center of pano at lon 0)
+              var lon = (px / W) * 2 * Math.PI - Math.PI;
 
-              // Direction on unit sphere (equirectangular convention)
-              var dirX = cosLat * Math.sin(lonRad);
-              var dirY = sinLat;
-              var dirZ = cosLat * Math.cos(lonRad);
+              // Unit direction in world space (Y-up)
+              var wx = cosLat * Math.sin(lon);
+              var wy = sinLat;
+              var wz = cosLat * Math.cos(lon);
 
-              // Rotate world direction into camera frame (inverse of yaw then pitch)
-              // 1) undo yaw (rotate around Y)
-              var rx = dirX * cosYaw + dirZ * sinYaw;
-              var rz = -dirX * sinYaw + dirZ * cosYaw;
-              var ry = dirY;
-              // 2) undo pitch (rotate around X)
-              var camX = rx;
-              var camY = ry * cosPitch + rz * sinPitch;
-              var camZ = -ry * sinPitch + rz * cosPitch;
+              // Inverse camera rotation: un-yaw then un-pitch
+              // Camera looks along +Z when yaw=0,pitch=0
+              // 1) rotate by -yaw around Y
+              var x1v = wx * cY - wz * sY;
+              var z1v = wx * sY + wz * cY;
+              var y1v = wy;
+              // 2) rotate by -pitch around X
+              var cx = x1v;
+              var cy = y1v * cP + z1v * sP;
+              var cz = -y1v * sP + z1v * cP;
 
-              // Must be in front of camera
-              if (camZ <= 0.05) continue;
+              if (cz <= 0.08) continue;
 
-              // Project to camera image plane
-              var u = camX / camZ;
-              var v = camY / camZ;
-              if (Math.abs(u) > tanHalfH || Math.abs(v) > tanHalfV) continue;
+              var u = cx / cz;
+              var v = cy / cz;
+              if (u < -tanH || u > tanH || v < -tanV || v > tanV) continue;
 
-              // Map to source pixel (center = principal point)
-              var srcPX = (0.5 + u / (2 * tanHalfH)) * workW;
-              var srcPY = (0.5 - v / (2 * tanHalfV)) * workH;
-              if (srcPX < 1 || srcPX >= workW - 2 || srcPY < 1 || srcPY >= workH - 2) continue;
+              var fx = (0.5 + u / (2 * tanH)) * ww;
+              var fy = (0.5 - v / (2 * tanV)) * wh;
+              var rgb = sampleBilinear(srcData, ww, wh, fx, fy);
+              if (!rgb) continue;
 
-              var ix = srcPX | 0;
-              var iy = srcPY | 0;
-              var srcIndex = (iy * workW + ix) * 4;
+              // Raised-cosine weight → soft seams like Street View
+              var au = Math.abs(u / tanH);
+              var av = Math.abs(v / tanV);
+              var wu = 0.5 * (1 + Math.cos(Math.PI * Math.min(1, au)));
+              var wv = 0.5 * (1 + Math.cos(Math.PI * Math.min(1, av)));
+              var wt = wu * wv;
+              if (wt < 0.01) continue;
 
-              // Soft weight: stronger in center of frame for seamless blend
-              var wu = 1 - Math.abs(u / tanHalfH);
-              var wv = 1 - Math.abs(v / tanHalfV);
-              var wgt = wu * wv;
-              wgt = wgt * wgt; // favor center more
-              if (wgt < 0.02) continue;
-
-              var outIndex = row * OUT_W + col;
-              var di = outIndex * 4;
-              pix[di]     += srcPixels[srcIndex]     * wgt;
-              pix[di + 1] += srcPixels[srcIndex + 1] * wgt;
-              pix[di + 2] += srcPixels[srcIndex + 2] * wgt;
-              weightBuf[outIndex] += wgt;
+              var idx = py * W + px;
+              var di = idx * 4;
+              data[di]     += rgb[0] * wt;
+              data[di + 1] += rgb[1] * wt;
+              data[di + 2] += rgb[2] * wt;
+              wSum[idx]    += wt;
             }
           }
         }
       }
 
-      // Normalize weighted blend
-      var i;
-      for (i = 0; i < OUT_W * OUT_H; i++) {
-        var w = weightBuf[i];
-        var di2 = i * 4;
-        if (w > 0.008) {
-          pix[di2]     = Math.min(255, pix[di2] / w);
-          pix[di2 + 1] = Math.min(255, pix[di2 + 1] / w);
-          pix[di2 + 2] = Math.min(255, pix[di2 + 2] / w);
-          pix[di2 + 3] = 255;
+      // Normalize
+      for (var i = 0; i < W * H; i++) {
+        var ww2 = wSum[i];
+        var di = i * 4;
+        if (ww2 > 0.01) {
+          data[di]     = Math.min(255, data[di] / ww2);
+          data[di + 1] = Math.min(255, data[di + 1] / ww2);
+          data[di + 2] = Math.min(255, data[di + 2] / ww2);
+          data[di + 3] = 255;
         } else {
-          // empty → dark (will try fill next)
-          pix[di2] = 18; pix[di2 + 1] = 16; pix[di2 + 2] = 24; pix[di2 + 3] = 255;
+          data[di] = 16; data[di + 1] = 14; data[di + 2] = 22; data[di + 3] = 255;
         }
       }
-      outCtx.putImageData(accum, 0, 0);
+      ctx.putImageData(imgData, 0, 0);
 
-      // Hole fill pass (pull color from neighbors, wrap horizontally)
-      if (finishBtn) finishBtn.textContent = '⏳ FILLING GAPS…';
+      // Multi-pass inpainting for leftover holes (wrap X)
+      if (finishBtn) finishBtn.textContent = '⏳ BLENDING SEAMS…';
       await new Promise(function (r) { setTimeout(r, 0); });
 
-      var filled = outCtx.getImageData(0, 0, OUT_W, OUT_H);
-      var fd = filled.data;
-      var pass;
-      for (pass = 0; pass < 3; pass++) {
-        var y, x;
-        for (y = 1; y < OUT_H - 1; y++) {
-          for (x = 0; x < OUT_W; x++) {
-            var ii = (y * OUT_W + x) * 4;
-            // dark hole?
-            if (fd[ii] <= 22 && fd[ii + 1] <= 20 && fd[ii + 2] <= 28) {
-              var sr = 0, sg = 0, sb = 0, sn = 0;
-              var dy, dx;
-              for (dy = -2; dy <= 2; dy++) {
-                for (dx = -2; dx <= 2; dx++) {
-                  if (dx === 0 && dy === 0) continue;
-                  var nx = (x + dx + OUT_W) % OUT_W;
-                  var ny = y + dy;
-                  if (ny < 0 || ny >= OUT_H) continue;
-                  var jj = (ny * OUT_W + nx) * 4;
-                  if (fd[jj] > 22 || fd[jj + 1] > 20) {
-                    sr += fd[jj]; sg += fd[jj + 1]; sb += fd[jj + 2]; sn++;
-                  }
+      var buf = ctx.getImageData(0, 0, W, H);
+      var bd = buf.data;
+      for (var pass = 0; pass < 4; pass++) {
+        for (var y = 1; y < H - 1; y++) {
+          for (var x = 0; x < W; x++) {
+            var ii = (y * W + x) * 4;
+            if (bd[ii] > 24 || bd[ii + 1] > 22) continue;
+            var sr = 0, sg = 0, sb = 0, sn = 0;
+            for (var dy = -2; dy <= 2; dy++) {
+              for (var dx = -2; dx <= 2; dx++) {
+                if (!dx && !dy) continue;
+                var nx = (x + dx + W) % W;
+                var ny = y + dy;
+                if (ny < 0 || ny >= H) continue;
+                var jj = (ny * W + nx) * 4;
+                if (bd[jj] > 24 || bd[jj + 1] > 22) {
+                  sr += bd[jj]; sg += bd[jj + 1]; sb += bd[jj + 2]; sn++;
                 }
               }
-              if (sn > 0) {
-                fd[ii] = sr / sn;
-                fd[ii + 1] = sg / sn;
-                fd[ii + 2] = sb / sn;
-              }
+            }
+            if (sn >= 3) {
+              bd[ii] = sr / sn;
+              bd[ii + 1] = sg / sn;
+              bd[ii + 2] = sb / sn;
             }
           }
         }
       }
-      outCtx.putImageData(filled, 0, 0);
+      ctx.putImageData(buf, 0, 0);
 
       if (finishBtn) finishBtn.textContent = '⏳ SAVING…';
       await new Promise(function (r) { setTimeout(r, 0); });
 
-      var dataUrl = outCanvas.toDataURL('image/jpeg', 0.9);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
       var finalUrl = dataUrl;
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
-          var blob = await new Promise(function (resolve) {
-            outCanvas.toBlob(resolve, 'image/jpeg', 0.9);
-          });
+          var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.92); });
           var file = new File([blob], '360_scan_' + Date.now() + '.jpg', { type: 'image/jpeg' });
           var up = await window.uploadToSupabaseStorage(file);
           if (up && up.url) finalUrl = up.url;
-        } catch (upErr) {
-          console.warn('[SpotLIGHT stitch] upload fallback to data URL', upErr);
+        } catch (e) {
+          console.warn('[stitch] upload failed, using data URL');
         }
       }
 
@@ -4768,7 +4773,7 @@
         }
       } else {
         var newId = 'scan-room-' + Date.now().toString(36);
-        var newScene = {
+        activeSceneList.push({
           id: newId,
           name: '📸 Scanned Room ' + (activeSceneList.length + 1),
           location: (currentTourData && currentTourData.location) || 'Salt Lake City, UT',
@@ -4777,29 +4782,21 @@
           tourUrl: '',
           blurb: 'Full 360° space stitched from device camera',
           hotspots: [{
-            pitch: 0,
-            yaw: 180,
-            label: '🚪 Back to Previous Room',
+            pitch: 0, yaw: 180, label: '🚪 Back to Previous Room',
             targetScene: (activeSceneList[activeSceneIndex] && activeSceneList[activeSceneIndex].id) ||
               (activeSceneList[0] && activeSceneList[0].id)
           }]
-        };
-        activeSceneList.push(newScene);
+        });
         activeSceneIndex = activeSceneList.length - 1;
       }
 
       window.close360CameraScanner();
-      if (typeof window.saveTourChangesToMagazine === 'function') {
-        window.saveTourChangesToMagazine();
-      }
+      if (typeof window.saveTourChangesToMagazine === 'function') window.saveTourChangesToMagazine();
       renderSceneSelector();
       loadScene(activeSceneIndex);
-
-      if (typeof showToast === 'function') {
-        showToast('🎉 360° sphere stitched — look around!');
-      }
+      if (typeof showToast === 'function') showToast('🎉 360° sphere ready — drag to look around');
     } catch (err) {
-      console.error('[SpotLIGHT stitch]', err);
+      console.error('[stitch]', err);
       alert('Stitch failed: ' + (err && err.message ? err.message : String(err)));
     } finally {
       if (finishBtn) {
