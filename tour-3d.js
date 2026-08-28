@@ -2138,14 +2138,18 @@
               <!-- Live Floating Stats -->
               <div class="scan-floating-hud">
                 <div class="scan-progress-box">
-                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 28 CAPTURED (0%)</span>
+                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 20 CAPTURED (0%)</span>
                   <div class="scan-progress-bar-bg">
                     <div class="scan-progress-bar-fill" id="scanProgressBarFill" style="width:0%;"></div>
                   </div>
                 </div>
+                <button type="button" id="scanEnableGyroBtn" onclick="window.enableScannerGyroAim()"
+                  style="background:#FFD23F;color:#14121A;border:none;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:900;cursor:pointer;box-shadow:0 2px 12px rgba(255,210,63,0.45);">
+                  🧭 ENABLE GYRO AIM
+                </button>
                 <div class="scan-auto-snap-toggle" onclick="window.toggleAutoCaptureOnAlign()">
                   <input type="checkbox" id="scanAutoSnapCheck" checked>
-                  <label for="scanAutoSnapCheck" style="cursor:pointer;font-size:11px;font-weight:700;">⚡ Auto-Snap on Align</label>
+                  <label for="scanAutoSnapCheck" style="cursor:pointer;font-size:11px;font-weight:700;">⚡ Auto-Snap</label>
                 </div>
               </div>
             </div>
@@ -3870,163 +3874,251 @@
     }
   };
 
-  // Single orientation handlers (never stack)
+  // ===== GYRO AIM (HDReye-style world-locked targets) =====
   let _scanOrientHandler = null;
   let _scanOrientAbsHandler = null;
-  let _scanMotionHandler = null;
+  let _scanRelSensor = null;
+  let _scanGyroPrimed = false;
 
-  function bindScannerSensors() {
-    const sensorPill = document.getElementById('scanSensorModePill');
-    const viewfinder = document.getElementById('scanViewfinderArea');
-
+  function stopScannerGyroListeners() {
     if (_scanOrientHandler) {
-      window.removeEventListener('deviceorientation', _scanOrientHandler);
+      window.removeEventListener('deviceorientation', _scanOrientHandler, true);
+      window.removeEventListener('deviceorientation', _scanOrientHandler, false);
       _scanOrientHandler = null;
     }
     if (_scanOrientAbsHandler) {
-      window.removeEventListener('deviceorientationabsolute', _scanOrientAbsHandler);
+      window.removeEventListener('deviceorientationabsolute', _scanOrientAbsHandler, true);
+      window.removeEventListener('deviceorientationabsolute', _scanOrientAbsHandler, false);
       _scanOrientAbsHandler = null;
     }
-    if (_scanMotionHandler) {
-      window.removeEventListener('devicemotion', _scanMotionHandler);
-      _scanMotionHandler = null;
+    if (_scanRelSensor) {
+      try { _scanRelSensor.stop(); } catch (e) {}
+      _scanRelSensor = null;
     }
+  }
 
-    let firstOrient = true;
-    let lastOrientTs = 0;
+  function setSensorPill(text, color) {
+    var pill = document.getElementById('scanSensorModePill');
+    if (!pill) return;
+    pill.textContent = text;
+    pill.style.color = color || '#FFD23F';
+    pill.style.borderColor = color || '#FFD23F';
+  }
 
-    function applyLook(yawDeg, pitchDeg, source) {
-      lastOrientTs = Date.now();
+  function applyGyroLook(yawDeg, pitchDeg) {
+    if (scanIsDragging) return;
+
+    if (!_scanGyroPrimed) {
+      // First reading = "forward" — all targets relative to this facing (like HDReye)
+      scanBaseYawOffset = yawDeg;
+      scanSmoothYaw = 0;
+      scanSmoothPitch = pitchDeg;
+      scanCurrentYaw = 0;
+      scanCurrentPitch = pitchDeg;
+      _scanGyroPrimed = true;
       scanHasGyro = true;
-      if (sensorPill && !scanIsDragging) {
-        sensorPill.textContent = '📳 GYRO ON · TURN PHONE';
-        sensorPill.style.color = '#06D6A0';
-        sensorPill.style.borderColor = '#06D6A0';
+      setSensorPill('📳 GYRO AIM ON · TURN PHONE', '#06D6A0');
+      var btn = document.getElementById('scanEnableGyroBtn');
+      if (btn) {
+        btn.textContent = '✅ GYRO ACTIVE';
+        btn.style.background = '#06D6A0';
+        btn.style.color = '#0d1b1e';
       }
-
-      if (firstOrient) {
-        scanBaseYawOffset = yawDeg;
-        scanSmoothYaw = 0;
-        scanSmoothPitch = pitchDeg;
-        scanCurrentYaw = 0;
-        scanCurrentPitch = pitchDeg;
-        firstOrient = false;
-        return;
-      }
-
-      // Don't fight the finger while user is dragging
-      if (scanIsDragging) return;
-
-      const targetYaw = normalizeAngle360(yawDeg - scanBaseYawOffset);
-      const targetPitch = Math.max(-85, Math.min(85, pitchDeg));
-
-      let dy = angleDiffSigned(targetYaw, scanSmoothYaw);
-      scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.45);
-      scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.45;
-      scanCurrentYaw = scanSmoothYaw;
-      scanCurrentPitch = scanSmoothPitch;
+      return;
     }
 
-    function onDeviceOrientation(e) {
-      if (e.alpha === null || e.beta === null) return;
+    scanHasGyro = true;
+    var targetYaw = normalizeAngle360(yawDeg - scanBaseYawOffset);
+    var targetPitch = Math.max(-85, Math.min(85, pitchDeg));
 
-      var rawYaw;
-      if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
-        rawYaw = e.webkitCompassHeading;
-      } else if (e.absolute === true) {
-        rawYaw = e.alpha;
-      } else {
-        rawYaw = 360 - e.alpha;
-      }
+    // Responsive follow so dots stay on walls while you turn
+    var dy = angleDiffSigned(targetYaw, scanSmoothYaw);
+    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.5);
+    scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.5;
+    scanCurrentYaw = scanSmoothYaw;
+    scanCurrentPitch = scanSmoothPitch;
+  }
 
-      // Portrait: beta 90 = level pitch 0
-      var rawPitch = (e.beta != null ? e.beta : 90) - 90;
-      // Landscape adjustments
-      var orient = window.orientation || 0;
-      if (orient === 90) {
-        rawPitch = -(e.gamma != null ? e.gamma : 0);
-      } else if (orient === -90) {
-        rawPitch = (e.gamma != null ? e.gamma : 0);
-      }
+  function onDeviceOrientationEvent(e) {
+    if (e.alpha === null || e.alpha === undefined) return;
+    if (e.beta === null || e.beta === undefined) return;
 
-      applyLook(rawYaw, rawPitch, 'orient');
+    var rawYaw;
+    // iOS compass heading is most stable when present
+    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+      rawYaw = e.webkitCompassHeading;
+    } else if (e.absolute === true) {
+      rawYaw = e.alpha;
+    } else {
+      // Browser relative alpha (0–360). Invert so turning right increases yaw consistently
+      rawYaw = (360 - e.alpha);
     }
 
-    function startGyroListeners() {
-      _scanOrientHandler = onDeviceOrientation;
-      window.addEventListener('deviceorientation', _scanOrientHandler, true);
-      _scanOrientAbsHandler = onDeviceOrientation;
-      window.addEventListener('deviceorientationabsolute', _scanOrientAbsHandler, true);
-
-      if (sensorPill) {
-        sensorPill.textContent = '📳 MOVE PHONE TO ACTIVATE GYRO';
-        sensorPill.style.color = '#FFD23F';
-        sensorPill.style.borderColor = '#FFD23F';
+    // Map beta/gamma → pitch depending on screen orientation
+    var rawPitch;
+    var orient = 0;
+    try {
+      if (screen.orientation && typeof screen.orientation.angle === 'number') {
+        orient = screen.orientation.angle;
+      } else if (typeof window.orientation === 'number') {
+        orient = window.orientation;
       }
+    } catch (err) {}
 
-      // If no orientation event for 2.5s, show drag hint
-      setTimeout(function () {
-        if (!scanHasGyro && sensorPill) {
-          sensorPill.textContent = '👆 DRAG SCREEN TO MOVE CIRCLES';
-          sensorPill.style.color = '#FFD23F';
+    if (orient === 90 || orient === -270) {
+      rawPitch = -(e.gamma != null ? e.gamma : 0);
+    } else if (orient === -90 || orient === 270) {
+      rawPitch = (e.gamma != null ? e.gamma : 0);
+    } else {
+      // Portrait: beta ~90 when upright → pitch 0
+      rawPitch = (e.beta != null ? e.beta : 90) - 90;
+    }
+
+    applyGyroLook(rawYaw, rawPitch);
+  }
+
+  function startOrientationListeners() {
+    stopScannerGyroListeners();
+    _scanGyroPrimed = false;
+    scanHasGyro = false;
+
+    // Modern Generic Sensor API (Chrome Android) — best when available
+    try {
+      if (typeof RelativeOrientationSensor === 'function') {
+        var sensor = new RelativeOrientationSensor({ frequency: 60, referenceFrame: 'screen' });
+        sensor.onreading = function () {
+          // quaternion [x,y,z,w] → yaw/pitch
+          var q = sensor.quaternion;
+          if (!q) return;
+          var x = q[0], y = q[1], z = q[2], w = q[3];
+          // yaw (heading around Y)
+          var siny = 2 * (w * y + z * x);
+          var cosy = 1 - 2 * (y * y + x * x);
+          var yaw = Math.atan2(siny, cosy) * (180 / Math.PI);
+          // pitch
+          var sinp = 2 * (w * x - y * z);
+          var pitch;
+          if (Math.abs(sinp) >= 1) pitch = (sinp > 0 ? 1 : -1) * 90;
+          else pitch = Math.asin(sinp) * (180 / Math.PI);
+          applyGyroLook(normalizeAngle360(yaw), -pitch);
+        };
+        sensor.onerror = function () {
+          // fall through — deviceorientation still attached below
+        };
+        sensor.start();
+        _scanRelSensor = sensor;
+      }
+    } catch (err) {
+      // ignore — use deviceorientation
+    }
+
+    _scanOrientHandler = onDeviceOrientationEvent;
+    _scanOrientAbsHandler = onDeviceOrientationEvent;
+    window.addEventListener('deviceorientation', _scanOrientHandler, true);
+    window.addEventListener('deviceorientationabsolute', _scanOrientAbsHandler, true);
+
+    setSensorPill('📳 MOVE PHONE — calibrating…', '#FFD23F');
+
+    setTimeout(function () {
+      if (!scanHasGyro) {
+        setSensorPill('👆 DRAG TO AIM (gyro not available)', '#FFD23F');
+        var btn = document.getElementById('scanEnableGyroBtn');
+        if (btn) {
+          btn.textContent = '🧭 TAP TO RETRY GYRO';
+          btn.style.background = '#FFD23F';
         }
-      }, 2500);
-    }
+      }
+    }, 3000);
+  }
 
-    // Request permission (iOS) then start
+  // MUST be called from a tap (iOS requirement)
+  window.enableScannerGyroAim = async function () {
+    var btn = document.getElementById('scanEnableGyroBtn');
+    if (btn) {
+      btn.textContent = '⏳ REQUESTING…';
+      btn.disabled = true;
+    }
+    setSensorPill('🔐 Allow Motion when prompted', '#FFD23F');
+
     try {
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-          .then(function (resp) {
-            if (resp === 'granted') startGyroListeners();
-            else if (sensorPill) {
-              sensorPill.textContent = '👆 DRAG TO AIM (allow Motion in Settings)';
-              sensorPill.style.color = '#FFD23F';
-            }
-          })
-          .catch(function () { startGyroListeners(); });
-      } else {
-        startGyroListeners();
+        var resp = await DeviceOrientationEvent.requestPermission();
+        if (resp !== 'granted') {
+          setSensorPill('👆 DRAG TO AIM (motion denied)', '#FF4D6D');
+          if (btn) {
+            btn.textContent = '🧭 GYRO BLOCKED — USE DRAG';
+            btn.disabled = false;
+            btn.style.background = '#FF4D6D';
+            btn.style.color = '#fff';
+          }
+          if (typeof showToast === 'function') {
+            showToast('Motion denied. Enable in Settings → Safari → Motion & Orientation Access');
+          }
+          return;
+        }
+      }
+      // Also try DeviceMotion permission on some iOS versions
+      if (typeof DeviceMotionEvent !== 'undefined' &&
+          typeof DeviceMotionEvent.requestPermission === 'function') {
+        try { await DeviceMotionEvent.requestPermission(); } catch (e) {}
       }
     } catch (err) {
-      startGyroListeners();
+      console.warn('[Scanner gyro permission]', err);
     }
 
-    // ALWAYS allow finger drag so circles are never stuck (works on desktop + as backup)
+    startOrientationListeners();
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🧭 CALIBRATING… TURN PHONE';
+    }
+    if (typeof showToast === 'function') {
+      showToast('Hold phone upright and slowly turn in a circle — targets lock to the room');
+    }
+  };
+
+  function bindScannerSensors() {
+    var viewfinder = document.getElementById('scanViewfinderArea');
+    _scanGyroPrimed = false;
+    scanHasGyro = false;
+    setSensorPill('👉 TAP “ENABLE GYRO AIM”', '#FFD23F');
+
+    var btn = document.getElementById('scanEnableGyroBtn');
+    if (btn) {
+      btn.textContent = '🧭 ENABLE GYRO AIM';
+      btn.style.background = '#FFD23F';
+      btn.style.color = '#14121A';
+      btn.disabled = false;
+    }
+
+    // Auto-try on Android / desktop (no permission API). iOS still needs the button.
+    var needsTap = (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function');
+    if (!needsTap) {
+      startOrientationListeners();
+    }
+
+    // Finger drag always available as backup
     if (viewfinder && !viewfinder._hasDragListeners) {
       viewfinder._hasDragListeners = true;
 
-      var onStart = function (clientX, clientY) {
+      var onStart = function (cx, cy) {
         scanIsDragging = true;
-        scanDragStartX = clientX;
-        scanDragStartY = clientY;
+        scanDragStartX = cx;
+        scanDragStartY = cy;
         scanDragStartYaw = scanCurrentYaw;
         scanDragStartPitch = scanCurrentPitch;
       };
-
-      var onMove = function (clientX, clientY) {
+      var onMove = function (cx, cy) {
         if (!scanIsDragging) return;
-        var dx = clientX - scanDragStartX;
-        var dy = clientY - scanDragStartY;
-        // Drag moves the "look" so world circles slide across the viewfinder
+        var dx = cx - scanDragStartX;
+        var dy = cy - scanDragStartY;
         scanCurrentYaw = normalizeAngle360(scanDragStartYaw - dx * 0.42);
         scanCurrentPitch = Math.max(-85, Math.min(85, scanDragStartPitch + dy * 0.42));
         scanSmoothYaw = scanCurrentYaw;
         scanSmoothPitch = scanCurrentPitch;
-        // Drag temporarily owns aim; gyro resumes when finger lifts
-        if (sensorPill && !scanHasGyro) {
-          sensorPill.textContent = '👆 DRAGGING · release to use gyro';
-        }
       };
-
-      var onEnd = function () {
-        scanIsDragging = false;
-        // Re-sync base so gyro doesn't jump after drag
-        if (scanHasGyro) {
-          // keep current as new smooth target
-        }
-      };
+      var onEnd = function () { scanIsDragging = false; };
 
       viewfinder.addEventListener('mousedown', function (e) {
         e.preventDefault();
@@ -4036,17 +4128,11 @@
       window.addEventListener('mouseup', onEnd);
 
       viewfinder.addEventListener('touchstart', function (e) {
-        if (e.touches.length === 1) {
-          onStart(e.touches[0].clientX, e.touches[0].clientY);
-        }
+        if (e.touches.length === 1) onStart(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: true });
-
       window.addEventListener('touchmove', function (e) {
-        if (e.touches.length === 1 && scanIsDragging) {
-          onMove(e.touches[0].clientX, e.touches[0].clientY);
-        }
+        if (e.touches.length === 1 && scanIsDragging) onMove(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: true });
-
       window.addEventListener('touchend', onEnd);
       window.addEventListener('touchcancel', onEnd);
     }
