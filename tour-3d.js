@@ -212,10 +212,10 @@
   // Camera & Navigation State
   let yaw = 0;
   let pitch = 0;
-  let fov = 75;
+  let fov = 65;
   let targetYaw = 0;
   let targetPitch = 0;
-  let targetFov = 75;
+  let targetFov = 65;
 
   let isDragging = false;
   let startX = 0;
@@ -343,7 +343,7 @@
         alpha: false,
         powerPreference: 'high-performance'
       });
-      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
       threeRenderer.setSize(width, height);
 
       threeScene = new THREE.Scene();
@@ -368,45 +368,318 @@
   }
 
   /**
-   * Loads Equirectangular Texture into Three.js Sphere
+   * Loads Equirectangular or Cylindrical (iPhone Pano) Texture into Three.js Sphere
+   * with Zero-Distortion Auto Aspect Processing, Matterport Pro Multi-Band Ambient Diffusion, and 16x Anisotropic Filtering.
    */
-  function loadThreePanoTexture(urlOrCanvas) {
+  function loadThreePanoTexture(urlOrCanvas, sceneOverride) {
     if (!threeSphere) {
       if (!initThreeEngine()) return;
     }
     const loader = document.getElementById('tourLoader');
+    if (loader) loader.classList.remove('hidden');
+
+    const curScene = sceneOverride || activeSceneList[activeSceneIndex] || {};
+    // Aspect Modes: 'matterport-arc' (0% seam natural arc), '360-loop' / 'iphone-pano' (continuous loop), 'full-360' (2:1 sphere)
+    const aspectMode = curScene.aspectMode || 'matterport-arc';
+    const vScale = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
+    const vOffset = typeof curScene.vOffset === 'number' ? curScene.vOffset : 0;
+    const hShift = typeof curScene.hShift === 'number' ? curScene.hShift : 0; // 0° to 360° horizontal seam rotation
+    const seamBlend = typeof curScene.seamBlend === 'number' ? curScene.seamBlend : 0.08; // 0.0 to 0.20 seam feather width
+    const seamVOffset = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0; // -50px to +50px vertical tilt trim
+    const hSpan = typeof curScene.hSpan === 'number' ? curScene.hSpan : 1.0; // 0.70 to 1.05 horizontal sweep crop/span
+    const typeBadge = document.getElementById('tourTypeBadge');
 
     if (typeof urlOrCanvas === 'string' && urlOrCanvas) {
-      threeTextureLoader.load(
-        urlOrCanvas,
-        (texture) => {
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-          texture.generateMipmaps = false;
-          
-          if (currentTexture) currentTexture.dispose();
-          currentTexture = texture;
-          threeSphere.material.map = texture;
-          threeSphere.material.needsUpdate = true;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const nw = img.naturalWidth || img.width || 2048;
+        const nh = img.naturalHeight || img.height || 1024;
+        const ar = nw / nh;
+        
+        const isWidePano = (aspectMode === 'matterport-arc') || (aspectMode === 'iphone-pano') || (aspectMode === '360-loop') || (aspectMode !== 'full-360' && ar > 2.0);
 
-          if (loader) loader.classList.add('hidden');
-        },
-        undefined,
-        (err) => {
-          console.warn('[SpotLIGHT 360] Remote texture load notice, using procedural backdrop:', err);
-          const fallbackCanvas = getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-fallback');
-          const texture = new THREE.CanvasTexture(fallbackCanvas);
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-
-          if (currentTexture) currentTexture.dispose();
-          currentTexture = texture;
-          threeSphere.material.map = texture;
-          threeSphere.material.needsUpdate = true;
-
-          if (loader) loader.classList.add('hidden');
+        if (typeBadge) {
+          if (aspectMode === 'matterport-arc' || (isWidePano && aspectMode !== '360-loop' && aspectMode !== 'full-360')) {
+            typeBadge.textContent = '✨ MATTERPORT PRO (0% SEAM)';
+            typeBadge.style.background = 'rgba(6, 214, 160, 0.18)';
+            typeBadge.style.borderColor = '#06D6A0';
+            typeBadge.style.color = '#06D6A0';
+          } else if (aspectMode === '360-loop' || aspectMode === 'iphone-pano') {
+            typeBadge.textContent = '🔄 360° LOOP WALKTHROUGH';
+            typeBadge.style.background = 'rgba(255, 210, 63, 0.18)';
+            typeBadge.style.borderColor = '#FFD23F';
+            typeBadge.style.color = '#FFD23F';
+          } else {
+            typeBadge.textContent = '🌐 360° PHOTOSPHERE (2:1)';
+            typeBadge.style.background = 'rgba(255, 210, 63, 0.15)';
+            typeBadge.style.borderColor = 'rgba(255, 210, 63, 0.35)';
+            typeBadge.style.color = '#FFD23F';
+          }
         }
-      );
+
+        let finalTexture = null;
+
+        if (isWidePano) {
+          // Construct Ultra-HD 2:1 Master Canvas to eliminate vertical stretching
+          const maxGpuSize = threeRenderer ? Math.min(threeRenderer.capabilities.maxTextureSize || 4096, 4096) : 4096;
+          const canvasW = Math.min(Math.max(nw, 2048), maxGpuSize);
+          const canvasH = Math.floor(canvasW / 2); // Exact 2:1 Equirectangular Sphere Ratio
+
+          const canvas = document.createElement('canvas');
+          canvas.width = canvasW;
+          canvas.height = canvasH;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+          const isArcMode = (aspectMode === 'matterport-arc');
+
+          // Compute exact natural vertical height to maintain 1:1 real-world physical room proportions
+          let panoH = Math.min(canvasH, Math.round((canvasW / Math.max(ar, 1.8)) * vScale));
+          if (isArcMode) {
+            panoH = Math.min(canvasH - 60, Math.max(Math.floor(canvasH * 0.45), Math.round(canvasH * 0.52 * vScale)));
+          }
+          const panoY = Math.max(0, Math.min(canvasH - panoH, Math.round((canvasH - panoH) / 2) + vOffset));
+
+          // Sample edge and wall colors for intelligent ambient room fill
+          const sampleC = document.createElement('canvas');
+          sampleC.width = 64;
+          sampleC.height = 64;
+          const sCtxSample = sampleC.getContext('2d');
+          sCtxSample.drawImage(img, 0, 0, 64, 64);
+
+          let tr = 235, tg = 235, tb = 235; // top ceiling
+          let br = 65, bg = 55, bb = 50;    // bottom floor
+          let lr = 220, lg = 215, lb = 210; // left wall (door side)
+          let rr = 220, rg = 215, rb = 210; // right wall (window side)
+
+          try {
+            const topData = sCtxSample.getImageData(0, 0, 64, 4).data;
+            let sumR = 0, sumG = 0, sumB = 0, count = topData.length / 4;
+            for (let i = 0; i < topData.length; i += 4) {
+              sumR += topData[i]; sumG += topData[i+1]; sumB += topData[i+2];
+            }
+            tr = Math.round(sumR / count); tg = Math.round(sumG / count); tb = Math.round(sumB / count);
+
+            const btmData = sCtxSample.getImageData(0, 60, 64, 4).data;
+            sumR = 0; sumG = 0; sumB = 0;
+            for (let i = 0; i < btmData.length; i += 4) {
+              sumR += btmData[i]; sumG += btmData[i+1]; sumB += btmData[i+2];
+            }
+            br = Math.round(sumR / count); bg = Math.round(sumG / count); bb = Math.round(sumB / count);
+
+            const leftData = sCtxSample.getImageData(0, 16, 4, 32).data;
+            sumR = 0; sumG = 0; sumB = 0; count = leftData.length / 4;
+            for (let i = 0; i < leftData.length; i += 4) {
+              sumR += leftData[i]; sumG += leftData[i+1]; sumB += leftData[i+2];
+            }
+            lr = Math.round(sumR / count); lg = Math.round(sumG / count); lb = Math.round(sumB / count);
+
+            const rightData = sCtxSample.getImageData(60, 16, 4, 32).data;
+            sumR = 0; sumG = 0; sumB = 0; count = rightData.length / 4;
+            for (let i = 0; i < rightData.length; i += 4) {
+              sumR += rightData[i]; sumG += rightData[i+1]; sumB += rightData[i+2];
+            }
+            rr = Math.round(sumR / count); rg = Math.round(sumG / count); rb = Math.round(sumB / count);
+          } catch(e) {}
+
+          // 1. Render Realistic Multi-Band Ceiling Ambient Gradient
+          const topGrad = ctx.createLinearGradient(0, 0, 0, panoY + 8);
+          topGrad.addColorStop(0, `rgb(${Math.round(tr * 0.9)}, ${Math.round(tg * 0.9)}, ${Math.round(tb * 0.9)})`);
+          topGrad.addColorStop(0.7, `rgb(${tr}, ${tg}, ${tb})`);
+          topGrad.addColorStop(1, `rgb(${tr}, ${tg}, ${tb})`);
+          ctx.fillStyle = topGrad;
+          ctx.fillRect(0, 0, canvasW, panoY + 8);
+
+          // 2. Render Realistic Floor Ambient Gradient
+          const btmGrad = ctx.createLinearGradient(0, panoY + panoH - 8, 0, canvasH);
+          btmGrad.addColorStop(0, `rgb(${br}, ${bg}, ${bb})`);
+          btmGrad.addColorStop(0.5, `rgb(${Math.round(br * 0.85)}, ${Math.round(bg * 0.85)}, ${Math.round(bb * 0.85)})`);
+          btmGrad.addColorStop(1, `rgb(${Math.round(br * 0.7)}, ${Math.round(bg * 0.7)}, ${Math.round(bb * 0.7)})`);
+          ctx.fillStyle = btmGrad;
+          ctx.fillRect(0, panoY + panoH - 8, canvasW, canvasH - (panoY + panoH - 8));
+
+          if (isArcMode) {
+            // ==============================================================
+            // ✨ MATTERPORT PRO ARC PROJECTION (0% SEAM · ZERO COLLISION)
+            // ==============================================================
+            // Map the panorama to its natural physical horizontal span
+            const naturalPanoW = Math.min(Math.round(canvasW * 0.85), Math.max(Math.round(canvasW * 0.45), Math.round((panoH * ar) * hSpan)));
+            const arcSpanDeg = Math.round((naturalPanoW / canvasW) * 360);
+            curScene.arcSpanDeg = arcSpanDeg;
+
+            const panoX = Math.round((canvasW - naturalPanoW) / 2);
+
+            // Fill left and right ambient wall extensions
+            const lWallGrad = ctx.createLinearGradient(0, panoY, panoX + 30, panoY);
+            lWallGrad.addColorStop(0, `rgb(${lr}, ${lg}, ${lb})`);
+            lWallGrad.addColorStop(1, `rgb(${lr}, ${lg}, ${lb})`);
+            ctx.fillStyle = lWallGrad;
+            ctx.fillRect(0, panoY, panoX + 30, panoH);
+
+            const rWallGrad = ctx.createLinearGradient(panoX + naturalPanoW - 30, panoY, canvasW, panoY);
+            rWallGrad.addColorStop(0, `rgb(${rr}, ${rg}, ${rb})`);
+            rWallGrad.addColorStop(1, `rgb(${rr}, ${rg}, ${rb})`);
+            ctx.fillStyle = rWallGrad;
+            ctx.fillRect(panoX + naturalPanoW - 30, panoY, canvasW - (panoX + naturalPanoW - 30), panoH);
+
+            // Draw undistorted panorama in center of arc
+            ctx.drawImage(img, 0, 0, nw, nh, panoX, panoY, naturalPanoW, panoH);
+
+            // Soft Horizontal Side Edge Feathering (eliminates any harsh side lines)
+            const sideFeatherW = 36;
+            const lFeather = ctx.createLinearGradient(panoX, panoY, panoX + sideFeatherW, panoY);
+            lFeather.addColorStop(0, `rgba(${lr}, ${lg}, ${lb}, 0.9)`);
+            lFeather.addColorStop(1, `rgba(${lr}, ${lg}, ${lb}, 0)`);
+            ctx.fillStyle = lFeather;
+            ctx.fillRect(panoX, panoY, sideFeatherW, panoH);
+
+            const rFeather = ctx.createLinearGradient(panoX + naturalPanoW - sideFeatherW, panoY, panoX + naturalPanoW, panoY);
+            rFeather.addColorStop(0, `rgba(${rr}, ${rg}, ${rb}, 0)`);
+            rFeather.addColorStop(1, `rgba(${rr}, ${rg}, ${rb}, 0.9)`);
+            ctx.fillStyle = rFeather;
+            ctx.fillRect(panoX + naturalPanoW - sideFeatherW, panoY, sideFeatherW, panoH);
+
+          } else {
+            // ==============================================================
+            // 🔄 360° CONTINUOUS LOOP PROJECTION (Overlap Trim & Seam Feathering)
+            // ==============================================================
+            const stripCanvas = document.createElement('canvas');
+            stripCanvas.width = canvasW;
+            stripCanvas.height = panoH;
+            const sCtx = stripCanvas.getContext('2d', { willReadFrequently: true });
+            sCtx.imageSmoothingEnabled = true;
+            sCtx.imageSmoothingQuality = 'high';
+
+            const srcW = Math.min(nw, Math.max(100, Math.round(nw * hSpan)));
+            const srcH = nh;
+
+            // Handle vertical tilt/drift alignment across sweep
+            if (Math.abs(seamVOffset) > 0.5) {
+              const slices = 64;
+              const sliceW = canvasW / slices;
+              const srcSliceW = srcW / slices;
+              for (let s = 0; s < slices; s++) {
+                const t = s / (slices - 1);
+                const dy = Math.round(t * seamVOffset);
+                sCtx.drawImage(
+                  img,
+                  s * srcSliceW, 0, srcSliceW, srcH,
+                  s * sliceW, Math.max(0, dy), sliceW, panoH - Math.abs(seamVOffset)
+                );
+              }
+            } else {
+              sCtx.drawImage(img, 0, 0, srcW, srcH, 0, 0, canvasW, panoH);
+            }
+
+            // Handle Seam Rotation (hShift: 0° to 360°)
+            let processedStrip = stripCanvas;
+            const normShift = ((hShift % 360) + 360) % 360;
+            if (normShift > 0.5) {
+              const shiftPx = Math.round((normShift / 360) * canvasW);
+              const shiftedCanvas = document.createElement('canvas');
+              shiftedCanvas.width = canvasW;
+              shiftedCanvas.height = panoH;
+              const shCtx = shiftedCanvas.getContext('2d');
+              shCtx.imageSmoothingEnabled = true;
+              shCtx.imageSmoothingQuality = 'high';
+
+              shCtx.drawImage(stripCanvas, shiftPx, 0, canvasW - shiftPx, panoH, 0, 0, canvasW - shiftPx, panoH);
+              shCtx.drawImage(stripCanvas, 0, 0, shiftPx, panoH, canvasW - shiftPx, 0, shiftPx, panoH);
+              processedStrip = shiftedCanvas;
+            }
+
+            // Intelligent Seamless Edge Feathering / Cross-Dissolve
+            if (seamBlend > 0.005) {
+              const blendPx = Math.max(24, Math.min(Math.floor(canvasW * 0.18), Math.round(canvasW * seamBlend)));
+              const blendedCanvas = document.createElement('canvas');
+              blendedCanvas.width = canvasW;
+              blendedCanvas.height = panoH;
+              const bCtx = blendedCanvas.getContext('2d', { willReadFrequently: true });
+              bCtx.drawImage(processedStrip, 0, 0);
+
+              // Extract rightmost edge strip
+              const rightStrip = document.createElement('canvas');
+              rightStrip.width = blendPx;
+              rightStrip.height = panoH;
+              const rCtx = rightStrip.getContext('2d');
+              rCtx.drawImage(processedStrip, canvasW - blendPx, 0, blendPx, panoH, 0, 0, blendPx, panoH);
+
+              // Create smooth cosine gradient mask
+              const maskC = document.createElement('canvas');
+              maskC.width = blendPx;
+              maskC.height = panoH;
+              const mCtx = maskC.getContext('2d');
+              const mGrad = mCtx.createLinearGradient(0, 0, blendPx, 0);
+              mGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
+              mGrad.addColorStop(0.5, 'rgba(255,255,255,0.5)');
+              mGrad.addColorStop(1, 'rgba(255,255,255,0)');
+              mCtx.fillStyle = mGrad;
+              mCtx.fillRect(0, 0, blendPx, panoH);
+
+              rCtx.globalCompositeOperation = 'destination-in';
+              rCtx.drawImage(maskC, 0, 0);
+
+              bCtx.globalCompositeOperation = 'source-over';
+              bCtx.drawImage(rightStrip, 0, 0);
+
+              processedStrip = blendedCanvas;
+            }
+
+            ctx.drawImage(processedStrip, 0, panoY);
+          }
+
+          // 4. Soft Edge Feathering (Seam Blend)
+          const featherH = Math.min(28, Math.max(8, Math.floor(panoH * 0.04)));
+          // Top Seam Feather
+          const fTop = ctx.createLinearGradient(0, panoY, 0, panoY + featherH);
+          fTop.addColorStop(0, `rgba(${tr}, ${tg}, ${tb}, 0.85)`);
+          fTop.addColorStop(1, `rgba(${tr}, ${tg}, ${tb}, 0)`);
+          ctx.fillStyle = fTop;
+          ctx.fillRect(0, panoY, canvasW, featherH);
+
+          // Bottom Seam Feather
+          const fBtm = ctx.createLinearGradient(0, panoY + panoH - featherH, 0, panoY + panoH);
+          fBtm.addColorStop(0, `rgba(${br}, ${bg}, ${bb}, 0)`);
+          fBtm.addColorStop(1, `rgba(${br}, ${bg}, ${bb}, 0.85)`);
+          ctx.fillStyle = fBtm;
+          ctx.fillRect(0, panoY + panoH - featherH, canvasW, featherH);
+
+          finalTexture = new THREE.CanvasTexture(canvas);
+        } else {
+          finalTexture = new THREE.Texture(img);
+          finalTexture.needsUpdate = true;
+        }
+
+        // Ultra-HD Crisp Texture Filtering Setup
+        finalTexture.generateMipmaps = true;
+        finalTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        finalTexture.magFilter = THREE.LinearFilter;
+        if (threeRenderer) {
+          finalTexture.anisotropy = Math.min(16, threeRenderer.capabilities.getMaxAnisotropy() || 1);
+        }
+
+        if (currentTexture) currentTexture.dispose();
+        currentTexture = finalTexture;
+        threeSphere.material.map = finalTexture;
+        threeSphere.material.needsUpdate = true;
+
+        if (loader) loader.classList.add('hidden');
+      };
+
+      img.onerror = (err) => {
+        console.warn('[SpotLIGHT 360] Image load fallback:', err);
+        const fallbackCanvas = getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-fallback');
+        const texture = new THREE.CanvasTexture(fallbackCanvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        if (currentTexture) currentTexture.dispose();
+        currentTexture = texture;
+        threeSphere.material.map = texture;
+        threeSphere.material.needsUpdate = true;
+        if (loader) loader.classList.add('hidden');
+      };
+
+      img.src = urlOrCanvas;
     } else {
       const srcCanvas = (urlOrCanvas instanceof HTMLCanvasElement) ? urlOrCanvas : getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-main');
       const texture = new THREE.CanvasTexture(srcCanvas);
@@ -816,6 +1089,173 @@
       .tour-ed-btn.tour-ed-save:hover {
         transform: translateY(-1px) scale(1.03);
         box-shadow: 0 4px 14px rgba(255, 77, 109, 0.4);
+      }
+
+      /* Proportions & Seam Alignment Popover */
+      .tour-proportions-popover {
+        position: absolute;
+        top: 120px;
+        left: 16px;
+        z-index: 40;
+        background: rgba(20, 18, 26, 0.97);
+        border: 2px solid #FFD23F;
+        border-radius: 12px;
+        width: 360px;
+        max-width: calc(100vw - 32px);
+        max-height: calc(100vh - 140px);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.88), 0 0 25px rgba(255, 210, 63, 0.25);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        animation: fadeInDialog 0.15s ease-out;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+      }
+      .prop-popover-header {
+        padding: 10px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 210, 63, 0.08);
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+      .prop-popover-close {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 14px;
+        cursor: pointer;
+        padding: 2px 6px;
+      }
+      .prop-popover-close:hover {
+        color: #FF4D6D;
+      }
+      .prop-popover-body {
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .prop-section-label {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.65);
+      }
+      .prop-mode-btns {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+      .prop-mode-btn {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
+        color: #F5F1E8;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.15s;
+      }
+      .prop-mode-btn:hover {
+        background: rgba(255, 210, 63, 0.15);
+        border-color: #FFD23F;
+      }
+      .prop-mode-btn.active {
+        background: rgba(6, 214, 160, 0.18);
+        border-color: #06D6A0;
+        color: #06D6A0;
+      }
+      .prop-scale-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .prop-adj-btn {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .prop-adj-btn:hover {
+        background: #FFD23F;
+        color: #14121A;
+      }
+      .prop-range-slider {
+        flex: 1;
+        accent-color: #06D6A0;
+        cursor: pointer;
+      }
+      .prop-reset-btn {
+        background: none;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.7);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 9px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .prop-reset-btn:hover {
+        color: #fff;
+        border-color: #fff;
+      }
+      .prop-sharp-btn {
+        background: rgba(6, 214, 160, 0.1);
+        border: 1.5px solid #06D6A0;
+        color: #F5F1E8;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .prop-save-room-btn {
+        background: linear-gradient(135deg, #06D6A0 0%, #05b386 100%);
+        color: #0d1b1e;
+        border: none;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 900;
+        cursor: pointer;
+        margin-top: 4px;
+        transition: all 0.15s;
+        text-align: center;
+        letter-spacing: 0.03em;
+        box-shadow: 0 4px 12px rgba(6, 214, 160, 0.3);
+      }
+      .prop-save-room-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(6, 214, 160, 0.45);
+      }
+      .prop-tool-box {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
 
       /* Modal Dialog Overlays & Cards */
@@ -1768,13 +2208,147 @@
         </div>
       </div>
 
+      <!-- Floating Proportions & Seam Alignment Popover (Editor Only) -->
+      <div class="tour-proportions-popover" id="tourProportionsPopover" style="display:none;">
+        <div class="prop-popover-header">
+          <span style="font-weight:800;font-size:12px;color:#FFD23F;">📐 Room Proportions & Matterport Alignment</span>
+          <button type="button" class="prop-popover-close" onclick="window.toggleTourProportionsMenu(false)">✕</button>
+        </div>
+        <div class="prop-popover-body">
+          <div style="background:rgba(6,214,160,0.12);border:1px solid rgba(6,214,160,0.35);border-radius:8px;padding:8px 10px;font-size:10.5px;color:#06D6A0;line-height:1.4;margin-bottom:8px;">
+            <strong style="color:#FFD23F;">💡 Why phone panoramas don't line up in 360°:</strong><br>
+            A phone panorama is a wide sweep (~180°–220°) from the left wall (door) to the right wall (window). Because they are two different sides of the room, they cannot loop into each other in a circle.
+            <br><span style="font-weight:800;color:#fff;">👉 Tap "✨ Matterport Pro Arc" below to eliminate the seam split and view your room in real-world 1:1 perspective!</span>
+          </div>
+
+          <div class="prop-section-label">1. PROJECTION FORMAT</div>
+          <div class="prop-mode-btns" style="display:flex;flex-direction:column;gap:5px;">
+            <button type="button" class="prop-mode-btn active" id="propModeMatterport" onclick="window.setTourAspectMode('matterport-arc')">
+              <span style="font-weight:800;">✨ Matterport Pro Arc (0% Seam · No Split)</span>
+              <span style="color:#06D6A0;font-size:10px;font-weight:800;">RECOMMENDED FOR PHONE PANOS</span>
+            </button>
+            <button type="button" class="prop-mode-btn" id="propMode360Loop" onclick="window.setTourAspectMode('360-loop')">
+              <span>🔄 360° Continuous Loop (Full 360° Sweep Required)</span>
+            </button>
+            <button type="button" class="prop-mode-btn" id="propModeFull" onclick="window.setTourAspectMode('full-360')">
+              <span>🌐 Full 360° Photosphere (2:1 Spherical)</span>
+            </button>
+          </div>
+
+          <div style="margin-top:4px;">
+            <button type="button" class="tour-dialog-btn" style="width:100%;background:linear-gradient(135deg, rgba(6,214,160,0.25) 0%, rgba(255,210,63,0.2) 100%);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;padding:8px 10px;font-size:11px;border-radius:8px;" onclick="window.applyMatterportPreset()">
+              🪄 1-CLICK FIX: APPLY MATTERPORT PRO PRESET
+            </button>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>VERTICAL ROOM HEIGHT (HUMAN PERSPECTIVE)</span>
+              <span id="propVScaleVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">100%</span>
+            </div>
+            <div class="prop-scale-controls">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourVScale(-0.05)">−</button>
+              <input type="range" id="propVScaleSlider" min="50" max="180" value="100" class="prop-range-slider" oninput="window.setTourVScale(this.value / 100)">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourVScale(0.05)">+</button>
+              <button type="button" class="prop-reset-btn" onclick="window.resetTourVScale()">RESET</button>
+            </div>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>2. OVERLAP CROP TRIM (ELIMINATE DUPLICATE OBJECTS)</span>
+              <span id="propHSpanVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">100%</span>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
+              Trims duplicate furniture/vest if camera rotated past 360°:
+            </div>
+            <div class="prop-scale-controls">
+              <input type="range" id="propHSpanSlider" min="70" max="105" value="100" step="1" class="prop-range-slider" oninput="window.setTourHSpan(this.value / 100)">
+              <button type="button" class="prop-reset-btn" onclick="window.setTourHSpan(1.0)">100%</button>
+            </div>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>3. ROTATE 360° SEAM POSITION</span>
+              <span id="propHShiftVal" style="color:#FFD23F;font-family:monospace;font-weight:800;">0°</span>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
+              Move the seam off chairs/objects onto an empty wall or corner:
+            </div>
+            <div class="prop-scale-controls">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourHShift(-15)" title="Rotate seam -15°">◀</button>
+              <input type="range" id="propHShiftSlider" min="0" max="360" value="0" step="2" class="prop-range-slider" style="accent-color:#FFD23F;" oninput="window.setTourHShift(this.value)">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourHShift(15)" title="Rotate seam +15°">▶</button>
+              <button type="button" class="prop-reset-btn" onclick="window.setTourHShift(0)">0°</button>
+            </div>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>4. SEAMLESS EDGE FEATHER / BLEND</span>
+              <span id="propSeamBlendVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">8%</span>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
+              Smooth cross-dissolve to eliminate visible hard cut lines:
+            </div>
+            <div class="prop-scale-controls">
+              <input type="range" id="propSeamBlendSlider" min="0" max="20" value="8" step="1" class="prop-range-slider" oninput="window.setTourSeamBlend(this.value / 100)">
+              <button type="button" class="prop-reset-btn" onclick="window.setTourSeamBlend(0.08)">8%</button>
+            </div>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>5. VERTICAL TILT TRIM (CAMERA DRIFT)</span>
+              <span id="propSeamVOffsetVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">0 px</span>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
+              Fix camera height step where the sweep starts & ends:
+            </div>
+            <div class="prop-scale-controls">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourSeamVOffset(-2)">−</button>
+              <input type="range" id="propSeamVOffsetSlider" min="-40" max="40" value="0" step="1" class="prop-range-slider" oninput="window.setTourSeamVOffset(parseInt(this.value, 10))">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourSeamVOffset(2)">+</button>
+              <button type="button" class="prop-reset-btn" onclick="window.setTourSeamVOffset(0)">RESET</button>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="tour-dialog-btn" style="flex:1;background:rgba(255,210,63,0.15);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:800;padding:8px 10px;font-size:11px;" onclick="window.autoAlignRoomSeam()">
+              🪄 AUTO-ALIGN & FEATHER
+            </button>
+            <button type="button" class="prop-sharp-btn" id="propSharpBtn" style="flex:1;padding:8px 10px;" onclick="window.toggleHdSharpness()">
+              <span>✨ 16x HD Filter</span>
+              <span id="propSharpBadge" style="color:#06D6A0;font-weight:800;font-size:10px;">ON</span>
+            </button>
+          </div>
+
+          <div style="margin-top:2px;">
+            <button type="button" class="tour-dialog-btn" style="width:100%;background:rgba(255,210,63,0.2);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;padding:8px 10px;font-size:11px;border-radius:8px;" onclick="window.setTourStartingView()">
+              📍 LOCK CURRENT CAMERA AS STARTING VIEW
+            </button>
+          </div>
+
+          <button type="button" class="prop-save-room-btn" onclick="window.saveCurrentRoomProportions()">
+            💾 SAVE ALL SETTINGS FOR EVERYONE
+          </button>
+        </div>
+      </div>
+
       <!-- Live Editor Action Bar (When in Tour Builder Mode) -->
       <div class="tour-editor-bar" id="tourEditorBar">
         <span class="tour-editor-pill">🛠️ TOUR BUILDER</span>
-        <span id="tourCamAnglePill" class="tour-editor-pill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
+        <span id="tourCamAnglePill" class="tour-editor-pill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0° · FOV: 65°</span>
         <div class="tour-editor-actions">
+          <button type="button" class="tour-ed-btn" id="tourEditorProportionsBtn" onclick="window.toggleTourProportionsMenu()" title="Adjust Photo Proportions & Seam Stitching Alignment" style="background:rgba(255,210,63,0.18);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;">
+            📐 PROPORTIONS & SEAM
+          </button>
+          <button type="button" class="tour-ed-btn" onclick="window.setTourStartingView()" title="Lock current camera angle as the starting view when entering this room" style="background:rgba(6,214,160,0.18);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;">
+            📍 SET STARTING VIEW
+          </button>
           <button type="button" class="tour-ed-btn" onclick="window.openPlaceHotspotDialog()" title="Place interactive door hotspot at camera angle">
-            📍 PLACE DOOR PIN
+            🚪 PLACE DOOR PIN
           </button>
           <button type="button" class="tour-ed-btn" style="background:#FFD23F;color:#14121A;font-weight:900;" onclick="window.open360CameraScanner('new_room')" title="Scan room with your device camera and stitch into 360 photo">
             📸 360 CAMERA SCAN
@@ -1987,6 +2561,26 @@
               <div class="tour-field-group">
                 <label class="tour-field-label">Description / Blurb</label>
                 <textarea class="tour-dialog-input" id="editRoomBlurbInput" rows="2" placeholder="Brief blurb about this 360° space..."></textarea>
+              </div>
+
+              <!-- Photo Proportions & Distortion settings for this space -->
+              <div class="tour-field-group">
+                <label class="tour-field-label">📐 Photo Proportions & Clarity</label>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                  <button type="button" class="tour-dialog-btn" id="editRoomModeIphone" style="flex:1;font-size:10px;padding:6px 10px;background:rgba(6,214,160,0.2);color:#06D6A0;border:1.5px solid #06D6A0;font-weight:800;" onclick="window.setEditRoomAspectMode('iphone-pano')">
+                    📱 iPhone Pano (Zero-Distortion)
+                  </button>
+                  <button type="button" class="tour-dialog-btn" id="editRoomModeFull" style="flex:1;font-size:10px;padding:6px 10px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);font-weight:800;" onclick="window.setEditRoomAspectMode('full-360')">
+                    🌐 360° Photosphere (2:1)
+                  </button>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px;">
+                  <span>Vertical Height Stretch:</span>
+                  <span id="editRoomVScaleLabel" style="font-family:monospace;color:#06D6A0;font-weight:800;">100%</span>
+                </div>
+                <input type="range" id="editRoomVScaleSlider" min="50" max="180" value="100" class="prop-range-slider" style="width:100%;" oninput="window.setEditRoomVScaleSlider(this.value)">
+                <input type="hidden" id="editRoomAspectModeInput" value="iphone-pano">
+                <input type="hidden" id="editRoomVScaleInput" value="1.0">
               </div>
 
               <!-- Hotspots in this room -->
@@ -2278,9 +2872,10 @@
 
     if (resetBtn) {
       resetBtn.onclick = () => {
-        targetYaw = 0;
-        targetPitch = 0;
-        targetFov = 75;
+        const curSc = activeSceneList[activeSceneIndex];
+        targetYaw = (curSc && typeof curSc.startYaw === 'number') ? curSc.startYaw : 0;
+        targetPitch = (curSc && typeof curSc.startPitch === 'number') ? curSc.startPitch : 0;
+        targetFov = (curSc && typeof curSc.startFov === 'number') ? curSc.startFov : 65;
         if (typeof showToast === 'function') showToast('🎯 View Angle Centered');
       };
     }
@@ -2492,18 +3087,50 @@
       initThreeEngine();
     }
 
-    // Smooth Camera Inertia
-    yaw += (targetYaw - yaw) * 0.15;
-    pitch += (targetPitch - pitch) * 0.15;
-    fov += (targetFov - fov) * 0.15;
+    // Smooth Camera Inertia & Matterport Perspective
+    const curScene = activeSceneList[activeSceneIndex] || {};
+    const aspectMode = curScene.aspectMode || 'matterport-arc';
+    const isMatterportArc = (aspectMode === 'matterport-arc');
+
+    // Camera inertia
+    yaw += (targetYaw - yaw) * 0.14;
+    pitch += (targetPitch - pitch) * 0.14;
+    fov += (targetFov - fov) * 0.14;
 
     if (isAutoRotating && !isDragging && !gyroEnabled) {
+      if (isMatterportArc) {
+        const spanDeg = curScene.arcSpanDeg || 220;
+        const halfSpan = (spanDeg / 2) - 15;
+        const center = curScene.startYaw || 0;
+        if (targetYaw >= center + halfSpan) {
+          autoRotateSpeed = -Math.abs(autoRotateSpeed || 0.12);
+        } else if (targetYaw <= center - halfSpan) {
+          autoRotateSpeed = Math.abs(autoRotateSpeed || 0.12);
+        }
+      }
       targetYaw += autoRotateSpeed;
       yaw += autoRotateSpeed;
     }
 
-    while (yaw > 180) { yaw -= 360; targetYaw -= 360; }
-    while (yaw < -180) { yaw += 360; targetYaw += 360; }
+    if (isMatterportArc) {
+      // Natural room boundary containment: 0% Seam, No Split Furniture, No Repetition!
+      const spanDeg = curScene.arcSpanDeg || 220;
+      const halfLimit = Math.max(20, (spanDeg / 2) - 25);
+      const center = curScene.startYaw || 0;
+      const minYaw = center - halfLimit;
+      const maxYaw = center + halfLimit;
+
+      if (targetYaw < minYaw) {
+        targetYaw += (minYaw - targetYaw) * 0.18;
+      } else if (targetYaw > maxYaw) {
+        targetYaw += (maxYaw - targetYaw) * 0.18;
+      }
+      targetPitch = Math.max(-50, Math.min(50, targetPitch));
+      pitch = Math.max(-52, Math.min(52, pitch));
+    } else {
+      while (yaw > 180) { yaw -= 360; targetYaw -= 360; }
+      while (yaw < -180) { yaw += 360; targetYaw += 360; }
+    }
 
     const compassDial = document.getElementById('compassDial');
     if (compassDial) {
@@ -2520,8 +3147,9 @@
       threeCamera.updateProjectionMatrix();
 
       // Convert spherical yaw & pitch to 3D Cartesian look-at vector
+      // Offset by 180° so yaw=0 faces the center of the panorama image
       const phi = THREE.MathUtils.degToRad(90 - pitch);
-      const theta = THREE.MathUtils.degToRad(yaw);
+      const theta = THREE.MathUtils.degToRad(yaw + 180);
 
       const target = new THREE.Vector3(
         500 * Math.sin(phi) * Math.cos(theta),
@@ -2613,7 +3241,7 @@
       if (!pin) return;
 
       const phi = THREE.MathUtils.degToRad(90 - hs.pitch);
-      const theta = THREE.MathUtils.degToRad(hs.yaw);
+      const theta = THREE.MathUtils.degToRad(hs.yaw + 180);
 
       const v = new THREE.Vector3(
         500 * Math.sin(phi) * Math.cos(theta),
@@ -2737,6 +3365,29 @@
 
     initThreeEngine();
     resizeThreeViewport();
+
+    // Set Initial Human Perspective / Room Starting View
+    if (typeof scene.startYaw === 'number') {
+      yaw = scene.startYaw;
+      targetYaw = scene.startYaw;
+    } else {
+      yaw = 0;
+      targetYaw = 0;
+    }
+    if (typeof scene.startPitch === 'number') {
+      pitch = scene.startPitch;
+      targetPitch = scene.startPitch;
+    } else {
+      pitch = 0;
+      targetPitch = 0;
+    }
+    if (typeof scene.startFov === 'number') {
+      fov = scene.startFov;
+      targetFov = scene.startFov;
+    } else {
+      fov = 65;
+      targetFov = 65;
+    }
 
     const targetUrl = norm.isImage ? norm.url : (scene.panoUrl || currentTourData?.panoUrl);
     if (targetUrl && (targetUrl.startsWith('http') || targetUrl.startsWith('data:') || targetUrl.startsWith('blob:') || targetUrl.startsWith('/'))) {
@@ -3083,6 +3734,21 @@
     if (blurbInp) blurbInp.value = scene.blurb || '';
     if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
 
+    // Populate Proportions settings
+    const curMode = scene.aspectMode || 'iphone-pano';
+    const curVScale = typeof scene.vScale === 'number' ? scene.vScale : 1.0;
+    const modeInp = document.getElementById('editRoomAspectModeInput');
+    const vScaleInp = document.getElementById('editRoomVScaleInput');
+    const vScaleSlider = document.getElementById('editRoomVScaleSlider');
+    const vScaleLbl = document.getElementById('editRoomVScaleLabel');
+    if (modeInp) modeInp.value = curMode;
+    if (vScaleInp) vScaleInp.value = curVScale;
+    if (vScaleSlider) vScaleSlider.value = Math.round(curVScale * 100);
+    if (vScaleLbl) vScaleLbl.textContent = `${Math.round(curVScale * 100)}%`;
+    if (typeof window.setEditRoomAspectMode === 'function') {
+      window.setEditRoomAspectMode(curMode);
+    }
+
     // Delete button logic (cannot delete if it's the only room)
     if (delBtn) {
       if (activeSceneList.length <= 1) {
@@ -3265,6 +3931,16 @@
       scene.tourUrl = '';
     }
 
+    // Save Proportions settings
+    const modeInp = document.getElementById('editRoomAspectModeInput');
+    const vScaleInp = document.getElementById('editRoomVScaleInput');
+    if (modeInp && modeInp.value) {
+      scene.aspectMode = modeInp.value;
+    }
+    if (vScaleInp && vScaleInp.value) {
+      scene.vScale = parseFloat(vScaleInp.value) || 1.0;
+    }
+
     window.closeEditRoomDialog();
     renderSceneSelector();
 
@@ -3278,6 +3954,305 @@
     if (typeof showToast === 'function') {
       showToast(`✅ Room "${scene.name}" updated!`);
     }
+  };
+
+  // ==========================================
+  // PROPORTIONS & MATTERPORT ALIGNMENT CONTROLS
+  // ==========================================
+  window.toggleTourProportionsMenu = function (forceState) {
+    const pop = document.getElementById('tourProportionsPopover');
+    if (!pop) return;
+    const isVisible = (pop.style.display !== 'none');
+    const newState = (typeof forceState === 'boolean') ? forceState : !isVisible;
+    pop.style.display = newState ? 'flex' : 'none';
+
+    if (newState) {
+      // Sync current scene values to popover controls
+      const curScene = activeSceneList[activeSceneIndex] || {};
+      const mode = curScene.aspectMode || 'matterport-arc';
+      const scale = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
+      const hShift = typeof curScene.hShift === 'number' ? curScene.hShift : 0;
+      const seamBlend = typeof curScene.seamBlend === 'number' ? curScene.seamBlend : 0.08;
+      const seamVOffset = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0;
+      const hSpan = typeof curScene.hSpan === 'number' ? curScene.hSpan : 1.0;
+
+      const btnMat = document.getElementById('propModeMatterport');
+      const btnLoop = document.getElementById('propMode360Loop');
+      const btnFull = document.getElementById('propModeFull');
+      if (btnMat) btnMat.classList.toggle('active', mode === 'matterport-arc' || (!mode && mode !== '360-loop' && mode !== 'full-360'));
+      if (btnLoop) btnLoop.classList.toggle('active', mode === '360-loop' || mode === 'iphone-pano');
+      if (btnFull) btnFull.classList.toggle('active', mode === 'full-360');
+
+      const vScaleSlider = document.getElementById('propVScaleSlider');
+      const vScaleLabel = document.getElementById('propVScaleVal');
+      if (vScaleSlider) vScaleSlider.value = Math.round(scale * 100);
+      if (vScaleLabel) vScaleLabel.textContent = `${Math.round(scale * 100)}%`;
+
+      const hShiftSlider = document.getElementById('propHShiftSlider');
+      const hShiftLabel = document.getElementById('propHShiftVal');
+      if (hShiftSlider) hShiftSlider.value = Math.round(hShift);
+      if (hShiftLabel) hShiftLabel.textContent = `${Math.round(hShift)}°`;
+
+      const seamBlendSlider = document.getElementById('propSeamBlendSlider');
+      const seamBlendLabel = document.getElementById('propSeamBlendVal');
+      if (seamBlendSlider) seamBlendSlider.value = Math.round(seamBlend * 100);
+      if (seamBlendLabel) seamBlendLabel.textContent = `${Math.round(seamBlend * 100)}%`;
+
+      const seamVOffsetSlider = document.getElementById('propSeamVOffsetSlider');
+      const seamVOffsetLabel = document.getElementById('propSeamVOffsetVal');
+      if (seamVOffsetSlider) seamVOffsetSlider.value = Math.round(seamVOffset);
+      if (seamVOffsetLabel) seamVOffsetLabel.textContent = `${Math.round(seamVOffset)} px`;
+
+      const hSpanSlider = document.getElementById('propHSpanSlider');
+      const hSpanLabel = document.getElementById('propHSpanVal');
+      if (hSpanSlider) hSpanSlider.value = Math.round(hSpan * 100);
+      if (hSpanLabel) hSpanLabel.textContent = `${Math.round(hSpan * 100)}%`;
+    }
+  };
+
+  window.setTourAspectMode = function (mode) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.aspectMode = mode;
+
+    const btnMat = document.getElementById('propModeMatterport');
+    const btnLoop = document.getElementById('propMode360Loop');
+    const btnFull = document.getElementById('propModeFull');
+    if (btnMat) btnMat.classList.toggle('active', mode === 'matterport-arc');
+    if (btnLoop) btnLoop.classList.toggle('active', mode === '360-loop' || mode === 'iphone-pano');
+    if (btnFull) btnFull.classList.toggle('active', mode === 'full-360');
+
+    // Reload texture with new mode immediately
+    loadThreePanoTexture(currentPanoUrl, curScene);
+
+    if (typeof showToast === 'function') {
+      if (mode === 'matterport-arc') {
+        showToast('✨ Matterport Pro Arc Active: 0% Seam, Real-World Perspective!');
+      } else if (mode === '360-loop') {
+        showToast('🔄 360° Continuous Walkthrough Active (Overlap Trim Enabled)');
+      } else {
+        showToast('🌐 Full 360° Photosphere Active');
+      }
+    }
+  };
+
+  window.applyMatterportPreset = function () {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.aspectMode = 'matterport-arc';
+    curScene.vScale = 1.0;
+    curScene.seamBlend = 0.08;
+    curScene.seamVOffset = 0;
+    curScene.hSpan = 1.0;
+    curScene.startYaw = Math.round(yaw);
+    curScene.startPitch = Math.round(pitch);
+    curScene.startFov = 65;
+    targetFov = 65;
+    fov = 65;
+
+    const btnMat = document.getElementById('propModeMatterport');
+    const btnLoop = document.getElementById('propMode360Loop');
+    const btnFull = document.getElementById('propModeFull');
+    if (btnMat) btnMat.classList.add('active');
+    if (btnLoop) btnLoop.classList.remove('active');
+    if (btnFull) btnFull.classList.remove('active');
+
+    const vScaleSlider = document.getElementById('propVScaleSlider');
+    const vScaleLabel = document.getElementById('propVScaleVal');
+    if (vScaleSlider) vScaleSlider.value = 100;
+    if (vScaleLabel) vScaleLabel.textContent = '100%';
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast('🪄 1-Click Matterport Pro Applied: 0% Seam, 65° Human View, 100% Height!');
+    }
+  };
+
+  window.setTourStartingView = function () {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.startYaw = Math.round(yaw);
+    curScene.startPitch = Math.round(pitch);
+    curScene.startFov = Math.round(fov);
+
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast(`📍 Starting View Locked: Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°, FOV ${Math.round(fov)}°!`);
+    }
+  };
+
+  window.setTourVScale = function (scaleVal) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const clamped = Math.max(0.5, Math.min(1.8, parseFloat(scaleVal) || 1.0));
+    curScene.vScale = clamped;
+
+    const slider = document.getElementById('propVScaleSlider');
+    const valLabel = document.getElementById('propVScaleVal');
+    if (slider) slider.value = Math.round(clamped * 100);
+    if (valLabel) valLabel.textContent = `${Math.round(clamped * 100)}%`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.adjustTourVScale = function (delta) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const cur = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
+    window.setTourVScale(cur + delta);
+  };
+
+  window.resetTourVScale = function () {
+    window.setTourVScale(1.0);
+  };
+
+  window.setTourHShift = function (degVal) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const deg = ((parseFloat(degVal) || 0) % 360 + 360) % 360;
+    curScene.hShift = deg;
+
+    const slider = document.getElementById('propHShiftSlider');
+    const valLabel = document.getElementById('propHShiftVal');
+    if (slider) slider.value = Math.round(deg);
+    if (valLabel) valLabel.textContent = `${Math.round(deg)}°`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.adjustTourHShift = function (deltaDeg) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const cur = typeof curScene.hShift === 'number' ? curScene.hShift : 0;
+    window.setTourHShift(cur + deltaDeg);
+  };
+
+  window.setTourSeamBlend = function (blendVal) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const clamped = Math.max(0, Math.min(0.2, parseFloat(blendVal) || 0));
+    curScene.seamBlend = clamped;
+
+    const slider = document.getElementById('propSeamBlendSlider');
+    const valLabel = document.getElementById('propSeamBlendVal');
+    if (slider) slider.value = Math.round(clamped * 100);
+    if (valLabel) valLabel.textContent = `${Math.round(clamped * 100)}%`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.setTourSeamVOffset = function (offsetPx) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const clamped = Math.max(-50, Math.min(50, parseInt(offsetPx, 10) || 0));
+    curScene.seamVOffset = clamped;
+
+    const slider = document.getElementById('propSeamVOffsetSlider');
+    const valLabel = document.getElementById('propSeamVOffsetVal');
+    if (slider) slider.value = clamped;
+    if (valLabel) valLabel.textContent = `${clamped} px`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.adjustTourSeamVOffset = function (delta) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const cur = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0;
+    window.setTourSeamVOffset(cur + delta);
+  };
+
+  window.setTourHSpan = function (spanVal) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const clamped = Math.max(0.8, Math.min(1.1, parseFloat(spanVal) || 1.0));
+    curScene.hSpan = clamped;
+
+    const slider = document.getElementById('propHSpanSlider');
+    const valLabel = document.getElementById('propHSpanVal');
+    if (slider) slider.value = Math.round(clamped * 100);
+    if (valLabel) valLabel.textContent = `${Math.round(clamped * 100)}%`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.autoAlignRoomSeam = function () {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.seamBlend = 0.08; // 8% cosine feather
+    curScene.seamVOffset = 0;
+    curScene.hSpan = 1.0;
+
+    const blendSlider = document.getElementById('propSeamBlendSlider');
+    const blendVal = document.getElementById('propSeamBlendVal');
+    if (blendSlider) blendSlider.value = 8;
+    if (blendVal) blendVal.textContent = '8%';
+
+    const seamVOffsetSlider = document.getElementById('propSeamVOffsetSlider');
+    const seamVOffsetLabel = document.getElementById('propSeamVOffsetVal');
+    if (seamVOffsetSlider) seamVOffsetSlider.value = 0;
+    if (seamVOffsetLabel) seamVOffsetLabel.textContent = '0 px';
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+
+    if (typeof showToast === 'function') {
+      showToast('🪄 Seamless edge blend applied! Fine-tune rotation or tilt if needed.');
+    }
+  };
+
+  window.toggleHdSharpness = function () {
+    if (!threeRenderer || !currentTexture) return;
+    const maxAniso = threeRenderer.capabilities.getMaxAnisotropy() || 1;
+    const isCurrentlyMax = (currentTexture.anisotropy >= maxAniso);
+    currentTexture.anisotropy = isCurrentlyMax ? 1 : maxAniso;
+    currentTexture.needsUpdate = true;
+
+    const badge = document.getElementById('propSharpBadge');
+    if (badge) {
+      badge.textContent = isCurrentlyMax ? 'OFF' : 'ON';
+      badge.style.color = isCurrentlyMax ? '#FF4D6D' : '#06D6A0';
+    }
+
+    if (typeof showToast === 'function') {
+      showToast(isCurrentlyMax ? 'Texture filtering: Standard' : '✨ 16x Ultra-HD WebGL Anisotropic Filtering Enabled');
+    }
+  };
+
+  window.saveCurrentRoomProportions = function () {
+    window.toggleTourProportionsMenu(false);
+    window.saveTourChangesToMagazine();
+    if (typeof showToast === 'function') {
+      showToast('💾 Saved room proportions & seam alignment for everyone!');
+    }
+  };
+
+  window.setEditRoomAspectMode = function (mode) {
+    const inp = document.getElementById('editRoomAspectModeInput');
+    if (inp) inp.value = mode;
+
+    const btnIphone = document.getElementById('editRoomModeIphone');
+    const btnFull = document.getElementById('editRoomModeFull');
+    if (btnIphone) {
+      btnIphone.style.background = (mode === 'iphone-pano') ? 'rgba(6,214,160,0.2)' : 'rgba(255,255,255,0.08)';
+      btnIphone.style.color = (mode === 'iphone-pano') ? '#06D6A0' : '#fff';
+      btnIphone.style.borderColor = (mode === 'iphone-pano') ? '#06D6A0' : 'rgba(255,255,255,0.2)';
+    }
+    if (btnFull) {
+      btnFull.style.background = (mode === 'full-360') ? 'rgba(255,210,63,0.2)' : 'rgba(255,255,255,0.08)';
+      btnFull.style.color = (mode === 'full-360') ? '#FFD23F' : '#fff';
+      btnFull.style.borderColor = (mode === 'full-360') ? '#FFD23F' : 'rgba(255,255,255,0.2)';
+    }
+  };
+
+  window.setEditRoomVScaleSlider = function (val) {
+    const scale = (parseInt(val, 10) || 100) / 100;
+    const inp = document.getElementById('editRoomVScaleInput');
+    const lbl = document.getElementById('editRoomVScaleLabel');
+    if (inp) inp.value = scale;
+    if (lbl) lbl.textContent = `${Math.round(scale * 100)}%`;
   };
 
   // ==========================================
@@ -4886,10 +5861,14 @@
       const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
       const editBtn = document.getElementById('tourEditModeBtn');
       const editorBar = document.getElementById('tourEditorBar');
+      const propPopover = document.getElementById('tourProportionsPopover');
       if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
       if (editorBar && !unlocked) {
         editorBar.classList.remove('active');
         isEditorMode = false;
+      }
+      if (propPopover && !unlocked) {
+        propPopover.style.display = 'none';
       }
     }
   };
@@ -4899,11 +5878,13 @@
     const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
     const editBtn = document.getElementById('tourEditModeBtn');
     const editorBar = document.getElementById('tourEditorBar');
+    const propPopover = document.getElementById('tourProportionsPopover');
     if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
     if (!unlocked) {
       isEditorMode = false;
       if (editBtn) editBtn.classList.remove('active');
       if (editorBar) editorBar.classList.remove('active');
+      if (propPopover) propPopover.style.display = 'none';
     }
   };
 
