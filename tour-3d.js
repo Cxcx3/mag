@@ -3793,9 +3793,6 @@
   // node layout changes — confirms first if the person already has shots.
   window.toggleWideScanMode = function () {
     const hasProgress = scanSlots.some(s => s.captured);
-    if (hasProgress && !confirm('Switching capture mode resets your current progress. Continue?')) {
-      return;
-    }
     scanWideMode = !scanWideMode;
     initScanSlots();
     scanNodesInitialized = false;
@@ -3813,9 +3810,10 @@
       btn.style.color = scanWideMode ? '#0d1b1e' : '#14121A';
     }
     if (typeof showToast === 'function') {
-      showToast(scanWideMode
+      const modeMsg = scanWideMode
         ? `🌐 Wide mode on — ${SCAN_TOTAL_NODES} angles, full ceiling-to-floor coverage.`
-        : `Standard mode — ${SCAN_TOTAL_NODES} angles.`);
+        : `Standard mode — ${SCAN_TOTAL_NODES} angles.`;
+      showToast(hasProgress ? `${modeMsg} Previous captures cleared.` : modeMsg);
     }
   };
 
@@ -4542,14 +4540,12 @@
   }
 
   window.resetCurrent360Scan = function () {
-    if (confirm('Reset and clear all current captured angles for this room?')) {
-      initScanSlots();
-      renderScanSlotsRibbon();
-      updateScanProgressBar();
-      clearStitchPreviewCanvas();
-      if (typeof showToast === 'function') {
-        showToast('🗑️ 360° Scanner reset. You can start capturing from 0° again.');
-      }
+    initScanSlots();
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
+    clearStitchPreviewCanvas();
+    if (typeof showToast === 'function') {
+      showToast('🗑️ 360° Scanner reset. You can start capturing from 0° again.');
     }
   };
 
