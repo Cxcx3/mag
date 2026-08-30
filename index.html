@@ -3943,8 +3943,9 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
   window.currentEditingAdRef = ad;
   window.currentEditingCityIdx = cityIdx;
   window.currentEditingAdIdx = adIdx;
-  if (ad && typeof open3dTourModal === 'function') {
-    open3dTourModal({
+  const openTour = window.open3dTourModal || (typeof open3dTourModal === 'function' ? open3dTourModal : null);
+  if (ad && openTour) {
+    openTour({
       title: ad.name || 'Featured Spot',
       tag: ad.tag || (city ? city.name : 'Local Spot'),
       location: city ? `${city.name}, UT` : 'Wasatch Front, UT',
@@ -3955,19 +3956,20 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
       panoUrl: ad.pano3d || ad.panoUrl || '',
       scenes: ad.tourConfig?.scenes || undefined
     });
-    if (startInEditMode && typeof toggleTourEditorMode === 'function') {
-      setTimeout(() => toggleTourEditorMode(true), 200);
+    if (startInEditMode && typeof window.toggleTourEditorMode === 'function') {
+      setTimeout(() => window.toggleTourEditorMode(true), 200);
     }
-  } else if (typeof open3dTourModal === 'function') {
-    open3dTourModal();
+  } else if (openTour) {
+    openTour();
   }
 };
 
 window.openSpot3dTour = function(spotId) {
   window.currentEditingSpotId = spotId;
   const p = (Array.isArray(COMMUNITY_POSTS)) ? COMMUNITY_POSTS.find(item => String(item.id) === String(spotId)) : null;
-  if (p && typeof open3dTourModal === 'function') {
-    open3dTourModal({
+  const openTour = window.open3dTourModal || (typeof open3dTourModal === 'function' ? open3dTourModal : null);
+  if (p && openTour) {
+    openTour({
       title: p.title || 'Community Spot',
       tag: p.category || 'Community Spot',
       location: p.location || 'Wasatch Front, UT',
@@ -3975,8 +3977,8 @@ window.openSpot3dTour = function(spotId) {
       link: p.link || '#',
       tourUrl: p.tour3d || p.tourUrl || ''
     });
-  } else if (typeof open3dTourModal === 'function') {
-    open3dTourModal();
+  } else if (openTour) {
+    openTour();
   }
 };
 

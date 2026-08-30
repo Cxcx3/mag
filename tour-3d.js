@@ -6039,7 +6039,6 @@
       }
     }
   };
-  };
 
   window.switchTourSceneIndex = function (idx) {
     if (idx >= 0 && idx < activeSceneList.length) {
