@@ -4990,11 +4990,11 @@
   // 360° MATTERPORT-GRADE CAMERA SCANNER & EQUIRECTANGULAR STITCHER ENGINE
   // =========================================================================
 
-  // Stable 12-stop horizon orbit (every 30°) + optional ceiling/floor
+  // Stable 16-stop horizon orbit (every 22.5°) with generous optical overlap
   const SCAN_ROWS = [
-    { pitch: 0, count: 12 } // Primary level horizon orbit (360° room walkthrough)
+    { pitch: 0, count: 16 } // Primary level horizon orbit (360° room walkthrough)
   ];
-  let SCAN_TOTAL_NODES = 12;
+  let SCAN_TOTAL_NODES = 16;
 
   let scanCaptureMode = 'sweep'; // 'sweep' (Matterport 1-Sweep) or 'radar' (12-Stop Guided)
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
@@ -5471,7 +5471,7 @@
 
   function handleContinuousSweepProgress() {
     const dYaw = angleDiffSigned(scanCurrentYaw, scanSweepLastSampleYaw);
-    if (Math.abs(dYaw) >= 24) {
+    if (Math.abs(dYaw) >= 18) {
       // Capture frame at this angle step
       scanSweepLastSampleYaw = scanCurrentYaw;
       const targetSlot = Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
@@ -5894,6 +5894,7 @@
   /**
    * Matterport-Grade Equirectangular Photosphere Stitching Engine
    * Mathematically re-projects rectilinear camera sensor frames onto a seamless 2:1 equirectangular sphere
+   * with zero-fog multi-frame normalization, high-order feathering, and natural polar diffusion.
    */
   window.finishAndUse360Stitch = async function () {
     var shots = [];
@@ -5922,15 +5923,19 @@
       canvas.height = H;
       var ctx = canvas.getContext('2d');
 
-      // Separate clean Float32 accumulators (zero color bleed)
+      // Separate clean Float32 accumulators (zero color bleed, zero fog)
       var accumR = new Float32Array(W * H);
       var accumG = new Float32Array(W * H);
       var accumB = new Float32Array(W * H);
       var accumWeight = new Float32Array(W * H);
+      var topCoverageRow = new Int32Array(W);
+      var botCoverageRow = new Int32Array(W);
+      topCoverageRow.fill(H);
+      botCoverageRow.fill(-1);
 
       // 1. Compute ambient ceiling and floor colors from frame edges
-      var topR = 35, topG = 38, topB = 48;
-      var botR = 48, botG = 38, botB = 30;
+      var topR = 240, topG = 240, topB = 242;
+      var botR = 190, botG = 175, botB = 160;
       try {
         var topTotR = 0, topTotG = 0, topTotB = 0, topN = 0;
         var botTotR = 0, botTotG = 0, botTotB = 0, botN = 0;
@@ -5940,18 +5945,18 @@
             var sc = s.imgCanvas.getContext('2d').getImageData(0, 0, s.imgCanvas.width, s.imgCanvas.height).data;
             var w = s.imgCanvas.width;
             var h = s.imgCanvas.height;
-            var topRows = Math.min(20, Math.floor(h * 0.1));
-            var botRows = Math.min(20, Math.floor(h * 0.1));
+            var topRows = Math.min(24, Math.floor(h * 0.08));
+            var botRows = Math.min(24, Math.floor(h * 0.08));
 
             for (var ty = 0; ty < topRows; ty++) {
-              for (var tx = 0; tx < w; tx += 8) {
+              for (var tx = 0; tx < w; tx += 6) {
                 var p = (ty * w + tx) * 4;
                 topTotR += sc[p]; topTotG += sc[p + 1]; topTotB += sc[p + 2];
                 topN++;
               }
             }
             for (var by = h - botRows; by < h; by++) {
-              for (var bx = 0; bx < w; bx += 8) {
+              for (var bx = 0; bx < w; bx += 6) {
                 var p2 = (by * w + bx) * 4;
                 botTotR += sc[p2]; botTotG += sc[p2 + 1]; botTotB += sc[p2 + 2];
                 botN++;
@@ -6009,8 +6014,8 @@
         var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
 
         // Bounding box in equirectangular coordinates
-        var padH = fovHDeg * 0.55 + 5;
-        var padV = fovVDeg * 0.55 + 5;
+        var padH = fovHDeg * 0.58 + 4;
+        var padV = fovVDeg * 0.58 + 4;
         var minLat = Math.max(-88, pitchDeg - padV);
         var maxLat = Math.min(88, pitchDeg + padV);
         var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
@@ -6053,7 +6058,9 @@
               // Project onto flat camera sensor plane
               var uCam = (rX / rZ) / tanHalfH;
               var vCam = (rY / rZ) / tanHalfV;
-              if (Math.abs(uCam) >= 1.0 || Math.abs(vCam) >= 1.0) continue;
+              var absU = Math.abs(uCam);
+              var absV = Math.abs(vCam);
+              if (absU >= 0.98 || absV >= 0.98) continue;
 
               var fx = (uCam * 0.5 + 0.5) * (ww - 1);
               var fy = (0.5 - vCam * 0.5) * (wh - 1);
@@ -6075,69 +6082,98 @@
               var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
               var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              // Smooth cosine-squared feathering
-              var wu = Math.cos(Math.PI * 0.5 * uCam);
-              var wv = Math.cos(Math.PI * 0.5 * vCam);
-              var wt = (wu * wu) * (wv * wv);
-              if (wt < 0.005) continue;
+              // Smooth cosine-squared edge feathering (clean overlap, zero fog)
+              var edgeW = (1.0 - absU * absU) * (1.0 - absV * absV);
+              var wt = Math.max(0.01, edgeW * edgeW);
 
               var pIdx = row * W + col;
               accumR[pIdx] += r * wt;
               accumG[pIdx] += g * wt;
               accumB[pIdx] += b * wt;
               accumWeight[pIdx] += wt;
+
+              if (row < topCoverageRow[col]) topCoverageRow[col] = row;
+              if (row > botCoverageRow[col]) botCoverageRow[col] = row;
             }
           }
         }
       }
 
-      // 3. Composite final image with smooth harmonic zenith/nadir fill
+      // 3. Composite final image: 100% crisp camera pixels + seamless polar inpainting
       var outImg = ctx.createImageData(W, H);
       var outData = outImg.data;
 
-      var midR = Math.round((topR + botR) * 0.5);
-      var midG = Math.round((topG + botG) * 0.5);
-      var midB = Math.round((topB + botB) * 0.5);
+      // Extract boundary colors per column for natural seamless ceiling & floor fill
+      var colTopR = new Uint8Array(W);
+      var colTopG = new Uint8Array(W);
+      var colTopB = new Uint8Array(W);
+      var colBotR = new Uint8Array(W);
+      var colBotG = new Uint8Array(W);
+      var colBotB = new Uint8Array(W);
 
-      for (var y = 0; y < H; y++) {
-        var vNorm = y / (H - 1);
-        var bgR, bgG, bgB;
-        if (vNorm < 0.5) {
-          var tTop = vNorm / 0.5;
-          bgR = topR * (1 - tTop) + midR * tTop;
-          bgG = topG * (1 - tTop) + midG * tTop;
-          bgB = topB * (1 - tTop) + midB * tTop;
-        } else {
-          var tBot = (vNorm - 0.5) / 0.5;
-          bgR = midR * (1 - tBot) + botR * tBot;
-          bgG = midG * (1 - tBot) + botG * tBot;
-          bgB = midB * (1 - tBot) + botB * tBot;
+      for (var col = 0; col < W; col++) {
+        var topR_c = topR, topG_c = topG, topB_c = topB;
+        var botR_c = botR, botG_c = botG, botB_c = botB;
+
+        var tRow = topCoverageRow[col];
+        if (tRow < H) {
+          var tIdx = tRow * W + col;
+          if (accumWeight[tIdx] > 0) {
+            topR_c = Math.round(accumR[tIdx] / accumWeight[tIdx]);
+            topG_c = Math.round(accumG[tIdx] / accumWeight[tIdx]);
+            topB_c = Math.round(accumB[tIdx] / accumWeight[tIdx]);
+          }
         }
 
+        var bRow = botCoverageRow[col];
+        if (bRow >= 0) {
+          var bIdx = bRow * W + col;
+          if (accumWeight[bIdx] > 0) {
+            botR_c = Math.round(accumR[bIdx] / accumWeight[bIdx]);
+            botG_c = Math.round(accumG[bIdx] / accumWeight[bIdx]);
+            botB_c = Math.round(accumB[bIdx] / accumWeight[bIdx]);
+          }
+        }
+
+        colTopR[col] = topR_c; colTopG[col] = topG_c; colTopB[col] = topB_c;
+        colBotR[col] = botR_c; colBotG[col] = botG_c; colBotB[col] = botB_c;
+      }
+
+      // Render all pixels
+      for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
           var pIdx2 = y * W + x;
           var di = pIdx2 * 4;
           var w = accumWeight[pIdx2];
 
-          if (w > 0.001) {
-            var cr = accumR[pIdx2] / w;
-            var cg = accumG[pIdx2] / w;
-            var cb = accumB[pIdx2] / w;
-
-            if (w < 0.6) {
-              var blendT = w / 0.6;
-              outData[di]     = Math.round(cr * blendT + bgR * (1 - blendT));
-              outData[di + 1] = Math.round(cg * blendT + bgG * (1 - blendT));
-              outData[di + 2] = Math.round(cb * blendT + bgB * (1 - blendT));
-            } else {
-              outData[di]     = Math.min(255, Math.round(cr));
-              outData[di + 1] = Math.min(255, Math.round(cg));
-              outData[di + 2] = Math.min(255, Math.round(cb));
-            }
+          if (w > 0.0001) {
+            // Direct pure normalized photographic pixel (ZERO FOG / VIGNETTE)
+            outData[di]     = Math.min(255, Math.max(0, Math.round(accumR[pIdx2] / w)));
+            outData[di + 1] = Math.min(255, Math.max(0, Math.round(accumG[pIdx2] / w)));
+            outData[di + 2] = Math.min(255, Math.max(0, Math.round(accumB[pIdx2] / w)));
           } else {
-            outData[di]     = Math.min(255, Math.round(bgR));
-            outData[di + 1] = Math.min(255, Math.round(bgG));
-            outData[di + 2] = Math.min(255, Math.round(bgB));
+            // Polar inpainting: smoothly extend real edge colors into ambient ceiling/floor
+            var topLimit = topCoverageRow[x];
+            var botLimit = botCoverageRow[x];
+
+            if (topLimit < H && y < topLimit) {
+              var tCeil = topLimit > 0 ? (y / topLimit) : 1;
+              tCeil = Math.max(0, Math.min(1, tCeil));
+              outData[di]     = Math.round(topR * (1 - tCeil) + colTopR[x] * tCeil);
+              outData[di + 1] = Math.round(topG * (1 - tCeil) + colTopG[x] * tCeil);
+              outData[di + 2] = Math.round(topB * (1 - tCeil) + colTopB[x] * tCeil);
+            } else if (botLimit >= 0 && y > botLimit) {
+              var tFloor = (H - 1 > botLimit) ? ((y - botLimit) / (H - 1 - botLimit)) : 0;
+              tFloor = Math.max(0, Math.min(1, tFloor));
+              outData[di]     = Math.round(colBotR[x] * (1 - tFloor) + botR * tFloor);
+              outData[di + 1] = Math.round(colBotG[x] * (1 - tFloor) + botG * tFloor);
+              outData[di + 2] = Math.round(colBotB[x] * (1 - tFloor) + botB * tFloor);
+            } else {
+              var vNorm = y / (H - 1);
+              outData[di]     = Math.round(topR * (1 - vNorm) + botR * vNorm);
+              outData[di + 1] = Math.round(topG * (1 - vNorm) + botG * vNorm);
+              outData[di + 2] = Math.round(topB * (1 - vNorm) + botB * vNorm);
+            }
           }
           outData[di + 3] = 255;
         }
