@@ -2943,10 +2943,7 @@
                     ⚡ 1-SWEEP 360°
                   </button>
                   <button type="button" class="scan-mode-tab" id="scanTabRadar" onclick="window.switchScanCaptureMode('radar')" title="Matterport-style guided radar stops">
-                    🎯 GUIDED RADAR
-                  </button>
-                  <button type="button" class="scan-mode-tab" id="scanWideModeBtn" onclick="window.toggleWideScanMode()" title="Wide Full-Room captures ceiling + walls + floor for Street View quality" style="background:#06D6A0;color:#0d1b1e;border-color:#06D6A0;font-weight:900;">
-                    🌐 WIDE FULL-ROOM
+                    🎯 12-STOP RADAR
                   </button>
                 </div>
                 <span class="scan-pill" id="scanSensorModePill">📳 GYRO READY</span>
@@ -4993,26 +4990,13 @@
   // 360° MATTERPORT-GRADE CAMERA SCANNER & EQUIRECTANGULAR STITCHER ENGINE
   // =========================================================================
 
-  // Coverage presets — Standard = horizon only; Wide = ceiling + horizon + floor
-  // More vertical rows = true Street-View style full-sphere coverage (no stretched poles)
-  const SCAN_PRESETS = {
-    standard: {
-      label: 'Standard',
-      rows: [{ pitch: 0, count: 16 }] // every 22.5° on horizon
-    },
-    wide: {
-      label: 'Wide Full-Room',
-      rows: [
-        { pitch: -42, count: 12 }, // floor / lower walls
-        { pitch: 0, count: 16 },   // horizon (primary)
-        { pitch: 38, count: 12 }   // ceiling / upper walls
-      ]
-    }
-  };
+  // Stable 16-stop horizon orbit (every 22.5°) with generous optical overlap
+  const SCAN_ROWS = [
+    { pitch: 0, count: 16 } // Primary level horizon orbit (360° room walkthrough)
+  ];
+  let SCAN_TOTAL_NODES = 16;
 
-  let scanWideMode = true; // default to wide for Street-View quality coverage
-  let SCAN_TOTAL_NODES = 40;
-  let scanCaptureMode = 'sweep'; // 'sweep' (Matterport 1-Sweep) or 'radar' (guided stops)
+  let scanCaptureMode = 'sweep'; // 'sweep' (Matterport 1-Sweep) or 'radar' (12-Stop Guided)
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
   let scanStream = null;
   let scanCameraFacing = 'environment';
@@ -5042,59 +5026,28 @@
   let scanSweepLastSampleYaw = -999;
   let scanSweepSamples = [];
 
-  function getActiveScanRows() {
-    return (scanWideMode ? SCAN_PRESETS.wide : SCAN_PRESETS.standard).rows;
-  }
-
   function initScanSlots() {
     scanSlots = [];
-    const rows = getActiveScanRows();
-    rows.forEach(row => {
+    SCAN_ROWS.forEach(row => {
       const step = 360 / row.count;
-      // Slight yaw offset per row so seams don't stack (cleaner multi-band blend)
-      const rowOffset = (row.pitch === 0) ? 0 : (row.pitch > 0 ? step * 0.25 : step * 0.5);
       for (let i = 0; i < row.count; i++) {
-        const yaw = ((i * step + rowOffset) % 360 + 360) % 360;
         scanSlots.push({
-          yaw: yaw,
+          yaw: i * step,
           pitch: row.pitch,
           captured: false,
           imgCanvas: null,
           timestamp: 0,
-          captureYaw: yaw,
+          captureYaw: i * step,
           capturePitch: row.pitch
         });
       }
     });
-    SCAN_TOTAL_NODES = scanSlots.length;
+    SCAN_TOTAL_NODES = scanSlots.length; // 12
     scanSweepSamples = [];
     scanSweepCoveredDeg = 0;
     scanSweepLastSampleYaw = -999;
     scanIsSweeping = false;
-    scanNodesInitialized = false;
   }
-
-  window.toggleWideScanMode = function () {
-    const hasProgress = scanSlots.some(s => s.captured);
-    scanWideMode = !scanWideMode;
-    initScanSlots();
-    if (typeof renderScanSlotsRibbon === 'function') renderScanSlotsRibbon();
-    if (typeof updateScanProgressBar === 'function') updateScanProgressBar();
-    if (typeof clearStitchPreviewCanvas === 'function') clearStitchPreviewCanvas();
-    const btn = document.getElementById('scanWideModeBtn');
-    if (btn) {
-      btn.textContent = scanWideMode ? '🌐 WIDE FULL-ROOM' : '○ STANDARD';
-      btn.style.background = scanWideMode ? '#06D6A0' : 'rgba(255,255,255,0.12)';
-      btn.style.color = scanWideMode ? '#0d1b1e' : '#F5F1E8';
-      btn.style.borderColor = scanWideMode ? '#06D6A0' : 'rgba(255,255,255,0.25)';
-    }
-    if (typeof showToast === 'function') {
-      const modeMsg = scanWideMode
-        ? `🌐 Wide Full-Room — ${SCAN_TOTAL_NODES} angles (ceiling + walls + floor).`
-        : `Standard — ${SCAN_TOTAL_NODES} horizon angles.`;
-      showToast(hasProgress ? `${modeMsg} Previous captures cleared.` : modeMsg);
-    }
-  };
 
   function normalizeAngle360(deg) {
     let d = deg % 360;
@@ -5165,14 +5118,6 @@
     scanHasGyro = false;
     scanAlignedAngleIdx = -1;
     scanNodesInitialized = false;
-    // Sync Wide Full-Room button visual state
-    const wideBtn = document.getElementById('scanWideModeBtn');
-    if (wideBtn) {
-      wideBtn.textContent = scanWideMode ? '🌐 WIDE FULL-ROOM' : '○ STANDARD';
-      wideBtn.style.background = scanWideMode ? '#06D6A0' : 'rgba(255,255,255,0.12)';
-      wideBtn.style.color = scanWideMode ? '#0d1b1e' : '#F5F1E8';
-      wideBtn.style.borderColor = scanWideMode ? '#06D6A0' : 'rgba(255,255,255,0.25)';
-    }
     scanNodeEls = [];
     const nodesLayerReset = document.getElementById('scanNodesLayer');
     if (nodesLayerReset) nodesLayerReset.innerHTML = '';
@@ -5503,21 +5448,9 @@
     sliceCanvas.height = vh;
     sliceCanvas.getContext('2d').drawImage(workCanvas, 0, 0);
 
-    let slotIdx;
-    if (typeof targetSlotIdx === 'number' && targetSlotIdx >= 0 && targetSlotIdx < scanSlots.length) {
-      slotIdx = targetSlotIdx;
-    } else {
-      // Pick nearest uncaptured slot by angular distance (supports multi-row wide mode)
-      let best = -1, bestDist = 1e9;
-      for (let i = 0; i < scanSlots.length; i++) {
-        if (scanSlots[i].captured) continue;
-        const dy = angleDiffSigned(scanSlots[i].yaw, scanCurrentYaw);
-        const dp = (scanSlots[i].pitch || 0) - scanCurrentPitch;
-        const dist = Math.hypot(dy, dp * 1.4);
-        if (dist < bestDist) { bestDist = dist; best = i; }
-      }
-      slotIdx = best >= 0 ? best : Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
-    }
+    const slotIdx = (typeof targetSlotIdx === 'number' && targetSlotIdx >= 0 && targetSlotIdx < scanSlots.length)
+      ? targetSlotIdx
+      : Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
 
     scanSlots[slotIdx].captured = true;
     scanSlots[slotIdx].imgCanvas = sliceCanvas;
@@ -5538,12 +5471,11 @@
 
   function handleContinuousSweepProgress() {
     const dYaw = angleDiffSigned(scanCurrentYaw, scanSweepLastSampleYaw);
-    // Sample more often in wide mode so all pitch rows get coverage
-    const sampleStep = scanWideMode ? 12 : 18;
-    if (Math.abs(dYaw) >= sampleStep) {
+    if (Math.abs(dYaw) >= 18) {
+      // Capture frame at this angle step
       scanSweepLastSampleYaw = scanCurrentYaw;
-      // Let grabSweepFrame pick nearest uncaptured (handles multi-row pitches)
-      grabSweepFrame();
+      const targetSlot = Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
+      grabSweepFrame(targetSlot);
     }
 
     // Compute total progress towards 360°
@@ -5774,16 +5706,15 @@
     if (barFill) barFill.style.width = `${percent}%`;
 
     if (finishBtn) {
-      const minNeeded = scanWideMode ? 10 : 6;
-      if (capturedCount >= minNeeded) {
+      if (capturedCount >= 6) {
         finishBtn.style.opacity = '1';
         finishBtn.style.pointerEvents = 'auto';
         finishBtn.disabled = false;
         finishBtn.textContent = `✨ STITCH & SAVE 360° (${capturedCount}/${SCAN_TOTAL_NODES})`;
       } else {
-        finishBtn.style.opacity = '0.7';
+        finishBtn.style.opacity = '0.6';
         finishBtn.disabled = false;
-        finishBtn.textContent = `✨ STITCH (need ${minNeeded - capturedCount} more)`;
+        finishBtn.textContent = `✨ STITCH (need ${6 - capturedCount} more)`;
       }
     }
   }
@@ -5858,9 +5789,7 @@
     renderScanSlotsRibbon();
     updateScanProgressBar();
     clearStitchPreviewCanvas();
-    if (typeof showToast === 'function') {
-      showToast('🗑️ 360° Scanner reset. Start capturing from 0° again.');
-    }
+    if (typeof showToast === 'function') showToast('🗑️ Scanner reset to 0°.');
   };
 
   /**
@@ -5972,9 +5901,9 @@
     for (var si = 0; si < scanSlots.length; si++) {
       if (scanSlots[si].captured && scanSlots[si].imgCanvas) shots.push(scanSlots[si]);
     }
-    if (shots.length < 4) {
+    if (shots.length < 3) {
       if (typeof showToast === 'function') {
-        showToast('⚠️ Capture at least 4 angles (or use DEMO SCAN). Wide mode works best with 12+.');
+        showToast('⚠️ Please capture at least 3 angles or tap "DEMO SCAN" to test.');
       }
       return;
     }
@@ -5987,9 +5916,8 @@
     await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
 
     try {
-      // Higher-res equirect for Street-View sharpness (GPU-safe 4K)
-      var W = 4096;
-      var H = 2048;
+      var W = 2048;
+      var H = 1024;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
@@ -6073,10 +6001,9 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // Optical FOV — phone rear cameras typically ~70–78° HFOV.
-        // Slightly wider assumed FOV improves overlap and reduces polar stretch.
+        // Optical FOV calculation based on frame aspect ratio
         var aspect = ww / wh;
-        var diagFovRad = (82 * Math.PI) / 180; // wider diagonal for fuller room coverage
+        var diagFovRad = (76 * Math.PI) / 180;
         var tanHalfDiag = Math.tan(diagFovRad * 0.5);
         var tanHalfH = tanHalfDiag * (aspect / Math.sqrt(aspect * aspect + 1));
         var tanHalfV = tanHalfDiag * (1 / Math.sqrt(aspect * aspect + 1));
@@ -6086,9 +6013,9 @@
         var yawDeg = normalizeAngle360((typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw);
         var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
 
-        // Bounding box in equirectangular coordinates (generous pad = fuller coverage)
-        var padH = fovHDeg * 0.62 + 6;
-        var padV = fovVDeg * 0.62 + 6;
+        // Bounding box in equirectangular coordinates
+        var padH = fovHDeg * 0.58 + 4;
+        var padV = fovVDeg * 0.58 + 4;
         var minLat = Math.max(-88, pitchDeg - padV);
         var maxLat = Math.min(88, pitchDeg + padV);
         var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
@@ -6155,14 +6082,9 @@
               var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
               var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              // Smooth raised-cosine edge feathering (Street-View style soft seams)
-              var edgeU = Math.max(0, 1.0 - absU);
-              var edgeV = Math.max(0, 1.0 - absV);
-              var edgeW = (edgeU * edgeU) * (edgeV * edgeV);
-              // Extra radial falloff near corners to kill hard patch edges
-              var radial = Math.sqrt(absU * absU + absV * absV);
-              var radialW = Math.max(0, 1.0 - radial * 0.92);
-              var wt = Math.max(0.008, edgeW * radialW * radialW);
+              // Smooth cosine-squared edge feathering (clean overlap, zero fog)
+              var edgeW = (1.0 - absU * absU) * (1.0 - absV * absV);
+              var wt = Math.max(0.01, edgeW * edgeW);
 
               var pIdx = row * W + col;
               accumR[pIdx] += r * wt;
