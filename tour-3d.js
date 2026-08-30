@@ -2950,6 +2950,9 @@
                 <span class="scan-pill" id="scanAnglePill" style="color:#FFD23F;border-color:#FFD23F;">0° / 360°</span>
               </div>
               <div class="scan-header-right">
+                <button type="button" class="scan-btn-small" onclick="window.simulateDemo360Scan()" title="Simulate / Test full 360 scan" style="background:#06D6A0;color:#0d1b1e;font-weight:900;">
+                  🧪 DEMO SCAN
+                </button>
                 <button type="button" class="scan-btn-small" onclick="window.recenterScannerGyro()" title="Recenter current heading to 0°">
                   🎯 RECENTER
                 </button>
@@ -4545,11 +4548,30 @@
       idx = activeSceneIndex;
     }
 
+    // If only 1 room remains, reset and clean the room to a fresh default state
     if (activeSceneList.length <= 1) {
+      const oldRoom = activeSceneList[0] || {};
+      const oldName = oldRoom.name || 'Room 1';
+      activeSceneList = [{
+        id: 'room_' + Date.now().toString(36),
+        name: 'Main Space',
+        location: (currentTourData && currentTourData.location) || 'Wasatch Front, UT',
+        tag: '360° Walkthrough',
+        panoUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2500&q=80',
+        tourUrl: '',
+        aspectMode: 'full-360',
+        vScale: 1.0,
+        blurb: 'Explore this space in 360°',
+        hotspots: []
+      }];
+      activeSceneIndex = 0;
+      window.closeEditRoomDialog();
+      window.closeManageRoomsDialog();
+      loadScene(0);
+      renderSceneSelector();
+      window.saveTourChangesToMagazine();
       if (typeof showToast === 'function') {
-        showToast('⚠️ A tour must have at least 1 room. Create another room first before deleting this one!');
-      } else {
-        alert('A tour must have at least 1 room. Create another room first before deleting this one!');
+        showToast(`🗑️ "${oldName}" reset to clean 360° space!`);
       }
       return;
     }
@@ -4557,10 +4579,6 @@
     const roomToDelete = activeSceneList[idx];
     const roomName = roomToDelete ? roomToDelete.name : `Room ${idx + 1}`;
     const deletedId = roomToDelete?.id;
-
-    if (!confirm(`Are you sure you want to delete "${roomName}"? This will permanently remove this room and any door pins pointing to it.`)) {
-      return;
-    }
 
     // 1. Remove room from list
     activeSceneList.splice(idx, 1);
@@ -4581,7 +4599,7 @@
       activeSceneIndex = Math.max(0, activeSceneIndex - 1);
     }
     if (activeSceneIndex >= activeSceneList.length) {
-      activeSceneIndex = activeSceneList.length - 1;
+      activeSceneIndex = Math.max(0, activeSceneList.length - 1);
     }
 
     window.closeEditRoomDialog();
@@ -5767,12 +5785,94 @@
   }
 
   window.resetCurrent360Scan = function () {
-    if (confirm('Reset and clear all captured angles?')) {
-      initScanSlots();
-      renderScanSlotsRibbon();
-      updateScanProgressBar();
-      clearStitchPreviewCanvas();
-      if (typeof showToast === 'function') showToast('🗑️ Scanner reset.');
+    initScanSlots();
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
+    clearStitchPreviewCanvas();
+    if (typeof showToast === 'function') showToast('🗑️ Scanner reset to 0°.');
+  };
+
+  /**
+   * Generates a 360° architectural room scan for instant testing and verification
+   */
+  window.simulateDemo360Scan = function () {
+    initScanSlots();
+    const work = document.createElement('canvas');
+    work.width = 960;
+    work.height = 720;
+    const wctx = work.getContext('2d');
+
+    const roomThemes = [
+      { name: 'North Living Room', sky: '#1f2430', wall: '#2d3345', floor: '#634b35', accent: '#FFD23F' },
+      { name: 'NE Fireplace & Art', sky: '#242a38', wall: '#343c50', floor: '#5a4330', accent: '#06D6A0' },
+      { name: 'East Grand Windows', sky: '#89a8c4', wall: '#e8edf2', floor: '#73573e', accent: '#4ea8de' },
+      { name: 'SE Mountain View Patio', sky: '#688ca8', wall: '#cfd8dc', floor: '#4a3828', accent: '#ffb703' },
+      { name: 'South Dining Suite', sky: '#2b2938', wall: '#3d394e', floor: '#614833', accent: '#fb8500' },
+      { name: 'SW Designer Kitchen', sky: '#20222a', wall: '#2e303b', floor: '#503b2b', accent: '#06D6A0' },
+      { name: 'West Marble Bar', sky: '#181a20', wall: '#232730', floor: '#423124', accent: '#FFD23F' },
+      { name: 'NW Modern Lounge', sky: '#1c1f28', wall: '#282d3a', floor: '#543f2e', accent: '#e63946' },
+      { name: 'North Corridor', sky: '#212530', wall: '#303646', floor: '#5e4632', accent: '#a8dadc' },
+      { name: 'NW Gallery Alcove', sky: '#1a1d26', wall: '#262a36', floor: '#4d3929', accent: '#f1faee' },
+      { name: 'North Entry Portal', sky: '#1d202b', wall: '#292f3d', floor: '#56402f', accent: '#FFD23F' },
+      { name: 'NNE Foyer & Lighting', sky: '#222632', wall: '#32394a', floor: '#604834', accent: '#06D6A0' }
+    ];
+
+    scanSlots.forEach((slot, idx) => {
+      const theme = roomThemes[idx % roomThemes.length];
+      wctx.fillStyle = theme.sky;
+      wctx.fillRect(0, 0, work.width, work.height * 0.35);
+
+      wctx.fillStyle = theme.wall;
+      wctx.fillRect(0, work.height * 0.35, work.width, work.height * 0.35);
+
+      wctx.fillStyle = theme.floor;
+      wctx.fillRect(0, work.height * 0.7, work.width, work.height * 0.3);
+
+      // Architectural pillar & window perspective lines
+      wctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      wctx.lineWidth = 4;
+      wctx.beginPath();
+      wctx.moveTo(work.width * 0.15, 0); wctx.lineTo(work.width * 0.25, work.height);
+      wctx.moveTo(work.width * 0.85, 0); wctx.lineTo(work.width * 0.75, work.height);
+      wctx.moveTo(0, work.height * 0.35); wctx.lineTo(work.width, work.height * 0.35);
+      wctx.moveTo(0, work.height * 0.7); wctx.lineTo(work.width, work.height * 0.7);
+      wctx.stroke();
+
+      // Feature glowing badge
+      wctx.fillStyle = theme.accent;
+      wctx.beginPath();
+      wctx.arc(work.width * 0.5, work.height * 0.5, 45, 0, Math.PI * 2);
+      wctx.fill();
+
+      wctx.fillStyle = '#14121A';
+      wctx.font = 'bold 20px sans-serif';
+      wctx.textAlign = 'center';
+      wctx.fillText(`${Math.round(slot.yaw)}°`, work.width * 0.5, work.height * 0.5 + 7);
+
+      wctx.fillStyle = 'rgba(255,255,255,0.92)';
+      wctx.font = 'bold 22px sans-serif';
+      wctx.fillText(theme.name, work.width * 0.5, work.height * 0.25);
+
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = work.width;
+      sliceCanvas.height = work.height;
+      sliceCanvas.getContext('2d').drawImage(work, 0, 0);
+
+      slot.captured = true;
+      slot.imgCanvas = sliceCanvas;
+      slot.timestamp = Date.now();
+      slot.captureYaw = slot.yaw;
+      slot.capturePitch = slot.pitch;
+    });
+
+    scanCurrentYaw = 360;
+    scanSmoothYaw = 360;
+    updateStitchPreviewRibbon();
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
+
+    if (typeof showToast === 'function') {
+      showToast('🧪 Demo 360° Scan ready! Tap "STITCH & SAVE 360°" to stitch room.');
     }
   };
 
@@ -5792,8 +5892,8 @@
   };
 
   /**
-   * Matterport-Grade Equirectangular Photosphere Stitcher
-   * Blends high-resolution camera frames with seamless exposure equalization and cosine falloff
+   * Matterport-Grade Equirectangular Photosphere Stitching Engine
+   * Mathematically re-projects rectilinear camera sensor frames onto a seamless 2:1 equirectangular sphere
    */
   window.finishAndUse360Stitch = async function () {
     var shots = [];
@@ -5801,7 +5901,9 @@
       if (scanSlots[si].captured && scanSlots[si].imgCanvas) shots.push(scanSlots[si]);
     }
     if (shots.length < 3) {
-      alert('Please capture at least 3 angles or complete the 360° sweep first.');
+      if (typeof showToast === 'function') {
+        showToast('⚠️ Please capture at least 3 angles or tap "DEMO SCAN" to test.');
+      }
       return;
     }
 
@@ -5813,49 +5915,64 @@
     await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
 
     try {
-      var W = 2560;
-      var H = 1280;
+      var W = 2048;
+      var H = 1024;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
       var ctx = canvas.getContext('2d');
 
-      // 1. Compute ambient average room tones to fill top/bottom zenith/nadir gradients
-      var avgR = 45, avgG = 45, avgB = 55;
+      // Separate clean Float32 accumulators (zero color bleed)
+      var accumR = new Float32Array(W * H);
+      var accumG = new Float32Array(W * H);
+      var accumB = new Float32Array(W * H);
+      var accumWeight = new Float32Array(W * H);
+
+      // 1. Compute ambient ceiling and floor colors from frame edges
+      var topR = 35, topG = 38, topB = 48;
+      var botR = 48, botG = 38, botB = 30;
       try {
-        var sampleCount = 0, totR = 0, totG = 0, totB = 0;
+        var topTotR = 0, topTotG = 0, topTotB = 0, topN = 0;
+        var botTotR = 0, botTotG = 0, botTotB = 0, botN = 0;
+
         shots.forEach(s => {
           if (s.imgCanvas) {
             var sc = s.imgCanvas.getContext('2d').getImageData(0, 0, s.imgCanvas.width, s.imgCanvas.height).data;
-            for (var p = 0; p < sc.length; p += 64) {
-              totR += sc[p]; totG += sc[p + 1]; totB += sc[p + 2];
-              sampleCount++;
+            var w = s.imgCanvas.width;
+            var h = s.imgCanvas.height;
+            var topRows = Math.min(20, Math.floor(h * 0.1));
+            var botRows = Math.min(20, Math.floor(h * 0.1));
+
+            for (var ty = 0; ty < topRows; ty++) {
+              for (var tx = 0; tx < w; tx += 8) {
+                var p = (ty * w + tx) * 4;
+                topTotR += sc[p]; topTotG += sc[p + 1]; topTotB += sc[p + 2];
+                topN++;
+              }
+            }
+            for (var by = h - botRows; by < h; by++) {
+              for (var bx = 0; bx < w; bx += 8) {
+                var p2 = (by * w + bx) * 4;
+                botTotR += sc[p2]; botTotG += sc[p2 + 1]; botTotB += sc[p2 + 2];
+                botN++;
+              }
             }
           }
         });
-        if (sampleCount > 0) {
-          avgR = Math.round(totR / sampleCount);
-          avgG = Math.round(totG / sampleCount);
-          avgB = Math.round(totB / sampleCount);
+
+        if (topN > 0) {
+          topR = Math.round(topTotR / topN);
+          topG = Math.round(topTotG / topN);
+          topB = Math.round(topTotB / topN);
+        }
+        if (botN > 0) {
+          botR = Math.round(botTotR / botN);
+          botG = Math.round(botTotG / botN);
+          botB = Math.round(botTotB / botN);
         }
       } catch (e) {}
 
-      // Ambient vertical gradient base (ceiling lighter, floor darker)
-      var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-      bgGrad.addColorStop(0, `rgb(${Math.min(255, avgR + 30)}, ${Math.min(255, avgG + 30)}, ${Math.min(255, avgB + 35)})`);
-      bgGrad.addColorStop(0.5, `rgb(${avgR}, ${avgG}, ${avgB})`);
-      bgGrad.addColorStop(1, `rgb(${Math.max(15, avgR - 30)}, ${Math.max(15, avgG - 30)}, ${Math.max(15, avgB - 25)})`);
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, W, H);
-
-      var imgData = ctx.getImageData(0, 0, W, H);
-      var data = imgData.data;
-      var wSum = new Float32Array(W * H);
-
-      // Horizontal and vertical FOV (degrees)
-      var FOV_H = 68;
-      var FOV_V = 52;
-
+      // 2. Project each rectilinear frame into the equirectangular sphere
       for (var fi = 0; fi < shots.length; fi++) {
         if (finishBtn) finishBtn.textContent = `⏳ BLENDING FRAME ${fi + 1}/${shots.length}…`;
         await new Promise(r => setTimeout(r, 0));
@@ -5864,16 +5981,14 @@
         var src = slot.imgCanvas;
         if (!src || src.width < 2) continue;
 
-        var yawDeg = normalizeAngle360((typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw);
-        var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
-
-        var maxW = 1024;
         var ww = src.width;
         var wh = src.height;
+        var maxDim = 1024;
         var work = src;
-        if (ww > maxW) {
-          ww = maxW;
-          wh = Math.round(src.height * (maxW / src.width));
+        if (ww > maxDim || wh > maxDim) {
+          var scale = maxDim / Math.max(ww, wh);
+          ww = Math.round(ww * scale);
+          wh = Math.round(wh * scale);
           work = document.createElement('canvas');
           work.width = ww;
           work.height = wh;
@@ -5881,25 +5996,29 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // Exposure normalization
-        var sumL = 0, nL = 0;
-        for (var li = 0; li < srcPx.length; li += 32) {
-          sumL += 0.299 * srcPx[li] + 0.587 * srcPx[li + 1] + 0.114 * srcPx[li + 2];
-          nL++;
-        }
-        var avgL = nL ? sumL / nL : 128;
-        var expScale = avgL > 10 ? Math.min(1.25, Math.max(0.8, 135 / avgL)) : 1;
+        // Optical FOV calculation based on frame aspect ratio
+        var aspect = ww / wh;
+        var diagFovRad = (76 * Math.PI) / 180;
+        var tanHalfDiag = Math.tan(diagFovRad * 0.5);
+        var tanHalfH = tanHalfDiag * (aspect / Math.sqrt(aspect * aspect + 1));
+        var tanHalfV = tanHalfDiag * (1 / Math.sqrt(aspect * aspect + 1));
+        var fovHDeg = 2 * Math.atan(tanHalfH) * (180 / Math.PI);
+        var fovVDeg = 2 * Math.atan(tanHalfV) * (180 / Math.PI);
 
-        var yPad = FOV_H * 0.55 + 5;
-        var pPad = FOV_V * 0.55 + 5;
-        var lat0 = Math.max(-90, pitchDeg - pPad);
-        var lat1 = Math.min(90, pitchDeg + pPad);
-        var row0 = Math.max(0, Math.floor((90 - lat1) / 180 * H));
-        var row1 = Math.min(H - 1, Math.ceil((90 - lat0) / 180 * H));
+        var yawDeg = normalizeAngle360((typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw);
+        var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
+
+        // Bounding box in equirectangular coordinates
+        var padH = fovHDeg * 0.55 + 5;
+        var padV = fovVDeg * 0.55 + 5;
+        var minLat = Math.max(-88, pitchDeg - padV);
+        var maxLat = Math.min(88, pitchDeg + padV);
+        var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
+        var row1 = Math.min(H - 1, Math.ceil(((90 - minLat) / 180) * H));
 
         var lonRanges = [];
-        var lonA = yawDeg - yPad;
-        var lonB = yawDeg + yPad;
+        var lonA = yawDeg - padH;
+        var lonB = yawDeg + padH;
         if (lonA < 0) {
           lonRanges.push([lonA + 360, 360]);
           lonRanges.push([0, lonB]);
@@ -5912,24 +6031,32 @@
 
         for (var row = row0; row <= row1; row++) {
           var lat = 90 - (row / H) * 180;
+          var dPitchRad = ((lat - pitchDeg) * Math.PI) / 180;
 
           for (var ri = 0; ri < lonRanges.length; ri++) {
-            var c0 = Math.max(0, Math.floor(lonRanges[ri][0] / 360 * W));
-            var c1 = Math.min(W - 1, Math.ceil(lonRanges[ri][1] / 360 * W));
+            var c0 = Math.max(0, Math.floor((lonRanges[ri][0] / 360) * W));
+            var c1 = Math.min(W - 1, Math.ceil((lonRanges[ri][1] / 360) * W));
 
             for (var col = c0; col <= c1; col++) {
               var lon = (col / W) * 360;
               var dYaw = lon - yawDeg;
               if (dYaw > 180) dYaw -= 360;
               if (dYaw < -180) dYaw += 360;
-              var dPitch = lat - pitchDeg;
+              var dYawRad = (dYaw * Math.PI) / 180;
 
-              if (Math.abs(dYaw) > FOV_H * 0.5 || Math.abs(dPitch) > FOV_V * 0.5) continue;
+              // Unit ray in camera space
+              var rX = Math.cos(dPitchRad) * Math.sin(dYawRad);
+              var rY = Math.sin(dPitchRad);
+              var rZ = Math.cos(dPitchRad) * Math.cos(dYawRad);
+              if (rZ <= 0.05) continue;
 
-              var u = dYaw / (FOV_H * 0.5);
-              var v = dPitch / (FOV_V * 0.5);
-              var fx = (0.5 + u * 0.5) * (ww - 1);
-              var fy = (0.5 - v * 0.5) * (wh - 1);
+              // Project onto flat camera sensor plane
+              var uCam = (rX / rZ) / tanHalfH;
+              var vCam = (rY / rZ) / tanHalfV;
+              if (Math.abs(uCam) >= 1.0 || Math.abs(vCam) >= 1.0) continue;
+
+              var fx = (uCam * 0.5 + 0.5) * (ww - 1);
+              var fy = (0.5 - vCam * 0.5) * (wh - 1);
               if (fx < 0 || fy < 0 || fx >= ww - 1 || fy >= wh - 1) continue;
 
               // Bilinear interpolation
@@ -5948,38 +6075,75 @@
               var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
               var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              // Cosine-squared feathering for smooth seamless seams
-              var au = Math.min(1, Math.abs(u));
-              var av = Math.min(1, Math.abs(v));
-              var wu = 0.5 * (1 + Math.cos(Math.PI * au));
-              var wv = 0.5 * (1 + Math.cos(Math.PI * av));
-              var wt = (wu * wv);
-              wt = wt * wt;
-              if (wt < 0.02) continue;
+              // Smooth cosine-squared feathering
+              var wu = Math.cos(Math.PI * 0.5 * uCam);
+              var wv = Math.cos(Math.PI * 0.5 * vCam);
+              var wt = (wu * wu) * (wv * wv);
+              if (wt < 0.005) continue;
 
-              var idx = row * W + col;
-              var di = idx * 4;
-              data[di]     += Math.min(255, r * expScale) * wt;
-              data[di + 1] += Math.min(255, g * expScale) * wt;
-              data[di + 2] += Math.min(255, b * expScale) * wt;
-              wSum[idx]    += wt;
+              var pIdx = row * W + col;
+              accumR[pIdx] += r * wt;
+              accumG[pIdx] += g * wt;
+              accumB[pIdx] += b * wt;
+              accumWeight[pIdx] += wt;
             }
           }
         }
       }
 
-      // Blend camera samples with ambient background
-      for (var i = 0; i < W * H; i++) {
-        var w = wSum[i];
-        var di = i * 4;
-        if (w > 0.01) {
-          data[di]     = Math.min(255, data[di] / w);
-          data[di + 1] = Math.min(255, data[di + 1] / w);
-          data[di + 2] = Math.min(255, data[di + 2] / w);
-          data[di + 3] = 255;
+      // 3. Composite final image with smooth harmonic zenith/nadir fill
+      var outImg = ctx.createImageData(W, H);
+      var outData = outImg.data;
+
+      var midR = Math.round((topR + botR) * 0.5);
+      var midG = Math.round((topG + botG) * 0.5);
+      var midB = Math.round((topB + botB) * 0.5);
+
+      for (var y = 0; y < H; y++) {
+        var vNorm = y / (H - 1);
+        var bgR, bgG, bgB;
+        if (vNorm < 0.5) {
+          var tTop = vNorm / 0.5;
+          bgR = topR * (1 - tTop) + midR * tTop;
+          bgG = topG * (1 - tTop) + midG * tTop;
+          bgB = topB * (1 - tTop) + midB * tTop;
+        } else {
+          var tBot = (vNorm - 0.5) / 0.5;
+          bgR = midR * (1 - tBot) + botR * tBot;
+          bgG = midG * (1 - tBot) + botG * tBot;
+          bgB = midB * (1 - tBot) + botB * tBot;
+        }
+
+        for (var x = 0; x < W; x++) {
+          var pIdx2 = y * W + x;
+          var di = pIdx2 * 4;
+          var w = accumWeight[pIdx2];
+
+          if (w > 0.001) {
+            var cr = accumR[pIdx2] / w;
+            var cg = accumG[pIdx2] / w;
+            var cb = accumB[pIdx2] / w;
+
+            if (w < 0.6) {
+              var blendT = w / 0.6;
+              outData[di]     = Math.round(cr * blendT + bgR * (1 - blendT));
+              outData[di + 1] = Math.round(cg * blendT + bgG * (1 - blendT));
+              outData[di + 2] = Math.round(cb * blendT + bgB * (1 - blendT));
+            } else {
+              outData[di]     = Math.min(255, Math.round(cr));
+              outData[di + 1] = Math.min(255, Math.round(cg));
+              outData[di + 2] = Math.min(255, Math.round(cb));
+            }
+          } else {
+            outData[di]     = Math.min(255, Math.round(bgR));
+            outData[di + 1] = Math.min(255, Math.round(bgG));
+            outData[di + 2] = Math.min(255, Math.round(bgB));
+          }
+          outData[di + 3] = 255;
         }
       }
-      ctx.putImageData(imgData, 0, 0);
+
+      ctx.putImageData(outImg, 0, 0);
 
       if (finishBtn) finishBtn.textContent = '⏳ SAVING 360° ROOM…';
       await new Promise(r => setTimeout(r, 0));
@@ -6031,7 +6195,7 @@
       if (typeof showToast === 'function') showToast('🎉 360° Photosphere stitched and saved!');
     } catch (err) {
       console.error('[stitch]', err);
-      alert('Stitch failed: ' + (err && err.message ? err.message : String(err)));
+      if (typeof showToast === 'function') showToast('❌ Stitch failed: ' + (err && err.message ? err.message : String(err)));
     } finally {
       if (finishBtn) {
         finishBtn.textContent = '✨ STITCH & SAVE 360°';
