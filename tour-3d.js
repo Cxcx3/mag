@@ -4726,17 +4726,6 @@
       canvas.height = H;
       var ctx = canvas.getContext('2d');
 
-      // Floating-point accumulators to prevent any 8-bit clipping or white halo artifacts
-      var accumR = new Float32Array(W * H);
-      var accumG = new Float32Array(W * H);
-      var accumB = new Float32Array(W * H);
-      var accumW = new Float32Array(W * H);
-
-      var topCoverageRow = new Int32Array(W);
-      var botCoverageRow = new Int32Array(W);
-      topCoverageRow.fill(H);
-      botCoverageRow.fill(-1);
-
       // 1. Sample ambient ceiling and floor colors from frame edges for polar fill
       var topR = 238, topG = 238, topB = 240;
       var botR = 175, botG = 160, botB = 145;
@@ -4781,12 +4770,34 @@
         }
       } catch (e) {}
 
-      // 2. Optical ray projection with dynamic aspect ratio and crisp Voronoi center-weighting
-      // Mobile sensors in portrait have narrower horizontal FOV and taller vertical FOV
-      for (var fi = 0; fi < shots.length; fi++) {
-        if (finishBtn) finishBtn.textContent = '⏳ PROJECTING ' + (fi + 1) + '/' + shots.length + '…';
-        await new Promise(function (r) { setTimeout(r, 0); });
+      // 2-pass Voronoi Winner-Take-All with Multi-Band Seam Feathering
+      // Eliminates double-vision ghosting, curtains, blurred monitors/furniture, and warping
+      var topCoverageRow = new Int32Array(W);
+      var botCoverageRow = new Int32Array(W);
+      topCoverageRow.fill(H);
+      botCoverageRow.fill(-1);
 
+      // Best shot assignment and distance metric per pixel
+      var bestShotId = new Int16Array(W * H);
+      bestShotId.fill(-1);
+      var bestDistSq = new Float32Array(W * H);
+      bestDistSq.fill(999.0);
+
+      var secondDistSq = new Float32Array(W * H);
+      secondDistSq.fill(999.0);
+
+      var pixelR = new Uint8Array(W * H);
+      var pixelG = new Uint8Array(W * H);
+      var pixelB = new Uint8Array(W * H);
+
+      // Secondary shot pixel colors for micro-seam feathering
+      var secR = new Uint8Array(W * H);
+      var secG = new Uint8Array(W * H);
+      var secB = new Uint8Array(W * H);
+
+      // Pre-process and scale all shots
+      var shotDatas = [];
+      for (var fi = 0; fi < shots.length; fi++) {
         var slot = shots[fi];
         var src = slot.imgCanvas;
         if (!src || src.width < 2) continue;
@@ -4806,9 +4817,9 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // True mobile optical sensor angles (Portrait vs Landscape aware)
+        // Optical FOV calibrated for smartphone lenses (ultra-wide & standard rectilinear)
         var isPortrait = wh >= ww;
-        var diagFovDeg = isPortrait ? 86 : 82;
+        var diagFovDeg = isPortrait ? 78 : 75;
         var diagFovRad = (diagFovDeg * Math.PI) / 180;
         var tanDiag = Math.tan(diagFovRad * 0.5);
 
@@ -4824,20 +4835,50 @@
 
         var yawRad = (yawDeg * Math.PI) / 180;
         var pitchRad = (pitchDeg * Math.PI) / 180;
-        var cosYaw = Math.cos(yawRad), sinYaw = Math.sin(yawRad);
-        var cosPitch = Math.cos(pitchRad), sinPitch = Math.sin(pitchRad);
 
-        // Bounding box in equirectangular coordinates
-        var padH = fovHDeg * 0.60 + 4;
-        var padV = fovVDeg * 0.60 + 4;
-        var minLat = Math.max(-89.5, pitchDeg - padV);
-        var maxLat = Math.min(89.5, pitchDeg + padV);
+        shotDatas.push({
+          id: fi,
+          srcPx: srcPx,
+          ww: ww,
+          wh: wh,
+          tanHalfH: tanHalfH,
+          tanHalfV: tanHalfV,
+          fovHDeg: fovHDeg,
+          fovVDeg: fovVDeg,
+          yawDeg: yawDeg,
+          pitchDeg: pitchDeg,
+          cosYaw: Math.cos(yawRad),
+          sinYaw: Math.sin(yawRad),
+          cosPitch: Math.cos(pitchRad),
+          sinPitch: Math.sin(pitchRad)
+        });
+      }
+
+      // PASS 1: Project rays & assign closest optical ray center (Voronoi winner-take-all)
+      for (var si = 0; si < shotDatas.length; si++) {
+        if (finishBtn) finishBtn.textContent = '⏳ ALIGNING ' + (si + 1) + '/' + shotDatas.length + '…';
+        await new Promise(function (r) { setTimeout(r, 0); });
+
+        var sData = shotDatas[si];
+        var sId = sData.id;
+        var sPx = sData.srcPx;
+        var sWw = sData.ww;
+        var sWh = sData.wh;
+        var sTanH = sData.tanHalfH;
+        var sTanV = sData.tanHalfV;
+        var sCosY = sData.cosYaw, sSinY = sData.sinYaw;
+        var sCosP = sData.cosPitch, sSinP = sData.sinPitch;
+
+        var padH = sData.fovHDeg * 0.52 + 1.5;
+        var padV = sData.fovVDeg * 0.52 + 1.5;
+        var minLat = Math.max(-89.5, sData.pitchDeg - padV);
+        var maxLat = Math.min(89.5, sData.pitchDeg + padV);
         var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
         var row1 = Math.min(H - 1, Math.ceil(((90 - minLat) / 180) * H));
 
         var lonRanges = [];
-        var lonA = yawDeg - padH;
-        var lonB = yawDeg + padH;
+        var lonA = sData.yawDeg - padH;
+        var lonB = sData.yawDeg + padH;
         if (lonA < 0) {
           lonRanges.push([lonA + 360, 360]);
           lonRanges.push([0, lonB]);
@@ -4849,7 +4890,7 @@
         }
 
         for (var row = row0; row <= row1; row++) {
-          var lat = 90 - (row / H) * 180; // +90 top -> -90 bottom
+          var lat = 90 - (row / H) * 180;
           var latRad = (lat * Math.PI) / 180;
           var cosLat = Math.cos(latRad);
           var sinLat = Math.sin(latRad);
@@ -4862,33 +4903,36 @@
               var lon = (col / W) * 360;
               var lonRad = (lon * Math.PI) / 180;
 
-              // Unit world direction ray
+              // Unit world vector on sphere
               var wx = cosLat * Math.sin(lonRad);
               var wy = sinLat;
               var wz = cosLat * Math.cos(lonRad);
 
               // 1. Rotate around Y by yaw
-              var rx = wx * cosYaw - wz * sinYaw;
-              var rz_horiz = wx * sinYaw + wz * cosYaw;
+              var rx = wx * sCosY - wz * sSinY;
+              var rz_horiz = wx * sSinY + wz * sCosY;
               var ry = wy;
 
               // 2. Rotate around X by pitch
               var camX = rx;
-              var camY = ry * cosPitch - rz_horiz * sinPitch;
-              var camZ = ry * sinPitch + rz_horiz * cosPitch;
+              var camY = ry * sCosP - rz_horiz * sSinP;
+              var camZ = ry * sSinP + rz_horiz * sCosP;
 
-              if (camZ <= 0.02) continue; // behind camera
+              if (camZ <= 0.02) continue; // Behind camera plane
 
-              // Perspective projection to sensor plane
-              var u = (camX / camZ) / tanHalfH;
-              var v = (camY / camZ) / tanHalfV;
+              // Project to sensor UV [-1, 1]
+              var u = (camX / camZ) / sTanH;
+              var v = (camY / camZ) / sTanV;
               var absU = Math.abs(u);
               var absV = Math.abs(v);
-              if (absU >= 0.99 || absV >= 0.99) continue;
+              if (absU >= 0.98 || absV >= 0.98) continue; // Outside camera sensor
 
-              var fx = (0.5 + u * 0.5) * (ww - 1);
-              var fy = (0.5 - v * 0.5) * (wh - 1);
-              if (fx < 0 || fy < 0 || fx >= ww - 1 || fy >= wh - 1) continue;
+              var fx = (0.5 + u * 0.5) * (sWw - 1);
+              var fy = (0.5 - v * 0.5) * (sWh - 1);
+              if (fx < 0 || fy < 0 || fx >= sWw - 1 || fy >= sWh - 1) continue;
+
+              // Distance from optical center (0 is dead center, >1 is edge)
+              var distSq = u * u + v * v;
 
               // Bilinear interpolation
               var x0 = fx | 0;
@@ -4897,29 +4941,38 @@
               var ty = fy - y0;
               var x1 = x0 + 1;
               var y1 = y0 + 1;
-              var i00 = (y0 * ww + x0) * 4;
-              var i10 = (y0 * ww + x1) * 4;
-              var i01 = (y1 * ww + x0) * 4;
-              var i11 = (y1 * ww + x1) * 4;
+              var i00 = (y0 * sWw + x0) * 4;
+              var i10 = (y0 * sWw + x1) * 4;
+              var i01 = (y1 * sWw + x0) * 4;
+              var i11 = (y1 * sWw + x1) * 4;
 
-              var r = (srcPx[i00] * (1 - tx) + srcPx[i10] * tx) * (1 - ty) + (srcPx[i01] * (1 - tx) + srcPx[i11] * tx) * ty;
-              var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
-              var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
-
-              // Continuous quartic cosine-smooth falloff: 1 at optical center, 0 smoothly at borders
-              var wu = Math.max(0, 1.0 - absU * absU);
-              var wv = Math.max(0, 1.0 - absV * absV);
-              var wt = Math.pow(wu * wv, 2.0);
-              if (wt < 0.0001) wt = 0.0001;
+              var r = Math.round((sPx[i00] * (1 - tx) + sPx[i10] * tx) * (1 - ty) + (sPx[i01] * (1 - tx) + sPx[i11] * tx) * ty);
+              var g = Math.round((sPx[i00 + 1] * (1 - tx) + sPx[i10 + 1] * tx) * (1 - ty) + (sPx[i01 + 1] * (1 - tx) + sPx[i11 + 1] * tx) * ty);
+              var b = Math.round((sPx[i00 + 2] * (1 - tx) + sPx[i10 + 2] * tx) * (1 - ty) + (sPx[i01 + 2] * (1 - tx) + sPx[i11 + 2] * tx) * ty);
 
               var pIdx = row * W + col;
-              accumR[pIdx] += r * wt;
-              accumG[pIdx] += g * wt;
-              accumB[pIdx] += b * wt;
-              accumW[pIdx] += wt;
 
-              if (row < topCoverageRow[col]) topCoverageRow[col] = row;
-              if (row > botCoverageRow[col]) botCoverageRow[col] = row;
+              if (distSq < bestDistSq[pIdx]) {
+                // Demote previous best to second
+                secondDistSq[pIdx] = bestDistSq[pIdx];
+                secR[pIdx] = pixelR[pIdx];
+                secG[pIdx] = pixelG[pIdx];
+                secB[pIdx] = pixelB[pIdx];
+
+                bestDistSq[pIdx] = distSq;
+                bestShotId[pIdx] = sId;
+                pixelR[pIdx] = r;
+                pixelG[pIdx] = g;
+                pixelB[pIdx] = b;
+
+                if (row < topCoverageRow[col]) topCoverageRow[col] = row;
+                if (row > botCoverageRow[col]) botCoverageRow[col] = row;
+              } else if (distSq < secondDistSq[pIdx]) {
+                secondDistSq[pIdx] = distSq;
+                secR[pIdx] = r;
+                secG[pIdx] = g;
+                secB[pIdx] = b;
+              }
             }
           }
         }
@@ -4955,7 +5008,7 @@
         }
       }
 
-      // Extract smooth boundary colors per column
+      // Extract smooth boundary colors per column from captured pixels
       var colTopR = new Float32Array(W);
       var colTopG = new Float32Array(W);
       var colTopB = new Float32Array(W);
@@ -4971,10 +5024,10 @@
         var tr = topR, tg = topG, tb = topB;
         if (tRow < H) {
           var tIdx = tRow * W + c;
-          if (accumW[tIdx] > 0.0001) {
-            tr = accumR[tIdx] / accumW[tIdx];
-            tg = accumG[tIdx] / accumW[tIdx];
-            tb = accumB[tIdx] / accumW[tIdx];
+          if (bestShotId[tIdx] >= 0) {
+            tr = pixelR[tIdx];
+            tg = pixelG[tIdx];
+            tb = pixelB[tIdx];
             sumTopR += tr; sumTopG += tg; sumTopB += tb; cntTop++;
           }
         }
@@ -4984,10 +5037,10 @@
         var br = botR, bg = botG, bb = botB;
         if (bRow >= 0) {
           var bIdx = bRow * W + c;
-          if (accumW[bIdx] > 0.0001) {
-            br = accumR[bIdx] / accumW[bIdx];
-            bg = accumG[bIdx] / accumW[bIdx];
-            bb = accumB[bIdx] / accumW[bIdx];
+          if (bestShotId[bIdx] >= 0) {
+            br = pixelR[bIdx];
+            bg = pixelG[bIdx];
+            bb = pixelB[bIdx];
             sumBotR += br; sumBotG += bg; sumBotB += bb; cntBot++;
           }
         }
@@ -5029,17 +5082,36 @@
         smoothBotB[c] = sbb / count;
       }
 
-      // Populate full image with zero-gap organic diffusion
+      // Populate full image: razor-sharp Voronoi with micro-seam feathering + organic diffusion
       for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
           var pIdx2 = y * W + x;
           var di = pIdx2 * 4;
-          var wVal = accumW[pIdx2];
+          var shotId = bestShotId[pIdx2];
 
-          if (wVal > 0.001) {
-            outData[di]     = Math.min(255, Math.max(0, Math.round(accumR[pIdx2] / wVal)));
-            outData[di + 1] = Math.min(255, Math.max(0, Math.round(accumG[pIdx2] / wVal)));
-            outData[di + 2] = Math.min(255, Math.max(0, Math.round(accumB[pIdx2] / wVal)));
+          if (shotId >= 0) {
+            var pr = pixelR[pIdx2];
+            var pg = pixelG[pIdx2];
+            var pb = pixelB[pIdx2];
+
+            // Micro-seam feathering only right at the Voronoi boundary between overlapping photos
+            var d1 = bestDistSq[pIdx2];
+            var d2 = secondDistSq[pIdx2];
+            if (d2 < 900.0) {
+              var diff = Math.abs(d2 - d1);
+              if (diff < 0.08) {
+                // Within transition zone
+                var t = (diff / 0.08) * 0.5; // 0 at seam line, 0.5 at margin
+                var blendWeight = 0.5 - t;   // blend secondary shot gently
+                pr = Math.round(pr * (1 - blendWeight) + secR[pIdx2] * blendWeight);
+                pg = Math.round(pg * (1 - blendWeight) + secG[pIdx2] * blendWeight);
+                pb = Math.round(pb * (1 - blendWeight) + secB[pIdx2] * blendWeight);
+              }
+            }
+
+            outData[di]     = Math.min(255, Math.max(0, pr));
+            outData[di + 1] = Math.min(255, Math.max(0, pg));
+            outData[di + 2] = Math.min(255, Math.max(0, pb));
           } else {
             var topLimit = topCoverageRow[x];
             var botLimit = botCoverageRow[x];
