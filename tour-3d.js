@@ -2158,10 +2158,10 @@
                 <div class="scan-flash-fx" id="scanFlashFx"></div>
               </div>
 
-              <!-- Live Floating Stats -->
+              <!-- Live Floating Stats & Capture Mode Presets -->
               <div class="scan-floating-hud">
                 <div class="scan-progress-box">
-                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 38 CAPTURED (0%)</span>
+                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 12 CAPTURED (0%)</span>
                   <div class="scan-progress-bar-bg">
                     <div class="scan-progress-bar-fill" id="scanProgressBarFill" style="width:0%;"></div>
                   </div>
@@ -2174,11 +2174,23 @@
                   <input type="checkbox" id="scanAutoSnapCheck" checked>
                   <label for="scanAutoSnapCheck" style="cursor:pointer;font-size:11px;font-weight:700;">⚡ Auto-Snap</label>
                 </div>
-                <button type="button" id="scanWideModeBtn" onclick="window.toggleWideScanMode()"
-                  style="background:#FFD23F;color:#14121A;border:none;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:900;cursor:pointer;box-shadow:0 2px 12px rgba(255,210,63,0.45);"
-                  title="Adds near-ceiling and near-floor angles for fuller coverage">
-                  🌐 WIDE MODE: OFF
-                </button>
+                <div class="scan-preset-group" style="display:flex;gap:4px;background:rgba(14,12,19,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:3px;">
+                  <button type="button" id="scanPresetBtn_quick" onclick="window.setScanPreset('quick')"
+                    style="background:#06D6A0;color:#0d1b1e;border:1px solid #06D6A0;border-radius:6px;padding:5px 8px;font-size:10px;font-weight:900;cursor:pointer;"
+                    title="12 angles at horizon. Fast 15s scan with AI ceiling/floor fill">
+                    ⚡ QUICK (12)
+                  </button>
+                  <button type="button" id="scanPresetBtn_standard" onclick="window.setScanPreset('standard')"
+                    style="background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:5px 8px;font-size:10px;font-weight:900;cursor:pointer;"
+                    title="24 angles in 3 rings: Upper + Horizon + Lower">
+                    🌐 FULL (24)
+                  </button>
+                  <button type="button" id="scanPresetBtn_pro" onclick="window.setScanPreset('pro')"
+                    style="background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:5px 8px;font-size:10px;font-weight:900;cursor:pointer;"
+                    title="32 angles with straight Up and Down">
+                    🚀 PRO (32)
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -3747,28 +3759,28 @@
 
   // HDReye / Street View style multi-row spherical capture grid
   // Upper row + lower row + horizon = full up/down coverage
-  // HDReye-style spherical capture grid (~16–20 guided shots)
-  // One active target at a time (like their blue dots), rest faint
-  const SCAN_ROWS_STANDARD = [
-    { pitch:  55, count: 6  },  // ceiling
-    { pitch:  20, count: 8  },  // upper
-    { pitch:  -5, count: 10 },  // horizon (most overlap)
-    { pitch: -30, count: 8  },  // lower
-    { pitch: -55, count: 6  }   // floor
-  ];
-  // WIDE MODE — adds near-zenith and near-nadir rows plus denser horizon
-  // coverage so the final panorama has no gaps directly overhead/underfoot
-  // and blends more smoothly across busier walls (windows, furniture, etc).
-  const SCAN_ROWS_WIDE = [
-    { pitch:  80, count: 4  },  // straight up (zenith)
-    { pitch:  55, count: 8  },  // ceiling
-    { pitch:  25, count: 10 },  // upper
-    { pitch:   0, count: 14 },  // horizon (max overlap)
-    { pitch: -25, count: 10 },  // lower
-    { pitch: -55, count: 8  },  // floor
-    { pitch: -80, count: 4  }   // straight down (nadir)
-  ];
-  let scanWideMode = false;
+  // Multi-tier spherical capture grids:
+  // - QUICK (12 shots): 1 horizontal ring (0° pitch). Perfect for fast 15-second room capture with smart inpainting.
+  // - FULL (24 shots): 3 rings (+30°, 0°, -30°). Wall-to-wall, ceiling, and floor.
+  // - PRO (32 shots): 5 rings (+70° zenith, +35°, 0°, -35°, -70° nadir). Real-estate grade complete photosphere.
+  const SCAN_PRESETS = {
+    quick: [
+      { pitch: 0, count: 12 }
+    ],
+    standard: [
+      { pitch:  30, count: 8 },
+      { pitch:   0, count: 8 },
+      { pitch: -30, count: 8 }
+    ],
+    pro: [
+      { pitch:  70, count: 2 },
+      { pitch:  35, count: 8 },
+      { pitch:   0, count: 12 },
+      { pitch: -35, count: 8 },
+      { pitch: -70, count: 2 }
+    ]
+  };
+  let scanCapturePreset = 'quick'; // 'quick', 'standard', 'pro'
   let SCAN_TOTAL_NODES = 0;
 
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
@@ -3795,7 +3807,7 @@
 
   function initScanSlots() {
     scanSlots = [];
-    const rows = scanWideMode ? SCAN_ROWS_WIDE : SCAN_ROWS_STANDARD;
+    const rows = SCAN_PRESETS[scanCapturePreset] || SCAN_PRESETS.quick;
     rows.forEach(row => {
       const step = 360 / row.count;
       for (let i = 0; i < row.count; i++) {
@@ -3811,11 +3823,9 @@
     SCAN_TOTAL_NODES = scanSlots.length;
   }
 
-  // Toggle between the standard capture grid and the wider one (more angles,
-  // reaches straight up/down). Resets any in-progress capture since the
-  // node layout changes.
-  window.toggleWideScanMode = function () {
-    scanWideMode = !scanWideMode;
+  window.setScanPreset = function (preset) {
+    if (!SCAN_PRESETS[preset]) preset = 'quick';
+    scanCapturePreset = preset;
     initScanSlots();
     scanNodesInitialized = false;
     scanNodeEls = [];
@@ -3824,12 +3834,13 @@
     clearStitchPreviewCanvas();
     renderScanSlotsRibbon();
     updateScanProgressBar();
+    updateScanPresetButtons();
 
     // Ensure camera video stays playing and loop is active
     const video = document.getElementById('scanVideoFeed');
     if (video) {
       if (video.paused) {
-        video.play().catch(e => console.warn('Resuming video on toggle mode:', e));
+        video.play().catch(e => console.warn('Resuming video on preset change:', e));
       }
       if (!scanStream || !scanStream.active) {
         startScannerCameraFeed();
@@ -3839,17 +3850,28 @@
       runScannerLoop();
     }
 
-    const btn = document.getElementById('scanWideModeBtn');
-    if (btn) {
-      btn.textContent = scanWideMode ? '🌐 WIDE MODE: ON' : '🌐 WIDE MODE: OFF';
-      btn.style.background = scanWideMode ? '#06D6A0' : '#FFD23F';
-      btn.style.color = scanWideMode ? '#0d1b1e' : '#14121A';
-    }
     if (typeof showToast === 'function') {
-      showToast(scanWideMode
-        ? `🌐 Wide mode on — ${SCAN_TOTAL_NODES} angles, full ceiling-to-floor coverage.`
-        : `Standard mode — ${SCAN_TOTAL_NODES} angles.`);
+      const name = preset === 'quick' ? '⚡ Quick 360 (12 shots)' : (preset === 'standard' ? '🌐 Full Sphere (24 shots)' : '🚀 Pro Photosphere (32 shots)');
+      showToast(`Switched mode to: ${name}`);
     }
+  };
+
+  function updateScanPresetButtons() {
+    ['quick', 'standard', 'pro'].forEach(p => {
+      const btn = document.getElementById('scanPresetBtn_' + p);
+      if (btn) {
+        const isActive = scanCapturePreset === p;
+        btn.style.background = isActive ? '#06D6A0' : 'rgba(255,255,255,0.1)';
+        btn.style.color = isActive ? '#0d1b1e' : '#fff';
+        btn.style.borderColor = isActive ? '#06D6A0' : 'rgba(255,255,255,0.2)';
+      }
+    });
+  }
+
+  // Backward compatible toggle
+  window.toggleWideScanMode = function () {
+    const next = scanCapturePreset === 'quick' ? 'standard' : (scanCapturePreset === 'standard' ? 'pro' : 'quick');
+    window.setScanPreset(next);
   };
 
   function normalizeAngle360(deg) {
@@ -4786,7 +4808,7 @@
 
         // True mobile optical sensor angles (Portrait vs Landscape aware)
         var isPortrait = wh >= ww;
-        var diagFovDeg = isPortrait ? 74 : 78;
+        var diagFovDeg = isPortrait ? 86 : 82;
         var diagFovRad = (diagFovDeg * Math.PI) / 180;
         var tanDiag = Math.tan(diagFovRad * 0.5);
 
@@ -4806,8 +4828,8 @@
         var cosPitch = Math.cos(pitchRad), sinPitch = Math.sin(pitchRad);
 
         // Bounding box in equirectangular coordinates
-        var padH = fovHDeg * 0.55 + 3;
-        var padV = fovVDeg * 0.55 + 3;
+        var padH = fovHDeg * 0.60 + 4;
+        var padV = fovVDeg * 0.60 + 4;
         var minLat = Math.max(-89.5, pitchDeg - padV);
         var maxLat = Math.min(89.5, pitchDeg + padV);
         var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
@@ -4855,14 +4877,14 @@
               var camY = ry * cosPitch - rz_horiz * sinPitch;
               var camZ = ry * sinPitch + rz_horiz * cosPitch;
 
-              if (camZ <= 0.05) continue; // behind camera
+              if (camZ <= 0.02) continue; // behind camera
 
               // Perspective projection to sensor plane
               var u = (camX / camZ) / tanHalfH;
               var v = (camY / camZ) / tanHalfV;
               var absU = Math.abs(u);
               var absV = Math.abs(v);
-              if (absU >= 0.96 || absV >= 0.96) continue;
+              if (absU >= 0.99 || absV >= 0.99) continue;
 
               var fx = (0.5 + u * 0.5) * (ww - 1);
               var fy = (0.5 - v * 0.5) * (wh - 1);
@@ -4884,11 +4906,10 @@
               var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
               var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              // High-order power falloff (exponent 4.5): creates sharp seam transitions at optimal boundaries
-              // preventing double-vision curtains, blurred furniture edges, or ghosting duplicates
-              var edgeDistU = Math.max(0, 1.0 - absU);
-              var edgeDistV = Math.max(0, 1.0 - absV);
-              var wt = Math.pow(edgeDistU * edgeDistV, 4.5);
+              // Continuous quartic cosine-smooth falloff: 1 at optical center, 0 smoothly at borders
+              var wu = Math.max(0, 1.0 - absU * absU);
+              var wv = Math.max(0, 1.0 - absV * absV);
+              var wt = Math.pow(wu * wv, 2.0);
               if (wt < 0.0001) wt = 0.0001;
 
               var pIdx = row * W + col;
@@ -4904,27 +4925,57 @@
         }
       }
 
-      // 3. Assemble output image
+      // 3. Gap-Free Multi-Scale Diffusion & Polar Ambient Inpainting
       var outImg = ctx.createImageData(W, H);
       var outData = outImg.data;
 
-      // Extract boundary colors per column for natural seamless ceiling & floor fill
-      var colTopR = new Uint8Array(W);
-      var colTopG = new Uint8Array(W);
-      var colTopB = new Uint8Array(W);
-      var colBotR = new Uint8Array(W);
-      var colBotG = new Uint8Array(W);
-      var colBotB = new Uint8Array(W);
+      // Check which columns have valid pixel captures
+      var hasCol = new Uint8Array(W);
+      for (var c = 0; c < W; c++) {
+        if (topCoverageRow[c] < H && botCoverageRow[c] >= 0) {
+          hasCol[c] = 1;
+        }
+      }
+
+      // Bridge any completely skipped horizontal column gaps (circular 360 wrapping)
+      for (var c = 0; c < W; c++) {
+        if (!hasCol[c]) {
+          // Find left valid
+          var lDist = 1, lIdx = (c - 1 + W) % W;
+          while (!hasCol[lIdx] && lDist < W) { lIdx = (lIdx - 1 + W) % W; lDist++; }
+          // Find right valid
+          var rDist = 1, rIdx = (c + 1) % W;
+          while (!hasCol[rIdx] && rDist < W) { rIdx = (rIdx + 1) % W; rDist++; }
+
+          if (hasCol[lIdx] && hasCol[rIdx]) {
+            var frac = lDist / (lDist + rDist);
+            topCoverageRow[c] = Math.round(topCoverageRow[lIdx] * (1 - frac) + topCoverageRow[rIdx] * frac);
+            botCoverageRow[c] = Math.round(botCoverageRow[lIdx] * (1 - frac) + botCoverageRow[rIdx] * frac);
+          }
+        }
+      }
+
+      // Extract smooth boundary colors per column
+      var colTopR = new Float32Array(W);
+      var colTopG = new Float32Array(W);
+      var colTopB = new Float32Array(W);
+      var colBotR = new Float32Array(W);
+      var colBotG = new Float32Array(W);
+      var colBotB = new Float32Array(W);
+
+      var sumTopR = 0, sumTopG = 0, sumTopB = 0, cntTop = 0;
+      var sumBotR = 0, sumBotG = 0, sumBotB = 0, cntBot = 0;
 
       for (var c = 0; c < W; c++) {
         var tRow = topCoverageRow[c];
         var tr = topR, tg = topG, tb = topB;
         if (tRow < H) {
           var tIdx = tRow * W + c;
-          if (accumW[tIdx] > 0) {
-            tr = Math.round(accumR[tIdx] / accumW[tIdx]);
-            tg = Math.round(accumG[tIdx] / accumW[tIdx]);
-            tb = Math.round(accumB[tIdx] / accumW[tIdx]);
+          if (accumW[tIdx] > 0.0001) {
+            tr = accumR[tIdx] / accumW[tIdx];
+            tg = accumG[tIdx] / accumW[tIdx];
+            tb = accumB[tIdx] / accumW[tIdx];
+            sumTopR += tr; sumTopG += tg; sumTopB += tb; cntTop++;
           }
         }
         colTopR[c] = tr; colTopG[c] = tg; colTopB[c] = tb;
@@ -4933,15 +4984,52 @@
         var br = botR, bg = botG, bb = botB;
         if (bRow >= 0) {
           var bIdx = bRow * W + c;
-          if (accumW[bIdx] > 0) {
-            br = Math.round(accumR[bIdx] / accumW[bIdx]);
-            bg = Math.round(accumG[bIdx] / accumW[bIdx]);
-            bb = Math.round(accumB[bIdx] / accumW[bIdx]);
+          if (accumW[bIdx] > 0.0001) {
+            br = accumR[bIdx] / accumW[bIdx];
+            bg = accumG[bIdx] / accumW[bIdx];
+            bb = accumB[bIdx] / accumW[bIdx];
+            sumBotR += br; sumBotG += bg; sumBotB += bb; cntBot++;
           }
         }
         colBotR[c] = br; colBotG[c] = bg; colBotB[c] = bb;
       }
 
+      // Global ambient ceiling and floor colors
+      var ambCeilR = cntTop > 0 ? (sumTopR / cntTop) : topR;
+      var ambCeilG = cntTop > 0 ? (sumTopG / cntTop) : topG;
+      var ambCeilB = cntTop > 0 ? (sumTopB / cntTop) : topB;
+      var ambFlrR  = cntBot > 0 ? (sumBotR / cntBot) : botR;
+      var ambFlrG  = cntBot > 0 ? (sumBotG / cntBot) : botG;
+      var ambFlrB  = cntBot > 0 ? (sumBotB / cntBot) : botB;
+
+      // 1D Moving average filter on boundary colors for zero horizontal striping
+      var smoothTopR = new Float32Array(W);
+      var smoothTopG = new Float32Array(W);
+      var smoothTopB = new Float32Array(W);
+      var smoothBotR = new Float32Array(W);
+      var smoothBotG = new Float32Array(W);
+      var smoothBotB = new Float32Array(W);
+
+      var rad = 12;
+      for (var c = 0; c < W; c++) {
+        var str = 0, stg = 0, stb = 0;
+        var sbr = 0, sbg = 0, sbb = 0;
+        var count = 0;
+        for (var offset = -rad; offset <= rad; offset++) {
+          var sc = (c + offset + W) % W;
+          str += colTopR[sc]; stg += colTopG[sc]; stb += colTopB[sc];
+          sbr += colBotR[sc]; sbg += colBotG[sc]; sbb += colBotB[sc];
+          count++;
+        }
+        smoothTopR[c] = str / count;
+        smoothTopG[c] = stg / count;
+        smoothTopB[c] = stb / count;
+        smoothBotR[c] = sbr / count;
+        smoothBotG[c] = sbg / count;
+        smoothBotB[c] = sbb / count;
+      }
+
+      // Populate full image with zero-gap organic diffusion
       for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
           var pIdx2 = y * W + x;
@@ -4953,27 +5041,32 @@
             outData[di + 1] = Math.min(255, Math.max(0, Math.round(accumG[pIdx2] / wVal)));
             outData[di + 2] = Math.min(255, Math.max(0, Math.round(accumB[pIdx2] / wVal)));
           } else {
-            // Polar fill: blend from nearest edge pixel towards ambient ceiling / floor
             var topLimit = topCoverageRow[x];
             var botLimit = botCoverageRow[x];
 
             if (topLimit < H && y < topLimit) {
+              // Ceiling: smooth organic cosine curve from wall top into ambient zenith
               var tCeil = topLimit > 0 ? (y / topLimit) : 1;
               tCeil = Math.max(0, Math.min(1, tCeil));
-              outData[di]     = Math.round(topR * (1 - tCeil) + colTopR[x] * tCeil);
-              outData[di + 1] = Math.round(topG * (1 - tCeil) + colTopG[x] * tCeil);
-              outData[di + 2] = Math.round(topB * (1 - tCeil) + colTopB[x] * tCeil);
+              var curve = Math.pow(tCeil, 0.7);
+              outData[di]     = Math.min(255, Math.max(0, Math.round(ambCeilR * (1 - curve) + smoothTopR[x] * curve)));
+              outData[di + 1] = Math.min(255, Math.max(0, Math.round(ambCeilG * (1 - curve) + smoothTopG[x] * curve)));
+              outData[di + 2] = Math.min(255, Math.max(0, Math.round(ambCeilB * (1 - curve) + smoothTopB[x] * curve)));
             } else if (botLimit >= 0 && y > botLimit) {
+              // Floor: smooth organic cosine curve from wall bottom into ambient nadir
               var tFloor = (H - 1 > botLimit) ? ((y - botLimit) / (H - 1 - botLimit)) : 0;
               tFloor = Math.max(0, Math.min(1, tFloor));
-              outData[di]     = Math.round(colBotR[x] * (1 - tFloor) + botR * tFloor);
-              outData[di + 1] = Math.round(colBotG[x] * (1 - tFloor) + botG * tFloor);
-              outData[di + 2] = Math.round(colBotB[x] * (1 - tFloor) + botB * tFloor);
+              var curve2 = Math.pow(1 - tFloor, 0.7);
+              outData[di]     = Math.min(255, Math.max(0, Math.round(ambFlrR * (1 - curve2) + smoothBotR[x] * curve2)));
+              outData[di + 1] = Math.min(255, Math.max(0, Math.round(ambFlrG * (1 - curve2) + smoothBotG[x] * curve2)));
+              outData[di + 2] = Math.min(255, Math.max(0, Math.round(ambFlrB * (1 - curve2) + smoothBotB[x] * curve2)));
             } else {
+              // Interior gap interpolation
               var vNorm = y / (H - 1);
-              outData[di]     = Math.round(topR * (1 - vNorm) + botR * vNorm);
-              outData[di + 1] = Math.round(topG * (1 - vNorm) + botG * vNorm);
-              outData[di + 2] = Math.round(topB * (1 - vNorm) + botB * vNorm);
+              var curve3 = 0.5 * (1 - Math.cos(vNorm * Math.PI));
+              outData[di]     = Math.min(255, Math.max(0, Math.round(smoothTopR[x] * (1 - curve3) + smoothBotR[x] * curve3)));
+              outData[di + 1] = Math.min(255, Math.max(0, Math.round(smoothTopG[x] * (1 - curve3) + smoothBotG[x] * curve3)));
+              outData[di + 2] = Math.min(255, Math.max(0, Math.round(smoothTopB[x] * (1 - curve3) + smoothBotB[x] * curve3)));
             }
           }
           outData[di + 3] = 255;
