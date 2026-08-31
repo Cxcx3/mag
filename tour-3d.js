@@ -2032,12 +2032,11 @@
         justify-content: center;
         font-size: 11px;
         font-weight: 900;
-        /* Position is heavily lerped in JS (Street View solid targets). Only visual state transitions here — never transform. */
-        transition: opacity 0.3s ease, background 0.25s, border-color 0.25s, box-shadow 0.3s, width 0.25s ease, height 0.25s ease;
+        /* JS drives transform: translate3d(x,y,0) translate(-50%,-50%) — zero layout thrash */
+        transition: opacity 0.2s ease, background 0.2s, border-color 0.2s, box-shadow 0.2s, width 0.15s, height 0.15s;
         box-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
         will-change: transform, opacity;
         z-index: 5;
-        backface-visibility: hidden;
       }
       .scan-node-marker.pending {
         background: rgba(255, 255, 255, 0.92);
@@ -2053,27 +2052,27 @@
         height: 26px;
       }
       .scan-node-marker.aligned {
-        width: 52px;
-        height: 52px;
+        width: 48px;
+        height: 48px;
         background: rgba(6, 214, 160, 0.95);
         border: 3px solid #fff;
         color: #0d1b1e;
-        box-shadow: 0 0 28px rgba(6, 214, 160, 0.95), 0 0 0 5px rgba(6, 214, 160, 0.3);
+        box-shadow: 0 0 24px rgba(6, 214, 160, 0.9), 0 0 0 4px rgba(6, 214, 160, 0.35);
         z-index: 9;
       }
-      /* Primary next target — stable Street-View style aim point */
+      /* HDReye-style primary target (next blue/white dot to aim at) */
       .scan-node-marker.next-target {
-        width: 38px;
-        height: 38px;
+        width: 36px;
+        height: 36px;
         background: #fff;
         border: 3px solid #3B9EFF;
-        box-shadow: 0 0 0 5px rgba(59, 158, 255, 0.28), 0 0 18px rgba(59, 158, 255, 0.55);
+        box-shadow: 0 0 0 6px rgba(59, 158, 255, 0.35), 0 0 22px rgba(59, 158, 255, 0.7);
         z-index: 8;
-        animation: hdreyePulse 2.4s ease-in-out infinite;
+        animation: hdreyePulse 1.2s ease-in-out infinite;
       }
       @keyframes hdreyePulse {
-        0%, 100% { box-shadow: 0 0 0 4px rgba(59, 158, 255, 0.22), 0 0 12px rgba(59, 158, 255, 0.4); }
-        50% { box-shadow: 0 0 0 7px rgba(59, 158, 255, 0.15), 0 0 20px rgba(59, 158, 255, 0.5); }
+        0%, 100% { box-shadow: 0 0 0 4px rgba(59, 158, 255, 0.3), 0 0 16px rgba(59, 158, 255, 0.55); }
+        50% { box-shadow: 0 0 0 10px rgba(59, 158, 255, 0.2), 0 0 28px rgba(59, 158, 255, 0.8); }
       }
       .scan-mode-tabs {
         display: inline-flex;
@@ -2714,7 +2713,7 @@
                 <div style="font-size:36px;margin-bottom:8px;">📸</div>
                 <div style="font-size:13px;font-weight:800;color:#FFD23F;margin-bottom:6px;">Scan & Stitch Room with Device Camera</div>
                 <p style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:14px;line-height:1.4;">
-                  Hold the phone steady (like on a tripod) and rotate <b>your body</b> around it — same as Matterport. Capture one ring at a time (horizon, then tilt up for ceiling, down for floor). Guides auto-lock so they stay solid.
+                  Rotate your phone or laptop camera all around the room following the 18 target circles (like Teleport/HDReye). Our in-browser engine captures each angle and seamlessly stitches them into a full 360° photosphere!
                 </p>
                 <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" style="background:#FFD23F;color:#14121A;font-size:12px;padding:9px 18px;font-weight:900;" onclick="window.closeAddRoomDialog(); window.open360CameraScanner('new_room');">
                   ⚡ LAUNCH 360 CAMERA SCANNER
@@ -2940,14 +2939,11 @@
                 <span class="scan-title">📸 360° MATTERPORT SCANNER</span>
                 <!-- Mode Switcher Tabs -->
                 <div class="scan-mode-tabs">
-                  <button type="button" class="scan-mode-tab" id="scanTabSweep" onclick="window.switchScanCaptureMode('sweep')" title="Turn in a continuous 360° circle (can blur if you turn fast)">
+                  <button type="button" class="scan-mode-tab active" id="scanTabSweep" onclick="window.switchScanCaptureMode('sweep')" title="Turn in a continuous 360° circle (Fast & Seamless)">
                     ⚡ 1-SWEEP 360°
                   </button>
-                  <button type="button" class="scan-mode-tab active" id="scanTabRadar" onclick="window.switchScanCaptureMode('radar')" title="Matterport-style guided stops — sharpest stitch">
-                    🎯 GUIDED RADAR
-                  </button>
-                  <button type="button" class="scan-mode-tab" id="scanWideModeBtn" onclick="window.toggleWideScanMode()" title="Wide Full-Room captures ceiling + walls + floor for Street View quality" style="background:rgba(255,255,255,0.12);color:#F5F1E8;border-color:rgba(255,255,255,0.25);font-weight:900;">
-                    ○ STANDARD
+                  <button type="button" class="scan-mode-tab" id="scanTabRadar" onclick="window.switchScanCaptureMode('radar')" title="Matterport-style guided radar stops">
+                    🎯 12-STOP RADAR
                   </button>
                 </div>
                 <span class="scan-pill" id="scanSensorModePill">📳 GYRO READY</span>
@@ -4994,27 +4990,13 @@
   // 360° MATTERPORT-GRADE CAMERA SCANNER & EQUIRECTANGULAR STITCHER ENGINE
   // =========================================================================
 
-  // Coverage presets — Standard = horizon only; Wide = ceiling + horizon + floor
-  // More vertical rows = true Street-View style full-sphere coverage (no stretched poles)
-  const SCAN_PRESETS = {
-    standard: {
-      label: 'Standard',
-      rows: [{ pitch: 0, count: 16 }] // every 22.5° on horizon
-    },
-    wide: {
-      label: 'Wide Full-Room',
-      rows: [
-        { pitch: -42, count: 12 }, // floor / lower walls
-        { pitch: 0, count: 16 },   // horizon (primary)
-        { pitch: 38, count: 12 }   // ceiling / upper walls
-      ]
-    }
-  };
+  // Stable 16-stop horizon orbit (every 22.5°) with generous optical overlap
+  const SCAN_ROWS = [
+    { pitch: 0, count: 16 } // Primary level horizon orbit (360° room walkthrough)
+  ];
+  let SCAN_TOTAL_NODES = 16;
 
-  let scanWideMode = false; // horizon ring first — sharper; enable Wide after
-  let SCAN_TOTAL_NODES = 40;
-  // Radar (discrete stops) produces sharp stitches. Sweep grabs while turning = blur/ghosts.
-  let scanCaptureMode = 'radar';
+  let scanCaptureMode = 'sweep'; // 'sweep' (Matterport 1-Sweep) or 'radar' (12-Stop Guided)
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
   let scanStream = null;
   let scanCameraFacing = 'environment';
@@ -5034,16 +5016,8 @@
   let scanLoopAnimId = null;
   let scanSmoothYaw = 0;
   let scanSmoothPitch = 0;
-  // Extra-lag display angles for guide circles (Street View stable UI — not used for capture math)
-  let scanDisplayYaw = 0;
-  let scanDisplayPitch = 0;
-  let scanNodeScreenPos = []; // lerped {x,y} per node so dots don't twitch
-  let scanLockStickyIdx = -1; // hysteresis: once locked, stay locked until outside exit threshold
   let scanNodeEls = [];
   let scanNodesInitialized = false;
-  // Guide stabilizer: quantized yaw so micro phone shakes don't move dots
-  let scanGuideYaw = 0;          // what the dots actually use
-  let scanGuideYawHoldUntil = 0; // timestamp — ignore tiny yaw noise while holding
 
   // Continuous sweep state
   let scanIsSweeping = false;
@@ -5052,59 +5026,28 @@
   let scanSweepLastSampleYaw = -999;
   let scanSweepSamples = [];
 
-  function getActiveScanRows() {
-    return (scanWideMode ? SCAN_PRESETS.wide : SCAN_PRESETS.standard).rows;
-  }
-
   function initScanSlots() {
     scanSlots = [];
-    const rows = getActiveScanRows();
-    rows.forEach(row => {
+    SCAN_ROWS.forEach(row => {
       const step = 360 / row.count;
-      // Slight yaw offset per row so seams don't stack (cleaner multi-band blend)
-      const rowOffset = (row.pitch === 0) ? 0 : (row.pitch > 0 ? step * 0.25 : step * 0.5);
       for (let i = 0; i < row.count; i++) {
-        const yaw = ((i * step + rowOffset) % 360 + 360) % 360;
         scanSlots.push({
-          yaw: yaw,
+          yaw: i * step,
           pitch: row.pitch,
           captured: false,
           imgCanvas: null,
           timestamp: 0,
-          captureYaw: yaw,
+          captureYaw: i * step,
           capturePitch: row.pitch
         });
       }
     });
-    SCAN_TOTAL_NODES = scanSlots.length;
+    SCAN_TOTAL_NODES = scanSlots.length; // 12
     scanSweepSamples = [];
     scanSweepCoveredDeg = 0;
     scanSweepLastSampleYaw = -999;
     scanIsSweeping = false;
-    scanNodesInitialized = false;
   }
-
-  window.toggleWideScanMode = function () {
-    const hasProgress = scanSlots.some(s => s.captured);
-    scanWideMode = !scanWideMode;
-    initScanSlots();
-    if (typeof renderScanSlotsRibbon === 'function') renderScanSlotsRibbon();
-    if (typeof updateScanProgressBar === 'function') updateScanProgressBar();
-    if (typeof clearStitchPreviewCanvas === 'function') clearStitchPreviewCanvas();
-    const btn = document.getElementById('scanWideModeBtn');
-    if (btn) {
-      btn.textContent = scanWideMode ? '🌐 WIDE FULL-ROOM' : '○ STANDARD';
-      btn.style.background = scanWideMode ? '#06D6A0' : 'rgba(255,255,255,0.12)';
-      btn.style.color = scanWideMode ? '#0d1b1e' : '#F5F1E8';
-      btn.style.borderColor = scanWideMode ? '#06D6A0' : 'rgba(255,255,255,0.25)';
-    }
-    if (typeof showToast === 'function') {
-      const modeMsg = scanWideMode
-        ? `🌐 Wide Full-Room — ${SCAN_TOTAL_NODES} angles (ceiling + walls + floor).`
-        : `Standard — ${SCAN_TOTAL_NODES} horizon angles.`;
-      showToast(hasProgress ? `${modeMsg} Previous captures cleared.` : modeMsg);
-    }
-  };
 
   function normalizeAngle360(deg) {
     let d = deg % 360;
@@ -5150,16 +5093,8 @@
     scanBaseYawOffset = scanSmoothYaw + scanBaseYawOffset;
     scanCurrentYaw = 0;
     scanSmoothYaw = 0;
-    scanDisplayYaw = 0;
     scanCurrentPitch = 0;
     scanSmoothPitch = 0;
-    scanDisplayPitch = 0;
-    scanLockStickyIdx = -1;
-    scanActivePitchBand = 0;
-    scanPitchBandLocked = true;
-    scanGuideYaw = 0;
-    scanGuideYawHoldUntil = 0;
-    _cfPitch = 0;
     if (typeof showToast === 'function') {
       showToast('🎯 Heading calibrated! Current view set to 0° forward.');
     }
@@ -5179,28 +5114,10 @@
     scanCurrentPitch = 0;
     scanSmoothYaw = 0;
     scanSmoothPitch = 0;
-    scanDisplayYaw = 0;
-    scanDisplayPitch = 0;
-    scanNodeScreenPos = [];
-    scanLockStickyIdx = -1;
     scanBaseYawOffset = 0;
     scanHasGyro = false;
     scanAlignedAngleIdx = -1;
     scanNodesInitialized = false;
-    scanActivePitchBand = 0;
-    scanPitchBandLocked = true;
-    scanGuideYaw = 0;
-    scanGuideYawHoldUntil = 0;
-    _cfHasAccel = false;
-    _cfPitch = 0;
-    // Sync Wide Full-Room button visual state
-    const wideBtn = document.getElementById('scanWideModeBtn');
-    if (wideBtn) {
-      wideBtn.textContent = scanWideMode ? '🌐 WIDE FULL-ROOM' : '○ STANDARD';
-      wideBtn.style.background = scanWideMode ? '#06D6A0' : 'rgba(255,255,255,0.12)';
-      wideBtn.style.color = scanWideMode ? '#0d1b1e' : '#F5F1E8';
-      wideBtn.style.borderColor = scanWideMode ? '#06D6A0' : 'rgba(255,255,255,0.25)';
-    }
     scanNodeEls = [];
     const nodesLayerReset = document.getElementById('scanNodesLayer');
     if (nodesLayerReset) nodesLayerReset.innerHTML = '';
@@ -5209,17 +5126,13 @@
     if (!modal) return;
     modal.style.display = 'flex';
 
-    window.switchScanCaptureMode(scanCaptureMode || 'radar');
+    window.switchScanCaptureMode(scanCaptureMode || 'sweep');
     renderScanSlotsRibbon();
     updateScanProgressBar();
     clearStitchPreviewCanvas();
 
     // Start video camera feed
     await startScannerCameraFeed();
-
-    if (typeof showToast === 'function') {
-      showToast('🎯 Guided Radar: hold steady on each glowing dot until it snaps. Slow turns = sharp stitch.');
-    }
 
     // Setup Gyroscope & Interactive Drag
     bindScannerSensors();
@@ -5239,14 +5152,11 @@
     }
 
     try {
-      // High res + prefer short exposure / higher frame rate when the browser allows
-      // (reduces indoor motion blur that becomes ghosting in the stitch)
       const constraints = {
         video: {
           facingMode: scanCameraFacing,
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
-          frameRate: { ideal: 30, min: 15 }
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 }
         },
         audio: false
       };
@@ -5281,29 +5191,15 @@
 
   // ===== ROCK-SOLID MATTERPORT GYRO ORIENTATION (ZERO JUMPING) =====
   let _scanOrientHandler = null;
-  let _scanMotionHandler = null;
   let _scanRelSensor = null;
   let _scanGyroPrimed = false;
   let _lastRawYaw = null;
-  // Complementary-filter state (accel gravity for stable pitch, gyro for short-term)
-  let _cfPitch = 0;
-  let _cfRoll = 0;
-  let _cfLastTs = 0;
-  let _cfHasAccel = false;
-  // Matterport-style active pitch band: only one row of targets is "live" at a time
-  let scanActivePitchBand = 0; // target pitch of the row user is currently capturing
-  let scanPitchBandLocked = false;
 
   function stopScannerGyroListeners() {
     if (_scanOrientHandler) {
       window.removeEventListener('deviceorientation', _scanOrientHandler, true);
       window.removeEventListener('deviceorientation', _scanOrientHandler, false);
       _scanOrientHandler = null;
-    }
-    if (_scanMotionHandler) {
-      window.removeEventListener('devicemotion', _scanMotionHandler, true);
-      window.removeEventListener('devicemotion', _scanMotionHandler, false);
-      _scanMotionHandler = null;
     }
     if (_scanRelSensor) {
       try { _scanRelSensor.stop(); } catch (e) {}
@@ -5326,21 +5222,10 @@
       scanBaseYawOffset = yawDeg;
       scanSmoothYaw = 0;
       scanSmoothPitch = pitchDeg;
-      scanDisplayYaw = 0;
-      scanDisplayPitch = pitchDeg;
       scanCurrentYaw = 0;
       scanCurrentPitch = pitchDeg;
-      _cfPitch = pitchDeg;
       _scanGyroPrimed = true;
       scanHasGyro = true;
-      // Snap + hard-lock to nearest pitch row immediately (no vertical jitter from frame 1)
-      scanActivePitchBand = nearestScanPitchBand(pitchDeg);
-      scanPitchBandLocked = true;
-      scanSmoothPitch = scanActivePitchBand;
-      scanCurrentPitch = scanActivePitchBand;
-      scanDisplayPitch = scanActivePitchBand;
-      scanGuideYaw = 0;
-      scanGuideYawHoldUntil = 0;
       setSensorPill('📳 GYRO ACTIVE · READY', '#06D6A0');
       var btn = document.getElementById('scanEnableGyroBtn');
       if (btn) {
@@ -5353,132 +5238,40 @@
 
     scanHasGyro = true;
     var targetYaw = normalizeAngle360(yawDeg - scanBaseYawOffset);
-    var targetPitch = Math.max(-50, Math.min(50, pitchDeg));
-    if (_cfHasAccel) {
-      targetPitch = Math.max(-50, Math.min(50, _cfPitch));
-    }
+    var targetPitch = Math.max(-45, Math.min(45, pitchDeg));
 
-    // Yaw: smooth for capture, then QUANTIZE for guides (kills micro-shake)
+    // Low-pass exponential moving average with unwrapped angle delta to eliminate jitter
     var dy = angleDiffSigned(targetYaw, scanSmoothYaw);
-    if (Math.abs(dy) < 1.0) dy = 0;
-    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.08);
+    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.35);
+    scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.35;
     scanCurrentYaw = scanSmoothYaw;
+    scanCurrentPitch = scanSmoothPitch;
 
-    // Pitch always hard-locked to active band for guides + capture consistency
-    scanPitchBandLocked = true;
-    scanSmoothPitch = scanActivePitchBand;
-    scanCurrentPitch = scanActivePitchBand;
-    scanDisplayPitch = scanActivePitchBand;
-
-    // Display yaw lag
-    var dDispYaw = angleDiffSigned(scanSmoothYaw, scanDisplayYaw);
-    scanDisplayYaw = normalizeAngle360(scanDisplayYaw + dDispYaw * 0.04);
-
-    // Guide stabilizer agent: only move dots when yaw changes by ≥1.8°
-    // or after a deliberate continuous turn. Tiny phone shakes are ignored.
-    var now = performance.now();
-    var gDy = angleDiffSigned(scanDisplayYaw, scanGuideYaw);
-    if (Math.abs(gDy) >= 1.8 || now > scanGuideYawHoldUntil) {
-      // Ease guide yaw toward display (still smooth, but never reacts to sub-1.8° noise)
-      if (Math.abs(gDy) >= 0.4) {
-        scanGuideYaw = normalizeAngle360(scanGuideYaw + gDy * 0.15);
-      }
-      if (Math.abs(gDy) < 0.5) {
-        scanGuideYawHoldUntil = now + 120; // brief hold after settling
-      }
-    }
-
-    // Ring switch only on large sustained tilt
-    var nearestBand = nearestScanPitchBand(targetPitch);
-    if (Math.abs(targetPitch - scanActivePitchBand) > 24 && nearestBand !== scanActivePitchBand) {
-      scanActivePitchBand = nearestBand;
-      scanSmoothPitch = nearestBand;
-      scanCurrentPitch = nearestBand;
-      scanDisplayPitch = nearestBand;
-    }
-
+    // In continuous sweep mode, sample keyframes automatically
     if (scanIsSweeping) {
       handleContinuousSweepProgress();
     }
   }
 
-  function nearestScanPitchBand(pitchDeg) {
-    var rows = getActiveScanRows();
-    var best = 0, bestDist = 1e9;
-    for (var i = 0; i < rows.length; i++) {
-      var d = Math.abs((rows[i].pitch || 0) - pitchDeg);
-      if (d < bestDist) { bestDist = d; best = rows[i].pitch || 0; }
-    }
-    return best;
-  }
-
-  // Complementary filter: accelerometer gravity (stable long-term pitch) + gyro rate.
-  // This is the same approach Matterport-class apps use so pitch doesn't jitter with hand tremor.
-  function onDeviceMotionEvent(e) {
-    var ag = e.accelerationIncludingGravity;
-    var rr = e.rotationRate;
-    if (!ag || ag.x == null || ag.y == null || ag.z == null) return;
-
-    var ax = ag.x, ay = ag.y, az = ag.z;
-    var norm = Math.sqrt(ax * ax + ay * ay + az * az);
-    if (norm < 2) return; // ignore free-fall / nonsense
-
-    // Gravity-based pitch for a phone held in portrait, rear camera toward the room.
-    // When the phone is vertical (screen facing user, camera looking out), pitch ≈ 0.
-    // Tilting the top of the phone toward the ceiling → positive pitch.
-    // Formula matches the classic DeviceOrientation beta≈90 → pitch 0 mapping.
-    var accelPitch = Math.atan2(-az, Math.sqrt(ax * ax + ay * ay)) * (180 / Math.PI);
-    // On many Android devices the dominant gravity axis when upright is -Y;
-    // blend toward the Y-based estimate when |ay| is large (portrait hold).
-    if (Math.abs(ay) > Math.abs(az) * 0.7) {
-      var altPitch = Math.atan2(ay, Math.sqrt(ax * ax + az * az)) * (180 / Math.PI);
-      // Map so upright ≈ 0
-      altPitch = altPitch - 90;
-      var w = Math.min(1, (Math.abs(ay) - Math.abs(az) * 0.7) / 4);
-      accelPitch = accelPitch * (1 - w) + altPitch * w;
-    }
-    if (!isFinite(accelPitch)) return;
-    accelPitch = Math.max(-55, Math.min(55, accelPitch));
-
-    var now = performance.now();
-    var dt = _cfLastTs ? Math.min(0.05, (now - _cfLastTs) / 1000) : 0.016;
-    _cfLastTs = now;
-
-    var gyroRate = 0;
-    if (rr && typeof rr.beta === 'number' && isFinite(rr.beta)) {
-      gyroRate = rr.beta;
-    }
-
-    if (!_cfHasAccel) {
-      _cfPitch = accelPitch;
-      _cfHasAccel = true;
-    } else {
-      // α high → trust gyro for smoothness; accel slowly corrects drift
-      var alpha = 0.97;
-      _cfPitch = alpha * (_cfPitch + gyroRate * dt) + (1 - alpha) * accelPitch;
-    }
-  }
-
   function onDeviceOrientationEvent(e) {
-    // FALLBACK ONLY — never used when RelativeOrientationSensor is active.
-    // Never use compass / absolute heading (webkitCompassHeading / absolute alpha).
-    // Those fight relative gyro and cause the guide wobble while tilting.
     if (e.alpha === null || e.alpha === undefined) return;
     if (e.beta === null || e.beta === undefined) return;
-    if (_scanRelSensor) return; // relative gyro owns the guide
 
-    // Relative yaw only (screen-relative, no magnetic north)
-    var rawYaw = (360 - e.alpha);
-
-    var beta = (e.beta != null ? e.beta : 90);
-    var gamma = (e.gamma != null ? e.gamma : 0);
-    var rawPitch = beta - 90;
-    if (Math.abs(gamma) > 35) {
-      var sidePitch = gamma > 0 ? (90 - gamma) : (-90 - gamma);
-      var t = Math.min(1, (Math.abs(gamma) - 35) / 25);
-      rawPitch = rawPitch * (1 - t) + sidePitch * t;
+    var rawYaw;
+    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+      rawYaw = e.webkitCompassHeading;
+    } else if (e.absolute === true) {
+      rawYaw = e.alpha;
+    } else {
+      rawYaw = (360 - e.alpha);
     }
-    if (_cfHasAccel) rawPitch = _cfPitch;
+
+    // Stabilized pitch from beta (upright phone: beta ~ 85-95 -> pitch 0)
+    var rawPitch = (e.beta != null ? e.beta : 90) - 90;
+    if (e.gamma != null && Math.abs(e.gamma) > 45) {
+      // Phone is held horizontally/landscape
+      rawPitch = e.gamma > 0 ? (90 - e.gamma) : (-90 - e.gamma);
+    }
 
     applyGyroLook(rawYaw, rawPitch);
   }
@@ -5487,13 +5280,8 @@
     stopScannerGyroListeners();
     _scanGyroPrimed = false;
     scanHasGyro = false;
-    _cfHasAccel = false;
-    _cfLastTs = 0;
-    scanPitchBandLocked = false;
 
-    var usedRelative = false;
-    // Prefer RelativeOrientationSensor exclusively (gyro + accel fusion, NO compass).
-    // This stops compass vs relative competition that made guides wobble on tilt.
+    // Chrome RelativeOrientationSensor if available
     try {
       if (typeof RelativeOrientationSensor === 'function') {
         var sensor = new RelativeOrientationSensor({ frequency: 60, referenceFrame: 'screen' });
@@ -5506,27 +5294,16 @@
           var yaw = Math.atan2(siny, cosy) * (180 / Math.PI);
           var sinp = 2 * (w * x - y * z);
           var pitch = Math.asin(Math.max(-1, Math.min(1, sinp))) * (180 / Math.PI);
-          applyGyroLook(normalizeAngle360(yaw), _cfHasAccel ? _cfPitch : -pitch);
+          applyGyroLook(normalizeAngle360(yaw), -pitch);
         };
         sensor.start();
         _scanRelSensor = sensor;
-        usedRelative = true;
       }
-    } catch (err) {
-      usedRelative = false;
-    }
+    } catch (err) {}
 
-    // Only fall back to deviceorientation when RelativeOrientationSensor is unavailable
-    if (!usedRelative) {
-      _scanOrientHandler = onDeviceOrientationEvent;
-      window.addEventListener('deviceorientation', _scanOrientHandler, true);
-    }
-
-    // DeviceMotion → complementary filter for stable pitch
-    _scanMotionHandler = onDeviceMotionEvent;
-    window.addEventListener('devicemotion', _scanMotionHandler, true);
-
-    setSensorPill(usedRelative ? '📳 RELATIVE GYRO' : '📳 MOTION READY', '#06D6A0');
+    _scanOrientHandler = onDeviceOrientationEvent;
+    window.addEventListener('deviceorientation', _scanOrientHandler, true);
+    setSensorPill('📳 MOTION READY', '#06D6A0');
   }
 
   window.enableScannerGyroAim = async function () {
@@ -5548,11 +5325,6 @@
           }
           return;
         }
-      }
-      // iOS also gates DeviceMotion (needed for gravity-stable pitch)
-      if (typeof DeviceMotionEvent !== 'undefined' &&
-          typeof DeviceMotionEvent.requestPermission === 'function') {
-        try { await DeviceMotionEvent.requestPermission(); } catch (e2) {}
       }
     } catch (err) {
       console.warn('[Scanner gyro permission]', err);
@@ -5597,9 +5369,6 @@
         scanCurrentPitch = Math.max(-45, Math.min(45, scanDragStartPitch + dy * 0.45));
         scanSmoothYaw = scanCurrentYaw;
         scanSmoothPitch = scanCurrentPitch;
-        // Drag is intentional — keep display in lockstep so guides don't lag behind finger
-        scanDisplayYaw = scanCurrentYaw;
-        scanDisplayPitch = scanCurrentPitch;
         if (scanIsSweeping) handleContinuousSweepProgress();
       };
       var onEnd = function () { scanIsDragging = false; };
@@ -5679,26 +5448,13 @@
     sliceCanvas.height = vh;
     sliceCanvas.getContext('2d').drawImage(workCanvas, 0, 0);
 
-    let slotIdx;
-    if (typeof targetSlotIdx === 'number' && targetSlotIdx >= 0 && targetSlotIdx < scanSlots.length) {
-      slotIdx = targetSlotIdx;
-    } else {
-      // Pick nearest uncaptured slot by angular distance (supports multi-row wide mode)
-      let best = -1, bestDist = 1e9;
-      for (let i = 0; i < scanSlots.length; i++) {
-        if (scanSlots[i].captured) continue;
-        const dy = angleDiffSigned(scanSlots[i].yaw, scanCurrentYaw);
-        const dp = (scanSlots[i].pitch || 0) - scanCurrentPitch;
-        const dist = Math.hypot(dy, dp * 1.4);
-        if (dist < bestDist) { bestDist = dist; best = i; }
-      }
-      slotIdx = best >= 0 ? best : Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
-    }
+    const slotIdx = (typeof targetSlotIdx === 'number' && targetSlotIdx >= 0 && targetSlotIdx < scanSlots.length)
+      ? targetSlotIdx
+      : Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
 
     scanSlots[slotIdx].captured = true;
     scanSlots[slotIdx].imgCanvas = sliceCanvas;
     scanSlots[slotIdx].timestamp = Date.now();
-    // Actual phone orientation at shutter — stitch places the photo here
     scanSlots[slotIdx].captureYaw = scanCurrentYaw;
     scanSlots[slotIdx].capturePitch = scanCurrentPitch;
 
@@ -5715,17 +5471,11 @@
 
   function handleContinuousSweepProgress() {
     const dYaw = angleDiffSigned(scanCurrentYaw, scanSweepLastSampleYaw);
-    // Wider spacing + only sample when turning slowly reduces motion blur/ghosts
-    const sampleStep = 24;
-    if (Math.abs(dYaw) >= sampleStep) {
-      // Skip sample if spinning too fast (blurry frames ruin the stitch)
-      const speed = Math.abs(dYaw);
-      if (speed > 40) {
-        scanSweepLastSampleYaw = scanCurrentYaw;
-        return;
-      }
+    if (Math.abs(dYaw) >= 18) {
+      // Capture frame at this angle step
       scanSweepLastSampleYaw = scanCurrentYaw;
-      grabSweepFrame();
+      const targetSlot = Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
+      grabSweepFrame(targetSlot);
     }
 
     // Compute total progress towards 360°
@@ -5777,12 +5527,6 @@
     const guideText = document.getElementById('scanGuideText');
     const viewfinder = document.getElementById('scanViewfinderArea');
 
-    // Guide agent uses QUANTIZED yaw (scanGuideYaw) — ignores micro phone shake.
-    // Pitch for guides is always the active ring center (never live sensor pitch).
-    const uiYaw = (typeof scanGuideYaw === 'number') ? scanGuideYaw : scanCurrentYaw;
-    const activeBand = (typeof scanActivePitchBand === 'number') ? scanActivePitchBand : 0;
-    const uiPitch = activeBand;
-
     if (anglePill) {
       anglePill.textContent = `${Math.round(scanCurrentYaw)}° / 360°`;
     }
@@ -5792,16 +5536,10 @@
       const vh = viewfinder.clientHeight || (window.innerHeight * 0.6);
       const centerX = vw / 2;
       const centerY = vh / 2;
-      const hFov = 85;
-      // Fixed vertical layout — NOT driven by live pitch sensor
-      const rowYOffset = vh * 0.22; // ceiling row above center, floor below
+      const hFov = 75;
+      const vFov = 50;
 
-      const LOCK_ENTER_DEG = 9.0;
-      const LOCK_EXIT_DEG = 14.0;
-      const NODE_LERP_X = 0.14;
-      const BAND_TOL = 14;
-
-      // Update Matterport radar nodes if in radar mode
+      // Update Matterport 12-Stop Radar nodes if in radar mode
       if (scanCaptureMode === 'radar' && nodesLayer) {
         if (!scanNodesInitialized) {
           nodesLayer.innerHTML = '';
@@ -5815,68 +5553,23 @@
             nodesLayer.appendChild(el);
             return el;
           });
-          scanNodeScreenPos = scanSlots.map(() => ({ x: centerX, y: centerY }));
           scanNodesInitialized = true;
-          scanLockStickyIdx = -1;
         }
 
-        // Only consider uncaptured nodes in the ACTIVE pitch band as targets
-        // (Matterport: capture one ring at a time, then tilt for the next)
         let closestUncapturedIdx = -1;
         let minAngularDistance = 999;
-        let anyInBandLeft = false;
-        let nextBandHint = null; // {pitch, label} if current band is done
+        let alignedTargetIdx = -1;
 
         for (let idx = 0; idx < scanSlots.length; idx++) {
           const slot = scanSlots[idx];
           if (slot.captured) continue;
-          const slotPitch = slot.pitch || 0;
-          const inActiveBand = Math.abs(slotPitch - activeBand) < BAND_TOL;
-          if (inActiveBand) {
-            anyInBandLeft = true;
-            const diffYaw = angleDiffSigned(slot.yaw, uiYaw);
-            const angularDist = Math.abs(diffYaw); // pitch locked — only yaw matters
-            if (angularDist < minAngularDistance) {
-              minAngularDistance = angularDist;
-              closestUncapturedIdx = idx;
-            }
+          const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+          const diffPitch = slot.pitch - scanCurrentPitch;
+          const angularDist = Math.hypot(diffYaw, diffPitch);
+          if (angularDist < minAngularDistance) {
+            minAngularDistance = angularDist;
+            closestUncapturedIdx = idx;
           }
-        }
-
-        // If current band is fully captured, find next incomplete band
-        if (!anyInBandLeft) {
-          const rows = getActiveScanRows();
-          for (let r = 0; r < rows.length; r++) {
-            const rp = rows[r].pitch || 0;
-            const left = scanSlots.some(s => !s.captured && Math.abs((s.pitch || 0) - rp) < BAND_TOL);
-            if (left) {
-              nextBandHint = {
-                pitch: rp,
-                label: rp > 15 ? 'CEILING' : (rp < -15 ? 'FLOOR' : 'HORIZON')
-              };
-              break;
-            }
-          }
-        }
-
-        // Hysteresis lock within active band only
-        let alignedTargetIdx = -1;
-        if (scanLockStickyIdx >= 0 && scanLockStickyIdx < scanSlots.length && !scanSlots[scanLockStickyIdx].captured) {
-          const sticky = scanSlots[scanLockStickyIdx];
-          if (Math.abs((sticky.pitch || 0) - activeBand) < BAND_TOL) {
-            const sDist = Math.abs(angleDiffSigned(sticky.yaw, uiYaw));
-            if (sDist < LOCK_EXIT_DEG) {
-              alignedTargetIdx = scanLockStickyIdx;
-            } else {
-              scanLockStickyIdx = -1;
-            }
-          } else {
-            scanLockStickyIdx = -1;
-          }
-        }
-        if (alignedTargetIdx < 0 && closestUncapturedIdx >= 0 && minAngularDistance < LOCK_ENTER_DEG) {
-          alignedTargetIdx = closestUncapturedIdx;
-          scanLockStickyIdx = closestUncapturedIdx;
         }
 
         for (let idx = 0; idx < scanSlots.length; idx++) {
@@ -5884,29 +5577,19 @@
           const el = scanNodeEls[idx];
           if (!el) continue;
 
-          const slotPitch = slot.pitch || 0;
-          const inActiveBand = Math.abs(slotPitch - activeBand) < BAND_TOL;
-          const diffYaw = angleDiffSigned(slot.yaw, uiYaw);
+          const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+          const diffPitch = slot.pitch - scanCurrentPitch;
+          const angularDist = Math.hypot(diffYaw, diffPitch);
 
-          // FIXED Y by ring — zero live pitch. Horizon = center, ceiling up, floor down.
-          let targetY = centerY;
-          if (slotPitch > 15) targetY = centerY - rowYOffset;
-          else if (slotPitch < -15) targetY = centerY + rowYOffset;
+          const screenX = centerX + (diffYaw / hFov) * vw;
+          const screenY = centerY - (diffPitch / vFov) * vh;
+          const isVisible = Math.abs(diffYaw) < hFov * 1.1 && Math.abs(diffPitch) < vFov * 1.1;
 
-          const targetX = centerX + (diffYaw / hFov) * vw;
-          const isVisible = Math.abs(diffYaw) < hFov * 1.25;
-
-          if (!scanNodeScreenPos[idx]) scanNodeScreenPos[idx] = { x: targetX, y: targetY };
-          const pos = scanNodeScreenPos[idx];
-          pos.x += (targetX - pos.x) * NODE_LERP_X;
-          pos.y = targetY; // never lerp Y — rock solid vertical
-
-          el.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%)`;
-          if (!inActiveBand && !slot.captured) {
-            el.style.visibility = 'hidden';
-            el.style.opacity = '0';
-            continue;
+          if (!slot.captured && angularDist < 8.5) {
+            alignedTargetIdx = idx;
           }
+
+          el.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
           el.style.visibility = isVisible ? 'visible' : 'hidden';
 
           const span = el.querySelector('span');
@@ -5914,9 +5597,9 @@
 
           if (slot.captured) {
             el.classList.add('captured');
-            el.style.opacity = isVisible ? '0.65' : '0';
+            el.style.opacity = isVisible ? '0.75' : '0';
             if (span) span.textContent = '✓';
-          } else if (idx === alignedTargetIdx) {
+          } else if (angularDist < 8.5) {
             el.classList.add('aligned');
             el.style.opacity = '1';
             if (span) span.textContent = '●';
@@ -5926,12 +5609,12 @@
             if (span) span.textContent = '';
           } else {
             el.classList.add('pending');
-            el.style.opacity = isVisible ? '0.28' : '0';
+            el.style.opacity = isVisible ? '0.25' : '0';
             if (span) span.textContent = '';
           }
         }
 
-        // Center reticle + status (Matterport-style coaching)
+        // Center reticle feedback
         if (alignedTargetIdx !== -1) {
           const slot = scanSlots[alignedTargetIdx];
           if (centerRing) {
@@ -5947,17 +5630,11 @@
             if (scanAlignedAngleIdx !== alignedTargetIdx) {
               scanAlignedAngleIdx = alignedTargetIdx;
               clearTimeout(scanAlignTimer);
-              // Longer hold = less motion blur. Re-check alignment at fire time.
-              const snapIdx = alignedTargetIdx;
               scanAlignTimer = setTimeout(function () {
-                if (snapIdx !== scanAlignedAngleIdx) return;
-                if (!scanSlots[snapIdx] || scanSlots[snapIdx].captured) return;
-                // Still near the target? (prevents capture while spinning past)
-                const stillYaw = angleDiffSigned(scanSlots[snapIdx].yaw, scanCurrentYaw);
-                const stillPitch = (scanSlots[snapIdx].pitch || 0) - scanCurrentPitch;
-                if (Math.hypot(stillYaw, stillPitch) > 10) return;
-                window.captureSpecificScanAngle(snapIdx);
-              }, 650);
+                if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
+                  window.captureSpecificScanAngle(alignedTargetIdx);
+                }
+              }, 340);
             }
           }
         } else {
@@ -5965,38 +5642,19 @@
           clearTimeout(scanAlignTimer);
           if (centerRing) centerRing.classList.remove('aligned', 'captured');
           if (ringStatus) {
-            if (nextBandHint) {
-              const dir = nextBandHint.pitch > activeBand ? 'TILT UP' : 'TILT DOWN';
-              ringStatus.textContent = `${dir} → ${nextBandHint.label} RING`;
-              ringStatus.style.color = '#3B9EFF';
-            } else if (!anyInBandLeft) {
-              ringStatus.textContent = '✓ ALL RINGS COMPLETE';
-              ringStatus.style.color = '#06D6A0';
-            } else {
-              const bandLabel = activeBand > 15 ? 'CEILING' : (activeBand < -15 ? 'FLOOR' : 'HORIZON');
-              ringStatus.textContent = `ROTATE · ${bandLabel} RING`;
-              ringStatus.style.color = 'rgba(255,255,255,0.8)';
-            }
+            ringStatus.textContent = 'ROTATE TO TARGET DOT';
+            ringStatus.style.color = 'rgba(255,255,255,0.75)';
           }
         }
 
         // Guidance arrow
-        if (guideArrow && guideText && guideIcon) {
-          if (nextBandHint) {
+        if (closestUncapturedIdx !== -1 && guideArrow && guideText && guideIcon) {
+          const t = scanSlots[closestUncapturedIdx];
+          const dYaw = angleDiffSigned(t.yaw, scanCurrentYaw);
+          if (Math.abs(dYaw) > 8) {
             guideArrow.style.display = 'flex';
-            const up = nextBandHint.pitch > activeBand;
-            guideIcon.textContent = up ? '⬆' : '⬇';
-            guideText.textContent = `${up ? 'TILT PHONE UP' : 'TILT PHONE DOWN'} for ${nextBandHint.label}`;
-          } else if (closestUncapturedIdx !== -1) {
-            const t = scanSlots[closestUncapturedIdx];
-            const dYaw = angleDiffSigned(t.yaw, uiYaw);
-            if (Math.abs(dYaw) > 9) {
-              guideArrow.style.display = 'flex';
-              guideIcon.textContent = dYaw > 0 ? '➔' : '⬅';
-              guideText.textContent = `${dYaw > 0 ? 'TURN RIGHT ➔' : '⬅ TURN LEFT'} · keep phone level`;
-            } else {
-              guideArrow.style.display = 'none';
-            }
+            guideIcon.textContent = dYaw > 0 ? '➔' : '⬅';
+            guideText.textContent = `${dYaw > 0 ? 'TURN RIGHT ➔' : '⬅ TURN LEFT'} to ${Math.round(t.yaw)}°`;
           } else {
             guideArrow.style.display = 'none';
           }
@@ -6048,16 +5706,15 @@
     if (barFill) barFill.style.width = `${percent}%`;
 
     if (finishBtn) {
-      const minNeeded = scanWideMode ? 10 : 6;
-      if (capturedCount >= minNeeded) {
+      if (capturedCount >= 6) {
         finishBtn.style.opacity = '1';
         finishBtn.style.pointerEvents = 'auto';
         finishBtn.disabled = false;
         finishBtn.textContent = `✨ STITCH & SAVE 360° (${capturedCount}/${SCAN_TOTAL_NODES})`;
       } else {
-        finishBtn.style.opacity = '0.7';
+        finishBtn.style.opacity = '0.6';
         finishBtn.disabled = false;
-        finishBtn.textContent = `✨ STITCH (need ${minNeeded - capturedCount} more)`;
+        finishBtn.textContent = `✨ STITCH (need ${6 - capturedCount} more)`;
       }
     }
   }
@@ -6082,11 +5739,6 @@
     if (!slot) return;
     scanCurrentYaw = slot.yaw;
     scanSmoothYaw = slot.yaw;
-    scanDisplayYaw = slot.yaw;
-    scanCurrentPitch = slot.pitch || 0;
-    scanSmoothPitch = slot.pitch || 0;
-    scanDisplayPitch = slot.pitch || 0;
-    scanLockStickyIdx = -1;
   };
 
   function clearStitchPreviewCanvas() {
@@ -6137,9 +5789,7 @@
     renderScanSlotsRibbon();
     updateScanProgressBar();
     clearStitchPreviewCanvas();
-    if (typeof showToast === 'function') {
-      showToast('🗑️ 360° Scanner reset. Start capturing from 0° again.');
-    }
+    if (typeof showToast === 'function') showToast('🗑️ Scanner reset to 0°.');
   };
 
   /**
@@ -6251,9 +5901,9 @@
     for (var si = 0; si < scanSlots.length; si++) {
       if (scanSlots[si].captured && scanSlots[si].imgCanvas) shots.push(scanSlots[si]);
     }
-    if (shots.length < 4) {
+    if (shots.length < 3) {
       if (typeof showToast === 'function') {
-        showToast('⚠️ Capture at least 4 angles (or use DEMO SCAN). Wide mode works best with 12+.');
+        showToast('⚠️ Please capture at least 3 angles or tap "DEMO SCAN" to test.');
       }
       return;
     }
@@ -6266,7 +5916,7 @@
     await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
 
     try {
-      // 4K equirect — sharp enough for Street View, stable on mobile GPUs
+      // Checkpoint stitch (same algorithm) — higher res for less blur
       var W = 4096;
       var H = 2048;
       var canvas = document.createElement('canvas');
@@ -6339,8 +5989,7 @@
 
         var ww = src.width;
         var wh = src.height;
-        // Keep enough resolution for sharp seams without blowing mobile memory
-        var maxDim = 1280;
+        var maxDim = 1280; // slightly more source detail than checkpoint 1024
         var work = src;
         if (ww > maxDim || wh > maxDim) {
           var scale = maxDim / Math.max(ww, wh);
@@ -6353,28 +6002,21 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // FOV matched to the stitch that looked almost perfect for this room
+        // Same projection math as checkpoint — only FOV nudged wider (76° → 84°)
         var aspect = ww / wh;
-        var diagFovRad = (82 * Math.PI) / 180;
+        var diagFovRad = (84 * Math.PI) / 180;
         var tanHalfDiag = Math.tan(diagFovRad * 0.5);
         var tanHalfH = tanHalfDiag * (aspect / Math.sqrt(aspect * aspect + 1));
         var tanHalfV = tanHalfDiag * (1 / Math.sqrt(aspect * aspect + 1));
         var fovHDeg = 2 * Math.atan(tanHalfH) * (180 / Math.PI);
         var fovVDeg = 2 * Math.atan(tanHalfV) * (180 / Math.PI);
 
-        // Place each frame at the ACTUAL heading when the shutter fired.
-        // Ideal slot yaw caused horizontal ghosting when the phone wasn't
-        // perfectly on target (double curtains / smeared window).
-        var yawDeg = normalizeAngle360(
-          (typeof slot.captureYaw === 'number') ? slot.captureYaw :
-          ((typeof slot.yaw === 'number') ? slot.yaw : 0)
-        );
-        var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch :
-          ((typeof slot.pitch === 'number') ? slot.pitch : 0);
+        var yawDeg = normalizeAngle360((typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw);
+        var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
 
-        // Bounding box in equirectangular coordinates (generous pad = fuller coverage)
-        var padH = fovHDeg * 0.62 + 6;
-        var padV = fovVDeg * 0.62 + 6;
+        // Bounding box — same formula as checkpoint
+        var padH = fovHDeg * 0.58 + 4;
+        var padV = fovVDeg * 0.58 + 4;
         var minLat = Math.max(-88, pitchDeg - padV);
         var maxLat = Math.min(88, pitchDeg + padV);
         var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
@@ -6419,7 +6061,6 @@
               var vCam = (rY / rZ) / tanHalfV;
               var absU = Math.abs(uCam);
               var absV = Math.abs(vCam);
-              // Use most of the frame for coverage; feather softens the rim
               if (absU >= 0.98 || absV >= 0.98) continue;
 
               var fx = (uCam * 0.5 + 0.5) * (ww - 1);
@@ -6442,14 +6083,9 @@
               var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
               var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              // Center-weighted feather — enough overlap for seams, not so
-              // much edge that misaligned frames ghost.
-              var edgeU = Math.max(0, 1.0 - absU);
-              var edgeV = Math.max(0, 1.0 - absV);
-              var edgeW = (edgeU * edgeU) * (edgeV * edgeV);
-              var radial = Math.sqrt(absU * absU + absV * absV);
-              var radialW = Math.max(0, 1.0 - radial * 0.95);
-              var wt = Math.max(0.008, edgeW * radialW * radialW);
+              // Smooth cosine-squared edge feathering (clean overlap, zero fog)
+              var edgeW = (1.0 - absU * absU) * (1.0 - absV * absV);
+              var wt = Math.max(0.01, edgeW * edgeW);
 
               var pIdx = row * W + col;
               accumR[pIdx] += r * wt;
@@ -6549,12 +6185,12 @@
       if (finishBtn) finishBtn.textContent = '⏳ SAVING 360° ROOM…';
       await new Promise(r => setTimeout(r, 0));
 
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.97);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.96);
       var finalUrl = dataUrl;
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
-          var blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.97));
+          var blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.96));
           var file = new File([blob], `matterport_360_${Date.now()}.jpg`, { type: 'image/jpeg' });
           var up = await window.uploadToSupabaseStorage(file);
           if (up && up.url) finalUrl = up.url;
