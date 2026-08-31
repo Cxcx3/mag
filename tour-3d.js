@@ -1386,6 +1386,44 @@
         background: #FF4D6D;
         color: #fff;
       }
+      .scan-pro-guide-banner {
+        background: rgba(20, 18, 26, 0.96);
+        border-bottom: 1.5px solid rgba(255, 210, 63, 0.3);
+        padding: 10px 16px;
+        z-index: 18;
+      }
+      .scan-guide-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 8px;
+      }
+      .scan-guide-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+      .scan-guide-card-icon {
+        font-size: 16px;
+        flex-shrink: 0;
+        line-height: 1;
+      }
+      .scan-guide-card strong {
+        display: block;
+        font-size: 11px;
+        font-weight: 800;
+        color: #FFD23F;
+        margin-bottom: 2px;
+      }
+      .scan-guide-card p {
+        margin: 0;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.75);
+        line-height: 1.35;
+      }
       .scan-viewfinder-area {
         flex: 1;
         position: relative;
@@ -2117,15 +2155,52 @@
             <!-- Scanner Header -->
             <div class="scan-header">
               <div class="scan-header-left">
-                <span class="scan-title">📸 360° ROOM SCANNER & STITCHER</span>
+                <span class="scan-title">📸 360° SPATIAL SCANNER & STITCHER</span>
                 <span class="scan-pill" id="scanSensorModePill">📳 GYRO SENSOR ACTIVE</span>
                 <span class="scan-pill" id="scanAnglePill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
+                <button type="button" class="scan-pill-btn" onclick="window.toggleScanGuideHelp()" style="background:rgba(255,210,63,0.15);border:1px solid #FFD23F;color:#FFD23F;border-radius:999px;font-size:10px;font-weight:800;padding:2px 8px;cursor:pointer;">
+                  💡 PRO SCAN TIPS
+                </button>
               </div>
               <div class="scan-header-right">
                 <button type="button" class="scan-btn-small" onclick="window.toggleCameraFacingMode()" title="Switch Front/Rear Camera">
                   🔄 SWITCH CAMERA
                 </button>
                 <button type="button" class="scan-btn-close" onclick="window.close360CameraScanner()">✕</button>
+              </div>
+            </div>
+
+            <!-- Matterport-style Best Practices Pro Guide Banner (Collapsible) -->
+            <div class="scan-pro-guide-banner" id="scanProGuideBanner" style="display:none;">
+              <div class="scan-guide-grid">
+                <div class="scan-guide-card">
+                  <span class="scan-guide-card-icon">🔄</span>
+                  <div>
+                    <strong>Pivot Around Lens</strong>
+                    <p>Rotate your body around the phone (keep camera as fixed tripod pivot).</p>
+                  </div>
+                </div>
+                <div class="scan-guide-card">
+                  <span class="scan-guide-card-icon">📏</span>
+                  <div>
+                    <strong>Stay 24"+ From Walls</strong>
+                    <p>Maintain distance from close furniture to prevent slice distortion.</p>
+                  </div>
+                </div>
+                <div class="scan-guide-card">
+                  <span class="scan-guide-card-icon">🚶</span>
+                  <div>
+                    <strong>5–8 ft Scan Spacing</strong>
+                    <p>Keep clear line of sight between scan spots for multi-room walkthroughs.</p>
+                  </div>
+                </div>
+                <div class="scan-guide-card">
+                  <span class="scan-guide-card-icon">✨</span>
+                  <div>
+                    <strong>Hold Steady for Snap</strong>
+                    <p>Auto-snap locks when reticle aligns and motion is smooth.</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -4255,6 +4330,18 @@
     }
   }
 
+  var scanPrevYaw = 0;
+  var scanPrevPitch = 0;
+  var scanMotionSpeed = 0;
+
+  window.toggleScanGuideHelp = function () {
+    var b = document.getElementById('scanProGuideBanner');
+    if (b) {
+      var isHidden = b.style.display === 'none';
+      b.style.display = isHidden ? 'block' : 'none';
+    }
+  };
+
   function runScannerLoop() {
     const anglePill = document.getElementById('scanAnglePill');
     const centerRing = document.getElementById('scanCenterRing');
@@ -4264,6 +4351,14 @@
     const guideIcon = document.getElementById('scanGuideIcon');
     const guideText = document.getElementById('scanGuideText');
     const viewfinder = document.getElementById('scanViewfinderArea');
+
+    // Compute angular motion velocity to ensure camera is held steady before auto-snap
+    const dYawFrame = Math.abs(angleDiffSigned(scanCurrentYaw, scanPrevYaw));
+    const dPitchFrame = Math.abs(scanCurrentPitch - scanPrevPitch);
+    scanMotionSpeed = scanMotionSpeed * 0.7 + Math.hypot(dYawFrame, dPitchFrame) * 0.3;
+    scanPrevYaw = scanCurrentYaw;
+    scanPrevPitch = scanCurrentPitch;
+    const isCameraSteady = scanMotionSpeed < 1.8;
 
     if (anglePill) {
       anglePill.textContent = `YAW: ${Math.round(scanCurrentYaw)}° · PITCH: ${Math.round(scanCurrentPitch)}°`;
@@ -4367,13 +4462,19 @@
         }
         if (ringStatus) {
           const rowLabel = slot.pitch > 15 ? 'UP' : (slot.pitch < -15 ? 'DOWN' : 'LEVEL');
-          ringStatus.textContent = slot.captured
-            ? `✓ CAPTURED (${rowLabel})`
-            : `LOCK · HOLD STEADY (${rowLabel})`;
-          ringStatus.style.color = slot.captured ? '#06D6A0' : '#FFD23F';
+          if (slot.captured) {
+            ringStatus.textContent = `✓ CAPTURED (${rowLabel})`;
+            ringStatus.style.color = '#06D6A0';
+          } else if (!isCameraSteady) {
+            ringStatus.textContent = `HOLD STEADY (${rowLabel})`;
+            ringStatus.style.color = '#FFD23F';
+          } else {
+            ringStatus.textContent = `LOCKED · SNAPPING (${rowLabel})`;
+            ringStatus.style.color = '#06D6A0';
+          }
         }
 
-        if (scanAutoSnap && !slot.captured) {
+        if (scanAutoSnap && !slot.captured && isCameraSteady) {
           if (scanAlignedAngleIdx !== alignedTargetIdx) {
             scanAlignedAngleIdx = alignedTargetIdx;
             clearTimeout(scanAlignTimer);
@@ -4381,7 +4482,7 @@
               if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
                 window.captureCurrentScanAngle();
               }
-            }, 380);
+            }, 320);
           }
         }
       } else {
@@ -4828,19 +4929,14 @@
         var fovHDeg = 2 * Math.atan(tanHalfH) * (180 / Math.PI);
         var fovVDeg = 2 * Math.atan(tanHalfV) * (180 / Math.PI);
 
-        // Yaw angle stabilization: preserve uniform 360 circle distribution while respecting user aim
         var idealYaw = typeof slot.yaw === 'number' ? slot.yaw : 0;
         var capYaw = (typeof slot.captureYaw === 'number') ? slot.captureYaw : idealYaw;
         var capPitch = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
-        var dYaw = angleDiffSigned(capYaw, idealYaw);
-        var yawDeg = (Math.abs(dYaw) < 14) ? normalizeAngle360(idealYaw + dYaw * 0.25) : capYaw;
-        var pitchDeg = Math.max(-85, Math.min(85, capPitch));
-
-        var yawRad = (yawDeg * Math.PI) / 180;
-        var pitchRad = (pitchDeg * Math.PI) / 180;
 
         shotDatas.push({
           id: fi,
+          slot: slot,
+          srcCanvas: work,
           srcPx: srcPx,
           ww: ww,
           wh: wh,
@@ -4848,13 +4944,169 @@
           tanHalfV: tanHalfV,
           fovHDeg: fovHDeg,
           fovVDeg: fovVDeg,
-          yawDeg: yawDeg,
-          pitchDeg: pitchDeg,
-          cosYaw: Math.cos(yawRad),
-          sinYaw: Math.sin(yawRad),
-          cosPitch: Math.cos(pitchRad),
-          sinPitch: Math.sin(pitchRad)
+          idealYaw: idealYaw,
+          capYaw: capYaw,
+          capPitch: capPitch,
+          yawDeg: capYaw,
+          pitchDeg: capPitch
         });
+      }
+
+      // =========================================================================
+      // OPTICAL FEATURE ALIGNMENT & GLOBAL LOOP CLOSURE BUNDLE ADJUSTMENT
+      // =========================================================================
+      // 1. Group shots by pitch ring level (e.g. horizon, upper, lower)
+      var rings = {};
+      for (var rIdx = 0; rIdx < shotDatas.length; rIdx++) {
+        var s = shotDatas[rIdx];
+        var ringKey = Math.round(s.capPitch / 18) * 18;
+        if (!rings[ringKey]) rings[ringKey] = [];
+        rings[ringKey].push(s);
+      }
+
+      // Feature strip extraction helper for Normalized Cross-Correlation
+      function extractFeatureThumb(cvs, isLeft, tW, tH) {
+        var w = cvs.width;
+        var h = cvs.height;
+        var cropW = Math.round(w * 0.36);
+        var sx = isLeft ? 0 : Math.max(0, w - cropW);
+        var tmp = document.createElement('canvas');
+        tmp.width = tW;
+        tmp.height = tH;
+        var tCtx = tmp.getContext('2d');
+        tCtx.drawImage(cvs, sx, 0, cropW, h, 0, 0, tW, tH);
+        var idata = tCtx.getImageData(0, 0, tW, tH).data;
+        var lum = new Float32Array(tW * tH);
+        var sum = 0, sumSq = 0;
+        for (var i = 0; i < tW * tH; i++) {
+          var p = i * 4;
+          var val = idata[p] * 0.299 + idata[p + 1] * 0.587 + idata[p + 2] * 0.114;
+          lum[i] = val;
+          sum += val;
+          sumSq += val * val;
+        }
+        var mean = sum / (tW * tH);
+        var variance = (sumSq / (tW * tH)) - (mean * mean);
+        var std = Math.sqrt(Math.max(0.1, variance));
+        var norm = new Float32Array(tW * tH);
+        for (var j = 0; j < tW * tH; j++) {
+          norm[j] = (lum[j] - mean) / std;
+        }
+        return { norm: norm, w: tW, h: tH };
+      }
+
+      function computePairwiseShift(thumbRight, thumbLeft) {
+        var tw = thumbRight.w;
+        var th = thumbRight.h;
+        var a = thumbRight.norm;
+        var b = thumbLeft.norm;
+        var maxShiftX = 8;
+        var maxShiftY = 4;
+        var bestScore = -999;
+        var bestDx = 0;
+        var bestDy = 0;
+
+        for (var dy = -maxShiftY; dy <= maxShiftY; dy++) {
+          for (var dx = -maxShiftX; dx <= maxShiftX; dx++) {
+            var dot = 0;
+            var count = 0;
+            for (var y = Math.max(0, -dy); y < Math.min(th, th - dy); y++) {
+              for (var x = Math.max(0, -dx); x < Math.min(tw, tw - dx); x++) {
+                var idxA = y * tw + x;
+                var idxB = (y + dy) * tw + (x + dx);
+                dot += a[idxA] * b[idxB];
+                count++;
+              }
+            }
+            if (count > 0) {
+              var score = dot / count;
+              if (score > bestScore) {
+                bestScore = score;
+                bestDx = dx;
+                bestDy = dy;
+              }
+            }
+          }
+        }
+        return { dx: bestDx, dy: bestDy, score: bestScore };
+      }
+
+      // Run feature correlation & loop closure per ring
+      for (var rk in rings) {
+        var ringShots = rings[rk];
+        if (ringShots.length < 3) continue;
+
+        // Sort cyclically by ideal/target yaw
+        ringShots.sort(function (a, b) { return a.idealYaw - b.idealYaw; });
+
+        var N = ringShots.length;
+        var stepDeltasYaw = new Float32Array(N);
+        var stepDeltasPitch = new Float32Array(N);
+
+        for (var i = 0; i < N; i++) {
+          var sA = ringShots[i];
+          var sB = ringShots[(i + 1) % N];
+
+          var nominalDeltaYaw = (i === N - 1)
+            ? (360.0 - sA.idealYaw + sB.idealYaw)
+            : (sB.idealYaw - sA.idealYaw);
+          if (nominalDeltaYaw < 0) nominalDeltaYaw += 360;
+
+          var nominalDeltaPitch = sB.idealPitch ? (sB.idealPitch - sA.idealPitch) : 0;
+
+          // Compute optical feature alignment on overlap strip
+          try {
+            var thumbA = extractFeatureThumb(sA.srcCanvas, false, 48, 48); // right edge of A
+            var thumbB = extractFeatureThumb(sB.srcCanvas, true, 48, 48);  // left edge of B
+            var shift = computePairwiseShift(thumbA, thumbB);
+
+            if (shift.score > 0.25) {
+              // Convert pixel shift to degrees
+              var overlapDeg = sA.fovHDeg * 0.36;
+              var degShiftX = (shift.dx / 48) * overlapDeg;
+              var degShiftY = (shift.dy / 48) * (sA.fovVDeg * 0.36);
+              stepDeltasYaw[i] = nominalDeltaYaw - degShiftX * 0.45;
+              stepDeltasPitch[i] = nominalDeltaPitch - degShiftY * 0.35;
+            } else {
+              stepDeltasYaw[i] = nominalDeltaYaw;
+              stepDeltasPitch[i] = nominalDeltaPitch;
+            }
+          } catch (e) {
+            stepDeltasYaw[i] = nominalDeltaYaw;
+            stepDeltasPitch[i] = nominalDeltaPitch;
+          }
+        }
+
+        // Global Loop Closure: distribute residual sum error across all N shots
+        var totalYawSum = 0;
+        var totalPitchSum = 0;
+        for (var k = 0; k < N; k++) {
+          totalYawSum += stepDeltasYaw[k];
+          totalPitchSum += stepDeltasPitch[k];
+        }
+
+        var loopErrorYaw = totalYawSum - 360.0;
+        var loopErrorPitch = totalPitchSum;
+
+        var correctedYaw = ringShots[0].idealYaw;
+        for (var m = 0; m < N; m++) {
+          ringShots[m].yawDeg = normalizeAngle360(correctedYaw);
+          var refinedStepYaw = stepDeltasYaw[m] - (loopErrorYaw / N);
+          var refinedStepPitch = stepDeltasPitch[m] - (loopErrorPitch / N);
+          correctedYaw += refinedStepYaw;
+          ringShots[m].pitchDeg = Math.max(-85, Math.min(85, ringShots[m].capPitch - refinedStepPitch * 0.5));
+        }
+      }
+
+      // Update trigonometric projection variables with refined angles
+      for (var fIdx = 0; fIdx < shotDatas.length; fIdx++) {
+        var sd = shotDatas[fIdx];
+        var yRad = (sd.yawDeg * Math.PI) / 180;
+        var pRad = (sd.pitchDeg * Math.PI) / 180;
+        sd.cosYaw = Math.cos(yRad);
+        sd.sinYaw = Math.sin(yRad);
+        sd.cosPitch = Math.cos(pRad);
+        sd.sinPitch = Math.sin(pRad);
       }
 
       // Arrays for optical ray weighting & seamless transition
