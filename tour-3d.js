@@ -2198,7 +2198,7 @@
             <!-- Bottom Action Controls -->
             <div class="scan-bottom-bar">
               <div class="scan-bottom-left">
-                <button type="button" class="scan-ctrl-btn scan-btn-danger" onclick="window.resetCurrent360Scan()">
+                <button type="button" class="scan-ctrl-btn scan-btn-danger" id="scanResetBtn" onclick="window.resetCurrent360Scan()">
                   🗑️ RESET SCAN
                 </button>
                 <button type="button" class="scan-ctrl-btn" onclick="window.manualStepAngle(-30)">
@@ -3813,12 +3813,8 @@
 
   // Toggle between the standard capture grid and the wider one (more angles,
   // reaches straight up/down). Resets any in-progress capture since the
-  // node layout changes — confirms first if the person already has shots.
+  // node layout changes.
   window.toggleWideScanMode = function () {
-    const hasProgress = scanSlots.some(s => s.captured);
-    if (hasProgress && !confirm('Switching capture mode resets your current progress. Continue?')) {
-      return;
-    }
     scanWideMode = !scanWideMode;
     initScanSlots();
     scanNodesInitialized = false;
@@ -3828,6 +3824,20 @@
     clearStitchPreviewCanvas();
     renderScanSlotsRibbon();
     updateScanProgressBar();
+
+    // Ensure camera video stays playing and loop is active
+    const video = document.getElementById('scanVideoFeed');
+    if (video) {
+      if (video.paused) {
+        video.play().catch(e => console.warn('Resuming video on toggle mode:', e));
+      }
+      if (!scanStream || !scanStream.active) {
+        startScannerCameraFeed();
+      }
+    }
+    if (!scanLoopAnimId) {
+      runScannerLoop();
+    }
 
     const btn = document.getElementById('scanWideModeBtn');
     if (btn) {
@@ -3920,6 +3930,17 @@
       scanStream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = scanStream;
       await video.play().catch(e => console.warn('Video play deferred:', e));
+
+      if (!video._hasResumeGuard) {
+        video._hasResumeGuard = true;
+        // If the browser suspends video (e.g. tab switch or focus shift), resume playback immediately
+        video.addEventListener('pause', () => {
+          const modal = document.getElementById('tourCameraScanModal');
+          if (modal && modal.style.display !== 'none' && video.srcObject && scanStream && scanStream.active) {
+            video.play().catch(() => {});
+          }
+        });
+      }
     } catch (err) {
       console.warn('[SpotLIGHT 360 Scanner] Camera stream error with high-res, fallback to standard video:', err);
       try {
@@ -4564,15 +4585,71 @@
     });
   }
 
+  let _scanResetConfirmTimer = null;
   window.resetCurrent360Scan = function () {
-    if (confirm('Reset and clear all current captured angles for this room?')) {
-      initScanSlots();
-      renderScanSlotsRibbon();
-      updateScanProgressBar();
-      clearStitchPreviewCanvas();
-      if (typeof showToast === 'function') {
-        showToast('🗑️ 360° Scanner reset. You can start capturing from 0° again.');
+    const resetBtn = document.getElementById('scanResetBtn');
+    const hasCaptured = scanSlots && scanSlots.some(s => s.captured);
+
+    // 2-step soft inline confirm so we never trigger a blocking browser modal that pauses/freezes video feeds
+    if (hasCaptured && !_scanResetConfirmTimer) {
+      if (resetBtn) {
+        resetBtn.textContent = '⚠️ SURE? TAP TO CLEAR';
+        resetBtn.style.background = '#FF4D6D';
+        resetBtn.style.color = '#fff';
       }
+      if (typeof showToast === 'function') {
+        showToast('Tap "SURE? TAP TO CLEAR" to wipe current room angles');
+      }
+      _scanResetConfirmTimer = setTimeout(() => {
+        _scanResetConfirmTimer = null;
+        if (resetBtn) {
+          resetBtn.textContent = '🗑️ RESET SCAN';
+          resetBtn.style.background = 'rgba(255, 77, 109, 0.15)';
+          resetBtn.style.color = '#FF4D6D';
+        }
+      }, 3500);
+      return;
+    }
+
+    if (_scanResetConfirmTimer) {
+      clearTimeout(_scanResetConfirmTimer);
+      _scanResetConfirmTimer = null;
+    }
+    if (resetBtn) {
+      resetBtn.textContent = '🗑️ RESET SCAN';
+      resetBtn.style.background = 'rgba(255, 77, 109, 0.15)';
+      resetBtn.style.color = '#FF4D6D';
+    }
+
+    initScanSlots();
+    scanNodesInitialized = false;
+    scanNodeEls = [];
+    const nodesLayer = document.getElementById('scanNodesLayer');
+    if (nodesLayer) nodesLayer.innerHTML = '';
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
+    clearStitchPreviewCanvas();
+
+    // Ensure camera video is playing and not frozen by any browser pause
+    const video = document.getElementById('scanVideoFeed');
+    if (video) {
+      if (video.paused) {
+        video.play().catch(e => console.warn('Could not resume video play:', e));
+      }
+      if (!scanStream || !scanStream.active) {
+        startScannerCameraFeed();
+      }
+    }
+
+    // Ensure UI animation loop is active
+    if (scanLoopAnimId) {
+      cancelAnimationFrame(scanLoopAnimId);
+      scanLoopAnimId = null;
+    }
+    runScannerLoop();
+
+    if (typeof showToast === 'function') {
+      showToast('🗑️ 360° Scanner reset. You can start capturing from 0° again.');
     }
   };
 
