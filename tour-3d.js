@@ -212,10 +212,10 @@
   // Camera & Navigation State
   let yaw = 0;
   let pitch = 0;
-  let fov = 65;
+  let fov = 75;
   let targetYaw = 0;
   let targetPitch = 0;
-  let targetFov = 65;
+  let targetFov = 75;
 
   let isDragging = false;
   let startX = 0;
@@ -343,7 +343,7 @@
         alpha: false,
         powerPreference: 'high-performance'
       });
-      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
+      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       threeRenderer.setSize(width, height);
 
       threeScene = new THREE.Scene();
@@ -368,318 +368,45 @@
   }
 
   /**
-   * Loads Equirectangular or Cylindrical (iPhone Pano) Texture into Three.js Sphere
-   * with Zero-Distortion Auto Aspect Processing, Matterport Pro Multi-Band Ambient Diffusion, and 16x Anisotropic Filtering.
+   * Loads Equirectangular Texture into Three.js Sphere
    */
-  function loadThreePanoTexture(urlOrCanvas, sceneOverride) {
+  function loadThreePanoTexture(urlOrCanvas) {
     if (!threeSphere) {
       if (!initThreeEngine()) return;
     }
     const loader = document.getElementById('tourLoader');
-    if (loader) loader.classList.remove('hidden');
-
-    const curScene = sceneOverride || activeSceneList[activeSceneIndex] || {};
-    // Aspect Modes: 'matterport-arc' (0% seam natural arc), '360-loop' / 'iphone-pano' (continuous loop), 'full-360' (2:1 sphere)
-    const aspectMode = curScene.aspectMode || 'matterport-arc';
-    const vScale = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
-    const vOffset = typeof curScene.vOffset === 'number' ? curScene.vOffset : 0;
-    const hShift = typeof curScene.hShift === 'number' ? curScene.hShift : 0; // 0° to 360° horizontal seam rotation
-    const seamBlend = typeof curScene.seamBlend === 'number' ? curScene.seamBlend : 0.08; // 0.0 to 0.20 seam feather width
-    const seamVOffset = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0; // -50px to +50px vertical tilt trim
-    const hSpan = typeof curScene.hSpan === 'number' ? curScene.hSpan : 1.0; // 0.70 to 1.05 horizontal sweep crop/span
-    const typeBadge = document.getElementById('tourTypeBadge');
 
     if (typeof urlOrCanvas === 'string' && urlOrCanvas) {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const nw = img.naturalWidth || img.width || 2048;
-        const nh = img.naturalHeight || img.height || 1024;
-        const ar = nw / nh;
-        
-        const isWidePano = (aspectMode === 'matterport-arc') || (aspectMode === 'iphone-pano') || (aspectMode === '360-loop') || (aspectMode !== 'full-360' && ar > 2.0);
+      threeTextureLoader.load(
+        urlOrCanvas,
+        (texture) => {
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.generateMipmaps = false;
+          
+          if (currentTexture) currentTexture.dispose();
+          currentTexture = texture;
+          threeSphere.material.map = texture;
+          threeSphere.material.needsUpdate = true;
 
-        if (typeBadge) {
-          if (aspectMode === 'matterport-arc' || (isWidePano && aspectMode !== '360-loop' && aspectMode !== 'full-360')) {
-            typeBadge.textContent = '✨ MATTERPORT PRO (0% SEAM)';
-            typeBadge.style.background = 'rgba(6, 214, 160, 0.18)';
-            typeBadge.style.borderColor = '#06D6A0';
-            typeBadge.style.color = '#06D6A0';
-          } else if (aspectMode === '360-loop' || aspectMode === 'iphone-pano') {
-            typeBadge.textContent = '🔄 360° LOOP WALKTHROUGH';
-            typeBadge.style.background = 'rgba(255, 210, 63, 0.18)';
-            typeBadge.style.borderColor = '#FFD23F';
-            typeBadge.style.color = '#FFD23F';
-          } else {
-            typeBadge.textContent = '🌐 360° PHOTOSPHERE (2:1)';
-            typeBadge.style.background = 'rgba(255, 210, 63, 0.15)';
-            typeBadge.style.borderColor = 'rgba(255, 210, 63, 0.35)';
-            typeBadge.style.color = '#FFD23F';
-          }
+          if (loader) loader.classList.add('hidden');
+        },
+        undefined,
+        (err) => {
+          console.warn('[SpotLIGHT 360] Remote texture load notice, using procedural backdrop:', err);
+          const fallbackCanvas = getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-fallback');
+          const texture = new THREE.CanvasTexture(fallbackCanvas);
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+
+          if (currentTexture) currentTexture.dispose();
+          currentTexture = texture;
+          threeSphere.material.map = texture;
+          threeSphere.material.needsUpdate = true;
+
+          if (loader) loader.classList.add('hidden');
         }
-
-        let finalTexture = null;
-
-        if (isWidePano) {
-          // Construct Ultra-HD 2:1 Master Canvas to eliminate vertical stretching
-          const maxGpuSize = threeRenderer ? Math.min(threeRenderer.capabilities.maxTextureSize || 4096, 4096) : 4096;
-          const canvasW = Math.min(Math.max(nw, 2048), maxGpuSize);
-          const canvasH = Math.floor(canvasW / 2); // Exact 2:1 Equirectangular Sphere Ratio
-
-          const canvas = document.createElement('canvas');
-          canvas.width = canvasW;
-          canvas.height = canvasH;
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-          const isArcMode = (aspectMode === 'matterport-arc');
-
-          // Compute exact natural vertical height to maintain 1:1 real-world physical room proportions
-          let panoH = Math.min(canvasH, Math.round((canvasW / Math.max(ar, 1.8)) * vScale));
-          if (isArcMode) {
-            panoH = Math.min(canvasH - 60, Math.max(Math.floor(canvasH * 0.45), Math.round(canvasH * 0.52 * vScale)));
-          }
-          const panoY = Math.max(0, Math.min(canvasH - panoH, Math.round((canvasH - panoH) / 2) + vOffset));
-
-          // Sample edge and wall colors for intelligent ambient room fill
-          const sampleC = document.createElement('canvas');
-          sampleC.width = 64;
-          sampleC.height = 64;
-          const sCtxSample = sampleC.getContext('2d');
-          sCtxSample.drawImage(img, 0, 0, 64, 64);
-
-          let tr = 235, tg = 235, tb = 235; // top ceiling
-          let br = 65, bg = 55, bb = 50;    // bottom floor
-          let lr = 220, lg = 215, lb = 210; // left wall (door side)
-          let rr = 220, rg = 215, rb = 210; // right wall (window side)
-
-          try {
-            const topData = sCtxSample.getImageData(0, 0, 64, 4).data;
-            let sumR = 0, sumG = 0, sumB = 0, count = topData.length / 4;
-            for (let i = 0; i < topData.length; i += 4) {
-              sumR += topData[i]; sumG += topData[i+1]; sumB += topData[i+2];
-            }
-            tr = Math.round(sumR / count); tg = Math.round(sumG / count); tb = Math.round(sumB / count);
-
-            const btmData = sCtxSample.getImageData(0, 60, 64, 4).data;
-            sumR = 0; sumG = 0; sumB = 0;
-            for (let i = 0; i < btmData.length; i += 4) {
-              sumR += btmData[i]; sumG += btmData[i+1]; sumB += btmData[i+2];
-            }
-            br = Math.round(sumR / count); bg = Math.round(sumG / count); bb = Math.round(sumB / count);
-
-            const leftData = sCtxSample.getImageData(0, 16, 4, 32).data;
-            sumR = 0; sumG = 0; sumB = 0; count = leftData.length / 4;
-            for (let i = 0; i < leftData.length; i += 4) {
-              sumR += leftData[i]; sumG += leftData[i+1]; sumB += leftData[i+2];
-            }
-            lr = Math.round(sumR / count); lg = Math.round(sumG / count); lb = Math.round(sumB / count);
-
-            const rightData = sCtxSample.getImageData(60, 16, 4, 32).data;
-            sumR = 0; sumG = 0; sumB = 0; count = rightData.length / 4;
-            for (let i = 0; i < rightData.length; i += 4) {
-              sumR += rightData[i]; sumG += rightData[i+1]; sumB += rightData[i+2];
-            }
-            rr = Math.round(sumR / count); rg = Math.round(sumG / count); rb = Math.round(sumB / count);
-          } catch(e) {}
-
-          // 1. Render Realistic Multi-Band Ceiling Ambient Gradient
-          const topGrad = ctx.createLinearGradient(0, 0, 0, panoY + 8);
-          topGrad.addColorStop(0, `rgb(${Math.round(tr * 0.9)}, ${Math.round(tg * 0.9)}, ${Math.round(tb * 0.9)})`);
-          topGrad.addColorStop(0.7, `rgb(${tr}, ${tg}, ${tb})`);
-          topGrad.addColorStop(1, `rgb(${tr}, ${tg}, ${tb})`);
-          ctx.fillStyle = topGrad;
-          ctx.fillRect(0, 0, canvasW, panoY + 8);
-
-          // 2. Render Realistic Floor Ambient Gradient
-          const btmGrad = ctx.createLinearGradient(0, panoY + panoH - 8, 0, canvasH);
-          btmGrad.addColorStop(0, `rgb(${br}, ${bg}, ${bb})`);
-          btmGrad.addColorStop(0.5, `rgb(${Math.round(br * 0.85)}, ${Math.round(bg * 0.85)}, ${Math.round(bb * 0.85)})`);
-          btmGrad.addColorStop(1, `rgb(${Math.round(br * 0.7)}, ${Math.round(bg * 0.7)}, ${Math.round(bb * 0.7)})`);
-          ctx.fillStyle = btmGrad;
-          ctx.fillRect(0, panoY + panoH - 8, canvasW, canvasH - (panoY + panoH - 8));
-
-          if (isArcMode) {
-            // ==============================================================
-            // ✨ MATTERPORT PRO ARC PROJECTION (0% SEAM · ZERO COLLISION)
-            // ==============================================================
-            // Map the panorama to its natural physical horizontal span
-            const naturalPanoW = Math.min(Math.round(canvasW * 0.85), Math.max(Math.round(canvasW * 0.45), Math.round((panoH * ar) * hSpan)));
-            const arcSpanDeg = Math.round((naturalPanoW / canvasW) * 360);
-            curScene.arcSpanDeg = arcSpanDeg;
-
-            const panoX = Math.round((canvasW - naturalPanoW) / 2);
-
-            // Fill left and right ambient wall extensions
-            const lWallGrad = ctx.createLinearGradient(0, panoY, panoX + 30, panoY);
-            lWallGrad.addColorStop(0, `rgb(${lr}, ${lg}, ${lb})`);
-            lWallGrad.addColorStop(1, `rgb(${lr}, ${lg}, ${lb})`);
-            ctx.fillStyle = lWallGrad;
-            ctx.fillRect(0, panoY, panoX + 30, panoH);
-
-            const rWallGrad = ctx.createLinearGradient(panoX + naturalPanoW - 30, panoY, canvasW, panoY);
-            rWallGrad.addColorStop(0, `rgb(${rr}, ${rg}, ${rb})`);
-            rWallGrad.addColorStop(1, `rgb(${rr}, ${rg}, ${rb})`);
-            ctx.fillStyle = rWallGrad;
-            ctx.fillRect(panoX + naturalPanoW - 30, panoY, canvasW - (panoX + naturalPanoW - 30), panoH);
-
-            // Draw undistorted panorama in center of arc
-            ctx.drawImage(img, 0, 0, nw, nh, panoX, panoY, naturalPanoW, panoH);
-
-            // Soft Horizontal Side Edge Feathering (eliminates any harsh side lines)
-            const sideFeatherW = 36;
-            const lFeather = ctx.createLinearGradient(panoX, panoY, panoX + sideFeatherW, panoY);
-            lFeather.addColorStop(0, `rgba(${lr}, ${lg}, ${lb}, 0.9)`);
-            lFeather.addColorStop(1, `rgba(${lr}, ${lg}, ${lb}, 0)`);
-            ctx.fillStyle = lFeather;
-            ctx.fillRect(panoX, panoY, sideFeatherW, panoH);
-
-            const rFeather = ctx.createLinearGradient(panoX + naturalPanoW - sideFeatherW, panoY, panoX + naturalPanoW, panoY);
-            rFeather.addColorStop(0, `rgba(${rr}, ${rg}, ${rb}, 0)`);
-            rFeather.addColorStop(1, `rgba(${rr}, ${rg}, ${rb}, 0.9)`);
-            ctx.fillStyle = rFeather;
-            ctx.fillRect(panoX + naturalPanoW - sideFeatherW, panoY, sideFeatherW, panoH);
-
-          } else {
-            // ==============================================================
-            // 🔄 360° CONTINUOUS LOOP PROJECTION (Overlap Trim & Seam Feathering)
-            // ==============================================================
-            const stripCanvas = document.createElement('canvas');
-            stripCanvas.width = canvasW;
-            stripCanvas.height = panoH;
-            const sCtx = stripCanvas.getContext('2d', { willReadFrequently: true });
-            sCtx.imageSmoothingEnabled = true;
-            sCtx.imageSmoothingQuality = 'high';
-
-            const srcW = Math.min(nw, Math.max(100, Math.round(nw * hSpan)));
-            const srcH = nh;
-
-            // Handle vertical tilt/drift alignment across sweep
-            if (Math.abs(seamVOffset) > 0.5) {
-              const slices = 64;
-              const sliceW = canvasW / slices;
-              const srcSliceW = srcW / slices;
-              for (let s = 0; s < slices; s++) {
-                const t = s / (slices - 1);
-                const dy = Math.round(t * seamVOffset);
-                sCtx.drawImage(
-                  img,
-                  s * srcSliceW, 0, srcSliceW, srcH,
-                  s * sliceW, Math.max(0, dy), sliceW, panoH - Math.abs(seamVOffset)
-                );
-              }
-            } else {
-              sCtx.drawImage(img, 0, 0, srcW, srcH, 0, 0, canvasW, panoH);
-            }
-
-            // Handle Seam Rotation (hShift: 0° to 360°)
-            let processedStrip = stripCanvas;
-            const normShift = ((hShift % 360) + 360) % 360;
-            if (normShift > 0.5) {
-              const shiftPx = Math.round((normShift / 360) * canvasW);
-              const shiftedCanvas = document.createElement('canvas');
-              shiftedCanvas.width = canvasW;
-              shiftedCanvas.height = panoH;
-              const shCtx = shiftedCanvas.getContext('2d');
-              shCtx.imageSmoothingEnabled = true;
-              shCtx.imageSmoothingQuality = 'high';
-
-              shCtx.drawImage(stripCanvas, shiftPx, 0, canvasW - shiftPx, panoH, 0, 0, canvasW - shiftPx, panoH);
-              shCtx.drawImage(stripCanvas, 0, 0, shiftPx, panoH, canvasW - shiftPx, 0, shiftPx, panoH);
-              processedStrip = shiftedCanvas;
-            }
-
-            // Intelligent Seamless Edge Feathering / Cross-Dissolve
-            if (seamBlend > 0.005) {
-              const blendPx = Math.max(24, Math.min(Math.floor(canvasW * 0.18), Math.round(canvasW * seamBlend)));
-              const blendedCanvas = document.createElement('canvas');
-              blendedCanvas.width = canvasW;
-              blendedCanvas.height = panoH;
-              const bCtx = blendedCanvas.getContext('2d', { willReadFrequently: true });
-              bCtx.drawImage(processedStrip, 0, 0);
-
-              // Extract rightmost edge strip
-              const rightStrip = document.createElement('canvas');
-              rightStrip.width = blendPx;
-              rightStrip.height = panoH;
-              const rCtx = rightStrip.getContext('2d');
-              rCtx.drawImage(processedStrip, canvasW - blendPx, 0, blendPx, panoH, 0, 0, blendPx, panoH);
-
-              // Create smooth cosine gradient mask
-              const maskC = document.createElement('canvas');
-              maskC.width = blendPx;
-              maskC.height = panoH;
-              const mCtx = maskC.getContext('2d');
-              const mGrad = mCtx.createLinearGradient(0, 0, blendPx, 0);
-              mGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
-              mGrad.addColorStop(0.5, 'rgba(255,255,255,0.5)');
-              mGrad.addColorStop(1, 'rgba(255,255,255,0)');
-              mCtx.fillStyle = mGrad;
-              mCtx.fillRect(0, 0, blendPx, panoH);
-
-              rCtx.globalCompositeOperation = 'destination-in';
-              rCtx.drawImage(maskC, 0, 0);
-
-              bCtx.globalCompositeOperation = 'source-over';
-              bCtx.drawImage(rightStrip, 0, 0);
-
-              processedStrip = blendedCanvas;
-            }
-
-            ctx.drawImage(processedStrip, 0, panoY);
-          }
-
-          // 4. Soft Edge Feathering (Seam Blend)
-          const featherH = Math.min(28, Math.max(8, Math.floor(panoH * 0.04)));
-          // Top Seam Feather
-          const fTop = ctx.createLinearGradient(0, panoY, 0, panoY + featherH);
-          fTop.addColorStop(0, `rgba(${tr}, ${tg}, ${tb}, 0.85)`);
-          fTop.addColorStop(1, `rgba(${tr}, ${tg}, ${tb}, 0)`);
-          ctx.fillStyle = fTop;
-          ctx.fillRect(0, panoY, canvasW, featherH);
-
-          // Bottom Seam Feather
-          const fBtm = ctx.createLinearGradient(0, panoY + panoH - featherH, 0, panoY + panoH);
-          fBtm.addColorStop(0, `rgba(${br}, ${bg}, ${bb}, 0)`);
-          fBtm.addColorStop(1, `rgba(${br}, ${bg}, ${bb}, 0.85)`);
-          ctx.fillStyle = fBtm;
-          ctx.fillRect(0, panoY + panoH - featherH, canvasW, featherH);
-
-          finalTexture = new THREE.CanvasTexture(canvas);
-        } else {
-          finalTexture = new THREE.Texture(img);
-          finalTexture.needsUpdate = true;
-        }
-
-        // Ultra-HD Crisp Texture Filtering Setup
-        finalTexture.generateMipmaps = true;
-        finalTexture.minFilter = THREE.LinearMipmapLinearFilter;
-        finalTexture.magFilter = THREE.LinearFilter;
-        if (threeRenderer) {
-          finalTexture.anisotropy = Math.min(16, threeRenderer.capabilities.getMaxAnisotropy() || 1);
-        }
-
-        if (currentTexture) currentTexture.dispose();
-        currentTexture = finalTexture;
-        threeSphere.material.map = finalTexture;
-        threeSphere.material.needsUpdate = true;
-
-        if (loader) loader.classList.add('hidden');
-      };
-
-      img.onerror = (err) => {
-        console.warn('[SpotLIGHT 360] Image load fallback:', err);
-        const fallbackCanvas = getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-fallback');
-        const texture = new THREE.CanvasTexture(fallbackCanvas);
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        if (currentTexture) currentTexture.dispose();
-        currentTexture = texture;
-        threeSphere.material.map = texture;
-        threeSphere.material.needsUpdate = true;
-        if (loader) loader.classList.add('hidden');
-      };
-
-      img.src = urlOrCanvas;
+      );
     } else {
       const srcCanvas = (urlOrCanvas instanceof HTMLCanvasElement) ? urlOrCanvas : getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-main');
       const texture = new THREE.CanvasTexture(srcCanvas);
@@ -1011,22 +738,18 @@
       /* Editor Tool Bar Overlay */
       .tour-editor-bar {
         position: absolute;
-        top: 64px;
-        left: 10px;
-        right: 10px;
-        max-width: calc(100vw - 20px);
-        z-index: 35;
-        background: rgba(14, 12, 19, 0.96);
+        top: 70px;
+        left: 16px;
+        z-index: 25;
+        background: rgba(14, 12, 19, 0.94);
         border: 1.5px solid #06D6A0;
-        border-radius: 12px;
-        padding: 6px 10px;
+        border-radius: 10px;
+        padding: 8px 12px;
         display: none;
-        flex-direction: column;
-        gap: 6px;
-        box-shadow: 0 10px 32px rgba(0,0,0,0.75);
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
         animation: slideInBar 0.2s ease-out;
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
       }
       @keyframes slideInBar {
         from { opacity: 0; transform: translateY(-10px); }
@@ -1034,20 +757,7 @@
       }
       .tour-editor-bar.active {
         display: flex;
-      }
-      .tour-editor-bar-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        width: 100%;
-      }
-      .tour-editor-header-left {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-wrap: nowrap;
-        overflow-x: hidden;
+        flex-wrap: wrap;
       }
       .tour-editor-pill {
         background: rgba(6, 214, 160, 0.2);
@@ -1058,55 +768,11 @@
         font-size: 10px;
         font-weight: 800;
         font-family: monospace;
-        white-space: nowrap;
-      }
-      .tour-editor-header-right {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex-shrink: 0;
-      }
-      .tour-tools-menu-btn {
-        background: rgba(255, 210, 63, 0.2);
-        border: 1.5px solid #FFD23F;
-        color: #FFD23F;
-        font-weight: 900;
-        padding: 4px 9px;
-        font-size: 11px;
-        border-radius: 6px;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        white-space: nowrap;
-      }
-      .tour-tools-menu-btn:hover {
-        background: #FFD23F;
-        color: #14121A;
-      }
-      .tour-editor-actions-scroll-wrap {
-        position: relative;
-        width: 100%;
-        display: flex;
-        align-items: center;
       }
       .tour-editor-actions {
         display: flex;
         align-items: center;
         gap: 6px;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: thin;
-        scrollbar-color: rgba(6, 214, 160, 0.4) transparent;
-        padding: 2px 2px 4px 2px;
-        width: 100%;
-      }
-      .tour-editor-actions::-webkit-scrollbar {
-        height: 4px;
-      }
-      .tour-editor-actions::-webkit-scrollbar-thumb {
-        background: rgba(6, 214, 160, 0.4);
-        border-radius: 4px;
       }
       .tour-ed-btn {
         background: #06D6A0;
@@ -1120,7 +786,6 @@
         transition: all 0.15s;
         letter-spacing: 0.03em;
         white-space: nowrap;
-        flex-shrink: 0;
       }
       .tour-ed-btn:hover {
         background: #05b386;
@@ -1151,243 +816,6 @@
       .tour-ed-btn.tour-ed-save:hover {
         transform: translateY(-1px) scale(1.03);
         box-shadow: 0 4px 14px rgba(255, 77, 109, 0.4);
-      }
-
-      /* Mobile Full Dropdown Menu */
-      .tour-tools-dropdown-menu {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        margin-top: 6px;
-        background: #14121A;
-        border: 2px solid #FFD23F;
-        border-radius: 12px;
-        padding: 12px;
-        z-index: 50;
-        box-shadow: 0 16px 40px rgba(0,0,0,0.85);
-        display: none;
-        flex-direction: column;
-        gap: 10px;
-        max-height: calc(100vh - 160px);
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-      }
-      .tour-tools-dropdown-menu.show {
-        display: flex;
-      }
-      .tour-tools-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 8px;
-      }
-      .tour-tool-grid-item {
-        background: rgba(255, 255, 255, 0.06);
-        border: 1.5px solid rgba(255, 255, 255, 0.15);
-        border-radius: 8px;
-        padding: 8px 10px;
-        color: #fff;
-        font-size: 11px;
-        font-weight: 800;
-        cursor: pointer;
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-        text-align: left;
-        transition: all 0.15s;
-      }
-      .tour-tool-grid-item:hover {
-        border-color: #FFD23F;
-        background: rgba(255, 210, 63, 0.15);
-      }
-      .tour-tool-grid-item.primary {
-        border-color: #06D6A0;
-        background: rgba(6, 214, 160, 0.15);
-        color: #06D6A0;
-      }
-      .tour-tool-grid-item.highlight {
-        border-color: #FFD23F;
-        background: rgba(255, 210, 63, 0.2);
-        color: #FFD23F;
-      }
-      .tour-tool-grid-item.danger {
-        border-color: #FF4D6D;
-        background: rgba(255, 77, 109, 0.15);
-        color: #FF4D6D;
-      }
-      .tour-tool-grid-item-desc {
-        font-size: 9px;
-        color: rgba(255, 255, 255, 0.6);
-        font-weight: 500;
-      }
-
-      /* Proportions & Seam Alignment Popover */
-      .tour-proportions-popover {
-        position: absolute;
-        top: 110px;
-        left: 10px;
-        right: 10px;
-        z-index: 40;
-        background: rgba(20, 18, 26, 0.98);
-        border: 2px solid #FFD23F;
-        border-radius: 12px;
-        width: 380px;
-        max-width: calc(100vw - 20px);
-        max-height: calc(100vh - 130px);
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.88), 0 0 25px rgba(255, 210, 63, 0.25);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-        animation: fadeInDialog 0.15s ease-out;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-        display: flex;
-        flex-direction: column;
-      }
-      .prop-popover-header {
-        padding: 10px 14px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: rgba(255, 210, 63, 0.08);
-        position: sticky;
-        top: 0;
-        z-index: 2;
-      }
-      .prop-popover-close {
-        background: none;
-        border: none;
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 14px;
-        cursor: pointer;
-        padding: 2px 6px;
-      }
-      .prop-popover-close:hover {
-        color: #FF4D6D;
-      }
-      .prop-popover-body {
-        padding: 12px 14px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }
-      .prop-section-label {
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        color: rgba(255, 255, 255, 0.65);
-      }
-      .prop-mode-btns {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 6px;
-      }
-      .prop-mode-btn {
-        background: rgba(255, 255, 255, 0.06);
-        border: 1.5px solid rgba(255, 255, 255, 0.15);
-        color: #F5F1E8;
-        padding: 8px 10px;
-        border-radius: 8px;
-        font-size: 11px;
-        font-weight: 700;
-        cursor: pointer;
-        text-align: left;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        transition: all 0.15s;
-      }
-      .prop-mode-btn:hover {
-        background: rgba(255, 210, 63, 0.15);
-        border-color: #FFD23F;
-      }
-      .prop-mode-btn.active {
-        background: rgba(6, 214, 160, 0.18);
-        border-color: #06D6A0;
-        color: #06D6A0;
-      }
-      .prop-scale-controls {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .prop-adj-btn {
-        background: rgba(255, 255, 255, 0.12);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        color: #fff;
-        width: 28px;
-        height: 28px;
-        border-radius: 6px;
-        font-size: 14px;
-        font-weight: 800;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .prop-adj-btn:hover {
-        background: #FFD23F;
-        color: #14121A;
-      }
-      .prop-range-slider {
-        flex: 1;
-        accent-color: #06D6A0;
-        cursor: pointer;
-      }
-      .prop-reset-btn {
-        background: none;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        color: rgba(255, 255, 255, 0.7);
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 9px;
-        font-weight: 800;
-        cursor: pointer;
-      }
-      .prop-reset-btn:hover {
-        color: #fff;
-        border-color: #fff;
-      }
-      .prop-sharp-btn {
-        background: rgba(6, 214, 160, 0.1);
-        border: 1.5px solid #06D6A0;
-        color: #F5F1E8;
-        padding: 8px 10px;
-        border-radius: 8px;
-        font-size: 11px;
-        font-weight: 700;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-      .prop-save-room-btn {
-        background: linear-gradient(135deg, #06D6A0 0%, #05b386 100%);
-        color: #0d1b1e;
-        border: none;
-        padding: 10px 12px;
-        border-radius: 8px;
-        font-size: 12px;
-        font-weight: 900;
-        cursor: pointer;
-        margin-top: 4px;
-        transition: all 0.15s;
-        text-align: center;
-        letter-spacing: 0.03em;
-        box-shadow: 0 4px 12px rgba(6, 214, 160, 0.3);
-      }
-      .prop-save-room-btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 18px rgba(6, 214, 160, 0.45);
-      }
-      .prop-tool-box {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 8px;
-        padding: 10px;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
       }
 
       /* Modal Dialog Overlays & Cards */
@@ -2074,65 +1502,9 @@
         0%, 100% { box-shadow: 0 0 0 4px rgba(59, 158, 255, 0.3), 0 0 16px rgba(59, 158, 255, 0.55); }
         50% { box-shadow: 0 0 0 10px rgba(59, 158, 255, 0.2), 0 0 28px rgba(59, 158, 255, 0.8); }
       }
-      .scan-mode-tabs {
-        display: inline-flex;
-        align-items: center;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 999px;
-        padding: 2px;
-        gap: 2px;
-      }
-      .scan-mode-tab {
-        background: transparent;
-        border: none;
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 10px;
-        font-weight: 800;
-        padding: 4px 10px;
-        border-radius: 999px;
-        cursor: pointer;
-        transition: all 0.15s;
-        white-space: nowrap;
-      }
-      .scan-mode-tab:hover {
-        color: #fff;
-      }
-      .scan-mode-tab.active {
-        background: #FFD23F;
-        color: #14121A;
-        font-weight: 900;
-        box-shadow: 0 2px 8px rgba(255, 210, 63, 0.4);
-      }
-      .scan-sweep-compass-wrap {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 180px;
-        height: 180px;
-        pointer-events: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .scan-sweep-dial-svg {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-      }
-      .scan-sweep-center-info {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: rgba(14, 12, 19, 0.85);
-        border: 1.5px solid rgba(255, 210, 63, 0.4);
-        border-radius: 50%;
-        width: 116px;
-        height: 116px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
+      .scan-center-ring {
+        width: 120px;
+        height: 120px;
       }
       .scan-guide-arrow {
         position: absolute;
@@ -2396,224 +1768,30 @@
         </div>
       </div>
 
-      <!-- Floating Proportions & Seam Alignment Popover (Editor Only) -->
-      <div class="tour-proportions-popover" id="tourProportionsPopover" style="display:none;">
-        <div class="prop-popover-header">
-          <span style="font-weight:800;font-size:12px;color:#FFD23F;">📐 Room Proportions & Matterport Alignment</span>
-          <button type="button" class="prop-popover-close" onclick="window.toggleTourProportionsMenu(false)">✕</button>
-        </div>
-        <div class="prop-popover-body">
-          <div style="background:rgba(6,214,160,0.12);border:1px solid rgba(6,214,160,0.35);border-radius:8px;padding:8px 10px;font-size:10.5px;color:#06D6A0;line-height:1.4;margin-bottom:8px;">
-            <strong style="color:#FFD23F;">💡 Why phone panoramas don't line up in 360°:</strong><br>
-            A phone panorama is a wide sweep (~180°–220°) from the left wall (door) to the right wall (window). Because they are two different sides of the room, they cannot loop into each other in a circle.
-            <br><span style="font-weight:800;color:#fff;">👉 Tap "✨ Matterport Pro Arc" below to eliminate the seam split and view your room in real-world 1:1 perspective!</span>
-          </div>
-
-          <div class="prop-section-label">1. PROJECTION FORMAT</div>
-          <div class="prop-mode-btns" style="display:flex;flex-direction:column;gap:5px;">
-            <button type="button" class="prop-mode-btn active" id="propModeMatterport" onclick="window.setTourAspectMode('matterport-arc')">
-              <span style="font-weight:800;">✨ Matterport Pro Arc (0% Seam · No Split)</span>
-              <span style="color:#06D6A0;font-size:10px;font-weight:800;">RECOMMENDED FOR PHONE PANOS</span>
-            </button>
-            <button type="button" class="prop-mode-btn" id="propMode360Loop" onclick="window.setTourAspectMode('360-loop')">
-              <span>🔄 360° Continuous Loop (Full 360° Sweep Required)</span>
-            </button>
-            <button type="button" class="prop-mode-btn" id="propModeFull" onclick="window.setTourAspectMode('full-360')">
-              <span>🌐 Full 360° Photosphere (2:1 Spherical)</span>
-            </button>
-          </div>
-
-          <div style="margin-top:4px;">
-            <button type="button" class="tour-dialog-btn" style="width:100%;background:linear-gradient(135deg, rgba(6,214,160,0.25) 0%, rgba(255,210,63,0.2) 100%);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;padding:8px 10px;font-size:11px;border-radius:8px;" onclick="window.applyMatterportPreset()">
-              🪄 1-CLICK FIX: APPLY MATTERPORT PRO PRESET
-            </button>
-          </div>
-
-          <div class="prop-tool-box">
-            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
-              <span>VERTICAL ROOM HEIGHT (HUMAN PERSPECTIVE)</span>
-              <span id="propVScaleVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">100%</span>
-            </div>
-            <div class="prop-scale-controls">
-              <button type="button" class="prop-adj-btn" onclick="window.adjustTourVScale(-0.05)">−</button>
-              <input type="range" id="propVScaleSlider" min="50" max="180" value="100" class="prop-range-slider" oninput="window.setTourVScale(this.value / 100)">
-              <button type="button" class="prop-adj-btn" onclick="window.adjustTourVScale(0.05)">+</button>
-              <button type="button" class="prop-reset-btn" onclick="window.resetTourVScale()">RESET</button>
-            </div>
-          </div>
-
-          <div class="prop-tool-box">
-            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
-              <span>2. OVERLAP CROP TRIM (ELIMINATE DUPLICATE OBJECTS)</span>
-              <span id="propHSpanVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">100%</span>
-            </div>
-            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
-              Trims duplicate furniture/vest if camera rotated past 360°:
-            </div>
-            <div class="prop-scale-controls">
-              <input type="range" id="propHSpanSlider" min="70" max="105" value="100" step="1" class="prop-range-slider" oninput="window.setTourHSpan(this.value / 100)">
-              <button type="button" class="prop-reset-btn" onclick="window.setTourHSpan(1.0)">100%</button>
-            </div>
-          </div>
-
-          <div class="prop-tool-box">
-            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
-              <span>3. ROTATE 360° SEAM POSITION</span>
-              <span id="propHShiftVal" style="color:#FFD23F;font-family:monospace;font-weight:800;">0°</span>
-            </div>
-            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
-              Move the seam off chairs/objects onto an empty wall or corner:
-            </div>
-            <div class="prop-scale-controls">
-              <button type="button" class="prop-adj-btn" onclick="window.adjustTourHShift(-15)" title="Rotate seam -15°">◀</button>
-              <input type="range" id="propHShiftSlider" min="0" max="360" value="0" step="2" class="prop-range-slider" style="accent-color:#FFD23F;" oninput="window.setTourHShift(this.value)">
-              <button type="button" class="prop-adj-btn" onclick="window.adjustTourHShift(15)" title="Rotate seam +15°">▶</button>
-              <button type="button" class="prop-reset-btn" onclick="window.setTourHShift(0)">0°</button>
-            </div>
-          </div>
-
-          <div class="prop-tool-box">
-            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
-              <span>4. SEAMLESS EDGE FEATHER / BLEND</span>
-              <span id="propSeamBlendVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">8%</span>
-            </div>
-            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
-              Smooth cross-dissolve to eliminate visible hard cut lines:
-            </div>
-            <div class="prop-scale-controls">
-              <input type="range" id="propSeamBlendSlider" min="0" max="20" value="8" step="1" class="prop-range-slider" oninput="window.setTourSeamBlend(this.value / 100)">
-              <button type="button" class="prop-reset-btn" onclick="window.setTourSeamBlend(0.08)">8%</button>
-            </div>
-          </div>
-
-          <div class="prop-tool-box">
-            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
-              <span>5. VERTICAL TILT TRIM (CAMERA DRIFT)</span>
-              <span id="propSeamVOffsetVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">0 px</span>
-            </div>
-            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
-              Fix camera height step where the sweep starts & ends:
-            </div>
-            <div class="prop-scale-controls">
-              <button type="button" class="prop-adj-btn" onclick="window.adjustTourSeamVOffset(-2)">−</button>
-              <input type="range" id="propSeamVOffsetSlider" min="-40" max="40" value="0" step="1" class="prop-range-slider" oninput="window.setTourSeamVOffset(parseInt(this.value, 10))">
-              <button type="button" class="prop-adj-btn" onclick="window.adjustTourSeamVOffset(2)">+</button>
-              <button type="button" class="prop-reset-btn" onclick="window.setTourSeamVOffset(0)">RESET</button>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:6px;">
-            <button type="button" class="tour-dialog-btn" style="flex:1;background:rgba(255,210,63,0.15);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:800;padding:8px 10px;font-size:11px;" onclick="window.autoAlignRoomSeam()">
-              🪄 AUTO-ALIGN & FEATHER
-            </button>
-            <button type="button" class="prop-sharp-btn" id="propSharpBtn" style="flex:1;padding:8px 10px;" onclick="window.toggleHdSharpness()">
-              <span>✨ 16x HD Filter</span>
-              <span id="propSharpBadge" style="color:#06D6A0;font-weight:800;font-size:10px;">ON</span>
-            </button>
-          </div>
-
-          <div style="margin-top:2px;">
-            <button type="button" class="tour-dialog-btn" style="width:100%;background:rgba(255,210,63,0.2);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;padding:8px 10px;font-size:11px;border-radius:8px;" onclick="window.setTourStartingView()">
-              📍 LOCK CURRENT CAMERA AS STARTING VIEW
-            </button>
-          </div>
-
-          <button type="button" class="prop-save-room-btn" onclick="window.saveCurrentRoomProportions()">
-            💾 SAVE ALL SETTINGS FOR EVERYONE
-          </button>
-        </div>
-      </div>
-
       <!-- Live Editor Action Bar (When in Tour Builder Mode) -->
       <div class="tour-editor-bar" id="tourEditorBar">
-        <div class="tour-editor-bar-header">
-          <div class="tour-editor-header-left">
-            <span class="tour-editor-pill">🛠️ BUILDER</span>
-            <span id="tourCamAnglePill" class="tour-editor-pill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
-          </div>
-          <div class="tour-editor-header-right">
-            <button type="button" class="tour-tools-menu-btn" id="tourToolsMenuToggleBtn" onclick="window.toggleTourToolsDropdown()" title="Open full tools menu">
-              <span>📋 ALL TOOLS ▾</span>
-            </button>
-            <button type="button" class="tour-ed-btn tour-ed-save" id="tourSaveEveryoneHeaderBtn" onclick="window.saveTourChangesToMagazine()" title="Save tour live to cloud for all visitors" style="padding:4px 9px;font-size:11px;">
-              💾 SAVE
-            </button>
-          </div>
-        </div>
-
-        <div class="tour-editor-actions-scroll-wrap">
-          <div class="tour-editor-actions" id="tourEditorActionsTrack">
-            <button type="button" class="tour-ed-btn" id="tourEditorProportionsBtn" onclick="window.toggleTourProportionsMenu()" title="Adjust Photo Proportions & Seam Stitching Alignment" style="background:rgba(255,210,63,0.18);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;">
-              📐 PROPORTIONS & SEAM
-            </button>
-            <button type="button" class="tour-ed-btn" onclick="window.setTourStartingView()" title="Lock current camera angle as the starting view when entering this room" style="background:rgba(6,214,160,0.18);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;">
-              📍 SET STARTING VIEW
-            </button>
-            <button type="button" class="tour-ed-btn" onclick="window.openPlaceHotspotDialog()" title="Place interactive door hotspot at camera angle">
-              🚪 PLACE DOOR PIN
-            </button>
-            <button type="button" class="tour-ed-btn" style="background:#FFD23F;color:#14121A;font-weight:900;" onclick="window.open360CameraScanner('new_room')" title="Scan room with your device camera and stitch into 360 photo">
-              📸 360 CAMERA SCAN
-            </button>
-            <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openAddRoomDialog()" title="Add another 360 space">
-              + NEW ROOM
-            </button>
-            <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openEditRoomDialog()" title="Edit current room name, 360 photo, or blurb">
-              ✏️ EDIT THIS ROOM
-            </button>
-            <button type="button" class="tour-ed-btn tour-ed-danger" onclick="window.confirmDeleteCurrentRoom()" title="Delete this room from tour">
-              🗑️ DELETE THIS ROOM
-            </button>
-            <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openManageRoomsDialog()" title="View and organize all rooms">
-              📑 ALL ROOMS
-            </button>
-            <button type="button" class="tour-ed-btn tour-ed-save" id="tourSaveEveryoneBtn" onclick="window.saveTourChangesToMagazine()" title="Save tour live to cloud for all visitors">
-              💾 SAVE TOUR FOR EVERYONE
-            </button>
-          </div>
-        </div>
-
-        <!-- Full Mobile Tools Dropdown Menu -->
-        <div class="tour-tools-dropdown-menu" id="tourToolsDropdownMenu">
-          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:6px;">
-            <span style="font-size:12px;font-weight:900;color:#FFD23F;">🛠️ ALL TOUR BUILDER TOOLS</span>
-            <button type="button" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer;" onclick="window.toggleTourToolsDropdown(false)">✕</button>
-          </div>
-          <div class="tour-tools-grid">
-            <div class="tour-tool-grid-item highlight" onclick="window.toggleTourProportionsMenu(); window.toggleTourToolsDropdown(false);">
-              <span>📐 Proportions & Seam</span>
-              <span class="tour-tool-grid-item-desc">Adjust height & blend 360 seam</span>
-            </div>
-            <div class="tour-tool-grid-item primary" onclick="window.setTourStartingView(); window.toggleTourToolsDropdown(false);">
-              <span>📍 Set Starting View</span>
-              <span class="tour-tool-grid-item-desc">Lock current angle as default</span>
-            </div>
-            <div class="tour-tool-grid-item" onclick="window.openPlaceHotspotDialog(); window.toggleTourToolsDropdown(false);">
-              <span>🚪 Place Door Pin</span>
-              <span class="tour-tool-grid-item-desc">Drop portal to another room</span>
-            </div>
-            <div class="tour-tool-grid-item highlight" onclick="window.open360CameraScanner('new_room'); window.toggleTourToolsDropdown(false);">
-              <span>📸 360 Camera Scan</span>
-              <span class="tour-tool-grid-item-desc">Matterport-style room scan</span>
-            </div>
-            <div class="tour-tool-grid-item" onclick="window.openAddRoomDialog(); window.toggleTourToolsDropdown(false);">
-              <span>➕ Add New Room</span>
-              <span class="tour-tool-grid-item-desc">Upload or preset 360 space</span>
-            </div>
-            <div class="tour-tool-grid-item" onclick="window.openEditRoomDialog(); window.toggleTourToolsDropdown(false);">
-              <span>✏️ Edit This Room</span>
-              <span class="tour-tool-grid-item-desc">Rename, swap photo, or blurb</span>
-            </div>
-            <div class="tour-tool-grid-item" onclick="window.openManageRoomsDialog(); window.toggleTourToolsDropdown(false);">
-              <span>📑 Manage All Rooms</span>
-              <span class="tour-tool-grid-item-desc">List, reorder, and review rooms</span>
-            </div>
-            <div class="tour-tool-grid-item danger" onclick="window.confirmDeleteCurrentRoom(); window.toggleTourToolsDropdown(false);">
-              <span>🗑️ Delete This Room</span>
-              <span class="tour-tool-grid-item-desc">Remove current space</span>
-            </div>
-          </div>
-          <button type="button" class="prop-save-room-btn" style="margin-top:4px;" onclick="window.saveTourChangesToMagazine(); window.toggleTourToolsDropdown(false);">
+        <span class="tour-editor-pill">🛠️ TOUR BUILDER</span>
+        <span id="tourCamAnglePill" class="tour-editor-pill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
+        <div class="tour-editor-actions">
+          <button type="button" class="tour-ed-btn" onclick="window.openPlaceHotspotDialog()" title="Place interactive door hotspot at camera angle">
+            📍 PLACE DOOR PIN
+          </button>
+          <button type="button" class="tour-ed-btn" style="background:#FFD23F;color:#14121A;font-weight:900;" onclick="window.open360CameraScanner('new_room')" title="Scan room with your device camera and stitch into 360 photo">
+            📸 360 CAMERA SCAN
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openAddRoomDialog()" title="Add another 360 space">
+            + NEW ROOM
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openEditRoomDialog()" title="Edit current room name, 360 photo, or blurb">
+            ✏️ EDIT THIS ROOM
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-danger" onclick="window.confirmDeleteCurrentRoom()" title="Delete this room from tour">
+            🗑️ DELETE THIS ROOM
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openManageRoomsDialog()" title="View and organize all rooms">
+            📑 ALL ROOMS
+          </button>
+          <button type="button" class="tour-ed-btn tour-ed-save" id="tourSaveEveryoneBtn" onclick="window.saveTourChangesToMagazine()" title="Save tour live to cloud for all visitors">
             💾 SAVE TOUR FOR EVERYONE
           </button>
         </div>
@@ -2811,26 +1989,6 @@
                 <textarea class="tour-dialog-input" id="editRoomBlurbInput" rows="2" placeholder="Brief blurb about this 360° space..."></textarea>
               </div>
 
-              <!-- Photo Proportions & Distortion settings for this space -->
-              <div class="tour-field-group">
-                <label class="tour-field-label">📐 Photo Proportions & Clarity</label>
-                <div style="display:flex;gap:8px;margin-bottom:8px;">
-                  <button type="button" class="tour-dialog-btn" id="editRoomModeIphone" style="flex:1;font-size:10px;padding:6px 10px;background:rgba(6,214,160,0.2);color:#06D6A0;border:1.5px solid #06D6A0;font-weight:800;" onclick="window.setEditRoomAspectMode('iphone-pano')">
-                    📱 iPhone Pano (Zero-Distortion)
-                  </button>
-                  <button type="button" class="tour-dialog-btn" id="editRoomModeFull" style="flex:1;font-size:10px;padding:6px 10px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);font-weight:800;" onclick="window.setEditRoomAspectMode('full-360')">
-                    🌐 360° Photosphere (2:1)
-                  </button>
-                </div>
-                <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px;">
-                  <span>Vertical Height Stretch:</span>
-                  <span id="editRoomVScaleLabel" style="font-family:monospace;color:#06D6A0;font-weight:800;">100%</span>
-                </div>
-                <input type="range" id="editRoomVScaleSlider" min="50" max="180" value="100" class="prop-range-slider" style="width:100%;" oninput="window.setEditRoomVScaleSlider(this.value)">
-                <input type="hidden" id="editRoomAspectModeInput" value="iphone-pano">
-                <input type="hidden" id="editRoomVScaleInput" value="1.0">
-              </div>
-
               <!-- Hotspots in this room -->
               <div class="tour-field-group">
                 <label class="tour-field-label" style="display:flex;justify-content:space-between;align-items:center;">
@@ -2931,33 +2089,18 @@
         </div>
 
         <!-- 7. IN-ROOM 360 CAMERA SCANNER & EQUIRECTANGULAR STITCHER MODAL -->
-        <div class="tour-dialog-overlay" id="tourCameraScanModal" style="display:none; z-index:100; padding:0; background:rgba(0,0,0,0.96);">
+        <div class="tour-dialog-overlay" id="tourCameraScanModal" style="display:none; z-index:100; padding:0; background:rgba(0,0,0,0.95);">
           <div class="tour-camera-scanner-container">
             <!-- Scanner Header -->
             <div class="scan-header">
               <div class="scan-header-left">
-                <span class="scan-title">📸 360° MATTERPORT SCANNER</span>
-                <!-- Mode Switcher Tabs -->
-                <div class="scan-mode-tabs">
-                  <button type="button" class="scan-mode-tab active" id="scanTabSweep" onclick="window.switchScanCaptureMode('sweep')" title="Turn in a continuous 360° circle (Fast & Seamless)">
-                    ⚡ 1-SWEEP 360°
-                  </button>
-                  <button type="button" class="scan-mode-tab" id="scanTabRadar" onclick="window.switchScanCaptureMode('radar')" title="Matterport-style guided radar stops">
-                    🎯 12-STOP RADAR
-                  </button>
-                </div>
-                <span class="scan-pill" id="scanSensorModePill">📳 GYRO READY</span>
-                <span class="scan-pill" id="scanAnglePill" style="color:#FFD23F;border-color:#FFD23F;">0° / 360°</span>
+                <span class="scan-title">📸 360° ROOM SCANNER & STITCHER</span>
+                <span class="scan-pill" id="scanSensorModePill">📳 GYRO SENSOR ACTIVE</span>
+                <span class="scan-pill" id="scanAnglePill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
               </div>
               <div class="scan-header-right">
-                <button type="button" class="scan-btn-small" onclick="window.simulateDemo360Scan()" title="Simulate / Test full 360 scan" style="background:#06D6A0;color:#0d1b1e;font-weight:900;">
-                  🧪 DEMO SCAN
-                </button>
-                <button type="button" class="scan-btn-small" onclick="window.recenterScannerGyro()" title="Recenter current heading to 0°">
-                  🎯 RECENTER
-                </button>
                 <button type="button" class="scan-btn-small" onclick="window.toggleCameraFacingMode()" title="Switch Front/Rear Camera">
-                  🔄 CAMERA
+                  🔄 SWITCH CAMERA
                 </button>
                 <button type="button" class="scan-btn-close" onclick="window.close360CameraScanner()">✕</button>
               </div>
@@ -2976,29 +2119,16 @@
                   <div class="scan-crosshair-h"></div>
                   <div class="scan-crosshair-v"></div>
                   <div class="scan-center-dot"></div>
-                  <span class="scan-ring-status" id="scanRingStatus">HOLD LEVEL & ROTATE</span>
+                  <span class="scan-ring-status" id="scanRingStatus">ROTATE PHONE TO DOT</span>
                 </div>
 
-                <!-- 360 Target Node Dots Layer (for 12-stop radar) -->
+                <!-- 360 Target Node Dots Layer -->
                 <div class="scan-nodes-layer" id="scanNodesLayer"></div>
-
-                <!-- Continuous Sweep Compass Dial Overlay -->
-                <div class="scan-sweep-compass-wrap" id="scanSweepCompassWrap">
-                  <svg class="scan-sweep-dial-svg" viewBox="0 0 200 200">
-                    <circle cx="100" cy="100" r="85" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="8" />
-                    <circle id="scanSweepProgressCircle" cx="100" cy="100" r="85" fill="none" stroke="#06D6A0" stroke-width="9" stroke-linecap="round" stroke-dasharray="534" stroke-dashoffset="534" transform="rotate(-90 100 100)" />
-                    <circle id="scanSweepIndicatorDot" cx="100" cy="15" r="7" fill="#FFD23F" stroke="#fff" stroke-width="2" />
-                  </svg>
-                  <div class="scan-sweep-center-info">
-                    <span id="scanSweepDegLabel" style="font-size:24px;font-weight:900;color:#FFD23F;font-family:monospace;">0°</span>
-                    <span id="scanSweepSubLabel" style="font-size:10px;font-weight:800;color:rgba(255,255,255,0.85);letter-spacing:0.04em;">TURN SLOWLY</span>
-                  </div>
-                </div>
 
                 <!-- Guidance Arrow -->
                 <div class="scan-guide-arrow" id="scanGuideArrow">
                   <span class="guide-arrow-icon" id="scanGuideIcon">➔</span>
-                  <span class="guide-arrow-text" id="scanGuideText">Rotate your body slowly in a circle to capture the room</span>
+                  <span class="guide-arrow-text" id="scanGuideText">Aim the reticle at the glowing blue-white dot · turn phone · auto-snaps when locked</span>
                 </div>
 
                 <!-- Flash Animation -->
@@ -3008,27 +2138,32 @@
               <!-- Live Floating Stats -->
               <div class="scan-floating-hud">
                 <div class="scan-progress-box">
-                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 12 ANGLES (0%)</span>
+                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 38 CAPTURED (0%)</span>
                   <div class="scan-progress-bar-bg">
                     <div class="scan-progress-bar-fill" id="scanProgressBarFill" style="width:0%;"></div>
                   </div>
                 </div>
                 <button type="button" id="scanEnableGyroBtn" onclick="window.enableScannerGyroAim()"
                   style="background:#FFD23F;color:#14121A;border:none;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:900;cursor:pointer;box-shadow:0 2px 12px rgba(255,210,63,0.45);">
-                  🧭 ENABLE MOTION GYRO
+                  🧭 ENABLE GYRO AIM
                 </button>
                 <div class="scan-auto-snap-toggle" onclick="window.toggleAutoCaptureOnAlign()">
                   <input type="checkbox" id="scanAutoSnapCheck" checked>
                   <label for="scanAutoSnapCheck" style="cursor:pointer;font-size:11px;font-weight:700;">⚡ Auto-Snap</label>
                 </div>
+                <button type="button" id="scanWideModeBtn" onclick="window.toggleWideScanMode()"
+                  style="background:#FFD23F;color:#14121A;border:none;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:900;cursor:pointer;box-shadow:0 2px 12px rgba(255,210,63,0.45);"
+                  title="Adds near-ceiling and near-floor angles for fuller coverage">
+                  🌐 WIDE MODE: OFF
+                </button>
               </div>
             </div>
 
             <!-- Live Panoramic Stitched Strip Preview -->
             <div class="scan-ribbon-section">
               <div class="scan-ribbon-header">
-                <span style="font-size:11px;font-weight:800;color:#FFD23F;">🖼️ LIVE 360° PANORAMA STRIP</span>
-                <span style="font-size:10px;color:rgba(255,255,255,0.7);" id="scanRibbonHint">Rotates seamlessly as you turn</span>
+                <span style="font-size:11px;font-weight:800;color:#FFD23F;">🖼️ LIVE 360° EQUIRECTANGULAR PANORAMA PREVIEW</span>
+                <span style="font-size:10px;color:rgba(255,255,255,0.6);" id="scanRibbonHint">Watch your room seamlessly stitch together in real-time</span>
               </div>
               <div class="scan-strip-container">
                 <canvas id="panoStitchPreviewCanvas" width="1024" height="200"></canvas>
@@ -3041,23 +2176,26 @@
             <div class="scan-bottom-bar">
               <div class="scan-bottom-left">
                 <button type="button" class="scan-ctrl-btn scan-btn-danger" onclick="window.resetCurrent360Scan()">
-                  🗑️ RESET
+                  🗑️ RESET SCAN
                 </button>
-                <button type="button" class="scan-ctrl-btn" id="scanSweepStartBtn" onclick="window.toggleContinuousSweep()" style="background:#06D6A0;color:#0d1b1e;font-weight:900;">
-                  ▶ START SWEEP
+                <button type="button" class="scan-ctrl-btn" onclick="window.manualStepAngle(-30)">
+                  ◀ PREV ANGLE
+                </button>
+                <button type="button" class="scan-ctrl-btn" onclick="window.manualStepAngle(30)">
+                  NEXT ANGLE ▶
                 </button>
               </div>
 
               <div class="scan-bottom-center">
                 <button type="button" class="scan-shutter-btn" id="scanShutterBtn" onclick="window.captureCurrentScanAngle()">
                   <span class="shutter-inner">📸</span>
-                  <span class="shutter-text">SNAP</span>
+                  <span class="shutter-text">SNAP ANGLE</span>
                 </button>
               </div>
 
               <div class="scan-bottom-right">
                 <button type="button" class="scan-ctrl-btn scan-btn-success" id="scanFinishUseBtn" onclick="window.finishAndUse360Stitch()">
-                  ✨ STITCH & SAVE 360°
+                  ✨ STITCH & USE 360° ROOM (SAVE)
                 </button>
               </div>
             </div>
@@ -3145,10 +2283,9 @@
 
     if (resetBtn) {
       resetBtn.onclick = () => {
-        const curSc = activeSceneList[activeSceneIndex];
-        targetYaw = (curSc && typeof curSc.startYaw === 'number') ? curSc.startYaw : 0;
-        targetPitch = (curSc && typeof curSc.startPitch === 'number') ? curSc.startPitch : 0;
-        targetFov = (curSc && typeof curSc.startFov === 'number') ? curSc.startFov : 65;
+        targetYaw = 0;
+        targetPitch = 0;
+        targetFov = 75;
         if (typeof showToast === 'function') showToast('🎯 View Angle Centered');
       };
     }
@@ -3360,50 +2497,18 @@
       initThreeEngine();
     }
 
-    // Smooth Camera Inertia & Matterport Perspective
-    const curScene = activeSceneList[activeSceneIndex] || {};
-    const aspectMode = curScene.aspectMode || 'matterport-arc';
-    const isMatterportArc = (aspectMode === 'matterport-arc');
-
-    // Camera inertia
-    yaw += (targetYaw - yaw) * 0.14;
-    pitch += (targetPitch - pitch) * 0.14;
-    fov += (targetFov - fov) * 0.14;
+    // Smooth Camera Inertia
+    yaw += (targetYaw - yaw) * 0.15;
+    pitch += (targetPitch - pitch) * 0.15;
+    fov += (targetFov - fov) * 0.15;
 
     if (isAutoRotating && !isDragging && !gyroEnabled) {
-      if (isMatterportArc) {
-        const spanDeg = curScene.arcSpanDeg || 220;
-        const halfSpan = (spanDeg / 2) - 15;
-        const center = curScene.startYaw || 0;
-        if (targetYaw >= center + halfSpan) {
-          autoRotateSpeed = -Math.abs(autoRotateSpeed || 0.12);
-        } else if (targetYaw <= center - halfSpan) {
-          autoRotateSpeed = Math.abs(autoRotateSpeed || 0.12);
-        }
-      }
       targetYaw += autoRotateSpeed;
       yaw += autoRotateSpeed;
     }
 
-    if (isMatterportArc) {
-      // Natural room boundary containment: 0% Seam, No Split Furniture, No Repetition!
-      const spanDeg = curScene.arcSpanDeg || 220;
-      const halfLimit = Math.max(20, (spanDeg / 2) - 25);
-      const center = curScene.startYaw || 0;
-      const minYaw = center - halfLimit;
-      const maxYaw = center + halfLimit;
-
-      if (targetYaw < minYaw) {
-        targetYaw += (minYaw - targetYaw) * 0.18;
-      } else if (targetYaw > maxYaw) {
-        targetYaw += (maxYaw - targetYaw) * 0.18;
-      }
-      targetPitch = Math.max(-50, Math.min(50, targetPitch));
-      pitch = Math.max(-52, Math.min(52, pitch));
-    } else {
-      while (yaw > 180) { yaw -= 360; targetYaw -= 360; }
-      while (yaw < -180) { yaw += 360; targetYaw += 360; }
-    }
+    while (yaw > 180) { yaw -= 360; targetYaw -= 360; }
+    while (yaw < -180) { yaw += 360; targetYaw += 360; }
 
     const compassDial = document.getElementById('compassDial');
     if (compassDial) {
@@ -3420,9 +2525,8 @@
       threeCamera.updateProjectionMatrix();
 
       // Convert spherical yaw & pitch to 3D Cartesian look-at vector
-      // Offset by 180° so yaw=0 faces the center of the panorama image
       const phi = THREE.MathUtils.degToRad(90 - pitch);
-      const theta = THREE.MathUtils.degToRad(yaw + 180);
+      const theta = THREE.MathUtils.degToRad(yaw);
 
       const target = new THREE.Vector3(
         500 * Math.sin(phi) * Math.cos(theta),
@@ -3514,7 +2618,7 @@
       if (!pin) return;
 
       const phi = THREE.MathUtils.degToRad(90 - hs.pitch);
-      const theta = THREE.MathUtils.degToRad(hs.yaw + 180);
+      const theta = THREE.MathUtils.degToRad(hs.yaw);
 
       const v = new THREE.Vector3(
         500 * Math.sin(phi) * Math.cos(theta),
@@ -3638,29 +2742,6 @@
 
     initThreeEngine();
     resizeThreeViewport();
-
-    // Set Initial Human Perspective / Room Starting View
-    if (typeof scene.startYaw === 'number') {
-      yaw = scene.startYaw;
-      targetYaw = scene.startYaw;
-    } else {
-      yaw = 0;
-      targetYaw = 0;
-    }
-    if (typeof scene.startPitch === 'number') {
-      pitch = scene.startPitch;
-      targetPitch = scene.startPitch;
-    } else {
-      pitch = 0;
-      targetPitch = 0;
-    }
-    if (typeof scene.startFov === 'number') {
-      fov = scene.startFov;
-      targetFov = scene.startFov;
-    } else {
-      fov = 65;
-      targetFov = 65;
-    }
 
     const targetUrl = norm.isImage ? norm.url : (scene.panoUrl || currentTourData?.panoUrl);
     if (targetUrl && (targetUrl.startsWith('http') || targetUrl.startsWith('data:') || targetUrl.startsWith('blob:') || targetUrl.startsWith('/'))) {
@@ -4007,21 +3088,6 @@
     if (blurbInp) blurbInp.value = scene.blurb || '';
     if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
 
-    // Populate Proportions settings
-    const curMode = scene.aspectMode || 'iphone-pano';
-    const curVScale = typeof scene.vScale === 'number' ? scene.vScale : 1.0;
-    const modeInp = document.getElementById('editRoomAspectModeInput');
-    const vScaleInp = document.getElementById('editRoomVScaleInput');
-    const vScaleSlider = document.getElementById('editRoomVScaleSlider');
-    const vScaleLbl = document.getElementById('editRoomVScaleLabel');
-    if (modeInp) modeInp.value = curMode;
-    if (vScaleInp) vScaleInp.value = curVScale;
-    if (vScaleSlider) vScaleSlider.value = Math.round(curVScale * 100);
-    if (vScaleLbl) vScaleLbl.textContent = `${Math.round(curVScale * 100)}%`;
-    if (typeof window.setEditRoomAspectMode === 'function') {
-      window.setEditRoomAspectMode(curMode);
-    }
-
     // Delete button logic (cannot delete if it's the only room)
     if (delBtn) {
       if (activeSceneList.length <= 1) {
@@ -4204,16 +3270,6 @@
       scene.tourUrl = '';
     }
 
-    // Save Proportions settings
-    const modeInp = document.getElementById('editRoomAspectModeInput');
-    const vScaleInp = document.getElementById('editRoomVScaleInput');
-    if (modeInp && modeInp.value) {
-      scene.aspectMode = modeInp.value;
-    }
-    if (vScaleInp && vScaleInp.value) {
-      scene.vScale = parseFloat(vScaleInp.value) || 1.0;
-    }
-
     window.closeEditRoomDialog();
     renderSceneSelector();
 
@@ -4230,316 +3286,6 @@
   };
 
   // ==========================================
-  // TOUR BUILDER MOBILE TOOLS DROPDOWN
-  // ==========================================
-  window.toggleTourToolsDropdown = function (forceState) {
-    const menu = document.getElementById('tourToolsDropdownMenu');
-    if (!menu) return;
-    const isShowing = menu.classList.contains('show');
-    const newState = (typeof forceState === 'boolean') ? forceState : !isShowing;
-    menu.classList.toggle('show', newState);
-  };
-
-  // ==========================================
-  // PROPORTIONS & MATTERPORT ALIGNMENT CONTROLS
-  // ==========================================
-  window.toggleTourProportionsMenu = function (forceState) {
-    const pop = document.getElementById('tourProportionsPopover');
-    if (!pop) return;
-    const isVisible = (pop.style.display !== 'none');
-    const newState = (typeof forceState === 'boolean') ? forceState : !isVisible;
-    pop.style.display = newState ? 'flex' : 'none';
-
-    if (newState) {
-      // Sync current scene values to popover controls
-      const curScene = activeSceneList[activeSceneIndex] || {};
-      const mode = curScene.aspectMode || 'matterport-arc';
-      const scale = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
-      const hShift = typeof curScene.hShift === 'number' ? curScene.hShift : 0;
-      const seamBlend = typeof curScene.seamBlend === 'number' ? curScene.seamBlend : 0.08;
-      const seamVOffset = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0;
-      const hSpan = typeof curScene.hSpan === 'number' ? curScene.hSpan : 1.0;
-
-      const btnMat = document.getElementById('propModeMatterport');
-      const btnLoop = document.getElementById('propMode360Loop');
-      const btnFull = document.getElementById('propModeFull');
-      if (btnMat) btnMat.classList.toggle('active', mode === 'matterport-arc' || (!mode && mode !== '360-loop' && mode !== 'full-360'));
-      if (btnLoop) btnLoop.classList.toggle('active', mode === '360-loop' || mode === 'iphone-pano');
-      if (btnFull) btnFull.classList.toggle('active', mode === 'full-360');
-
-      const vScaleSlider = document.getElementById('propVScaleSlider');
-      const vScaleLabel = document.getElementById('propVScaleVal');
-      if (vScaleSlider) vScaleSlider.value = Math.round(scale * 100);
-      if (vScaleLabel) vScaleLabel.textContent = `${Math.round(scale * 100)}%`;
-
-      const hShiftSlider = document.getElementById('propHShiftSlider');
-      const hShiftLabel = document.getElementById('propHShiftVal');
-      if (hShiftSlider) hShiftSlider.value = Math.round(hShift);
-      if (hShiftLabel) hShiftLabel.textContent = `${Math.round(hShift)}°`;
-
-      const seamBlendSlider = document.getElementById('propSeamBlendSlider');
-      const seamBlendLabel = document.getElementById('propSeamBlendVal');
-      if (seamBlendSlider) seamBlendSlider.value = Math.round(seamBlend * 100);
-      if (seamBlendLabel) seamBlendLabel.textContent = `${Math.round(seamBlend * 100)}%`;
-
-      const seamVOffsetSlider = document.getElementById('propSeamVOffsetSlider');
-      const seamVOffsetLabel = document.getElementById('propSeamVOffsetVal');
-      if (seamVOffsetSlider) seamVOffsetSlider.value = Math.round(seamVOffset);
-      if (seamVOffsetLabel) seamVOffsetLabel.textContent = `${Math.round(seamVOffset)} px`;
-
-      const hSpanSlider = document.getElementById('propHSpanSlider');
-      const hSpanLabel = document.getElementById('propHSpanVal');
-      if (hSpanSlider) hSpanSlider.value = Math.round(hSpan * 100);
-      if (hSpanLabel) hSpanLabel.textContent = `${Math.round(hSpan * 100)}%`;
-    }
-  };
-
-  window.setTourAspectMode = function (mode) {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    curScene.aspectMode = mode;
-
-    const btnMat = document.getElementById('propModeMatterport');
-    const btnLoop = document.getElementById('propMode360Loop');
-    const btnFull = document.getElementById('propModeFull');
-    if (btnMat) btnMat.classList.toggle('active', mode === 'matterport-arc');
-    if (btnLoop) btnLoop.classList.toggle('active', mode === '360-loop' || mode === 'iphone-pano');
-    if (btnFull) btnFull.classList.toggle('active', mode === 'full-360');
-
-    // Reload texture with new mode immediately
-    loadThreePanoTexture(currentPanoUrl, curScene);
-
-    if (typeof showToast === 'function') {
-      if (mode === 'matterport-arc') {
-        showToast('✨ Matterport Pro Arc Active: 0% Seam, Real-World Perspective!');
-      } else if (mode === '360-loop') {
-        showToast('🔄 360° Continuous Walkthrough Active (Overlap Trim Enabled)');
-      } else {
-        showToast('🌐 Full 360° Photosphere Active');
-      }
-    }
-  };
-
-  window.applyMatterportPreset = function () {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    curScene.aspectMode = 'matterport-arc';
-    curScene.vScale = 1.0;
-    curScene.seamBlend = 0.08;
-    curScene.seamVOffset = 0;
-    curScene.hSpan = 1.0;
-    curScene.startYaw = Math.round(yaw);
-    curScene.startPitch = Math.round(pitch);
-    curScene.startFov = 65;
-    targetFov = 65;
-    fov = 65;
-
-    const btnMat = document.getElementById('propModeMatterport');
-    const btnLoop = document.getElementById('propMode360Loop');
-    const btnFull = document.getElementById('propModeFull');
-    if (btnMat) btnMat.classList.add('active');
-    if (btnLoop) btnLoop.classList.remove('active');
-    if (btnFull) btnFull.classList.remove('active');
-
-    const vScaleSlider = document.getElementById('propVScaleSlider');
-    const vScaleLabel = document.getElementById('propVScaleVal');
-    if (vScaleSlider) vScaleSlider.value = 100;
-    if (vScaleLabel) vScaleLabel.textContent = '100%';
-
-    loadThreePanoTexture(currentPanoUrl, curScene);
-    window.saveTourChangesToMagazine();
-
-    if (typeof showToast === 'function') {
-      showToast('🪄 1-Click Matterport Pro Applied: 0% Seam, 65° Human View, 100% Height!');
-    }
-  };
-
-  window.setTourStartingView = function () {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    curScene.startYaw = Math.round(yaw);
-    curScene.startPitch = Math.round(pitch);
-    curScene.startFov = Math.round(fov);
-
-    window.saveTourChangesToMagazine();
-
-    if (typeof showToast === 'function') {
-      showToast(`📍 Starting View Locked: Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°, FOV ${Math.round(fov)}°!`);
-    }
-  };
-
-  window.setTourVScale = function (scaleVal) {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    const clamped = Math.max(0.5, Math.min(1.8, parseFloat(scaleVal) || 1.0));
-    curScene.vScale = clamped;
-
-    const slider = document.getElementById('propVScaleSlider');
-    const valLabel = document.getElementById('propVScaleVal');
-    if (slider) slider.value = Math.round(clamped * 100);
-    if (valLabel) valLabel.textContent = `${Math.round(clamped * 100)}%`;
-
-    loadThreePanoTexture(currentPanoUrl, curScene);
-  };
-
-  window.adjustTourVScale = function (delta) {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    const cur = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
-    window.setTourVScale(cur + delta);
-  };
-
-  window.resetTourVScale = function () {
-    window.setTourVScale(1.0);
-  };
-
-  window.setTourHShift = function (degVal) {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    const deg = ((parseFloat(degVal) || 0) % 360 + 360) % 360;
-    curScene.hShift = deg;
-
-    const slider = document.getElementById('propHShiftSlider');
-    const valLabel = document.getElementById('propHShiftVal');
-    if (slider) slider.value = Math.round(deg);
-    if (valLabel) valLabel.textContent = `${Math.round(deg)}°`;
-
-    loadThreePanoTexture(currentPanoUrl, curScene);
-  };
-
-  window.adjustTourHShift = function (deltaDeg) {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    const cur = typeof curScene.hShift === 'number' ? curScene.hShift : 0;
-    window.setTourHShift(cur + deltaDeg);
-  };
-
-  window.setTourSeamBlend = function (blendVal) {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    const clamped = Math.max(0, Math.min(0.2, parseFloat(blendVal) || 0));
-    curScene.seamBlend = clamped;
-
-    const slider = document.getElementById('propSeamBlendSlider');
-    const valLabel = document.getElementById('propSeamBlendVal');
-    if (slider) slider.value = Math.round(clamped * 100);
-    if (valLabel) valLabel.textContent = `${Math.round(clamped * 100)}%`;
-
-    loadThreePanoTexture(currentPanoUrl, curScene);
-  };
-
-  window.setTourSeamVOffset = function (offsetPx) {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    const clamped = Math.max(-50, Math.min(50, parseInt(offsetPx, 10) || 0));
-    curScene.seamVOffset = clamped;
-
-    const slider = document.getElementById('propSeamVOffsetSlider');
-    const valLabel = document.getElementById('propSeamVOffsetVal');
-    if (slider) slider.value = clamped;
-    if (valLabel) valLabel.textContent = `${clamped} px`;
-
-    loadThreePanoTexture(currentPanoUrl, curScene);
-  };
-
-  window.adjustTourSeamVOffset = function (delta) {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    const cur = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0;
-    window.setTourSeamVOffset(cur + delta);
-  };
-
-  window.setTourHSpan = function (spanVal) {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    const clamped = Math.max(0.8, Math.min(1.1, parseFloat(spanVal) || 1.0));
-    curScene.hSpan = clamped;
-
-    const slider = document.getElementById('propHSpanSlider');
-    const valLabel = document.getElementById('propHSpanVal');
-    if (slider) slider.value = Math.round(clamped * 100);
-    if (valLabel) valLabel.textContent = `${Math.round(clamped * 100)}%`;
-
-    loadThreePanoTexture(currentPanoUrl, curScene);
-  };
-
-  window.autoAlignRoomSeam = function () {
-    const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene) return;
-    curScene.seamBlend = 0.08; // 8% cosine feather
-    curScene.seamVOffset = 0;
-    curScene.hSpan = 1.0;
-
-    const blendSlider = document.getElementById('propSeamBlendSlider');
-    const blendVal = document.getElementById('propSeamBlendVal');
-    if (blendSlider) blendSlider.value = 8;
-    if (blendVal) blendVal.textContent = '8%';
-
-    const seamVOffsetSlider = document.getElementById('propSeamVOffsetSlider');
-    const seamVOffsetLabel = document.getElementById('propSeamVOffsetVal');
-    if (seamVOffsetSlider) seamVOffsetSlider.value = 0;
-    if (seamVOffsetLabel) seamVOffsetLabel.textContent = '0 px';
-
-    loadThreePanoTexture(currentPanoUrl, curScene);
-
-    if (typeof showToast === 'function') {
-      showToast('🪄 Seamless edge blend applied! Fine-tune rotation or tilt if needed.');
-    }
-  };
-
-  window.toggleHdSharpness = function () {
-    if (!threeRenderer || !currentTexture) return;
-    const maxAniso = threeRenderer.capabilities.getMaxAnisotropy() || 1;
-    const isCurrentlyMax = (currentTexture.anisotropy >= maxAniso);
-    currentTexture.anisotropy = isCurrentlyMax ? 1 : maxAniso;
-    currentTexture.needsUpdate = true;
-
-    const badge = document.getElementById('propSharpBadge');
-    if (badge) {
-      badge.textContent = isCurrentlyMax ? 'OFF' : 'ON';
-      badge.style.color = isCurrentlyMax ? '#FF4D6D' : '#06D6A0';
-    }
-
-    if (typeof showToast === 'function') {
-      showToast(isCurrentlyMax ? 'Texture filtering: Standard' : '✨ 16x Ultra-HD WebGL Anisotropic Filtering Enabled');
-    }
-  };
-
-  window.saveCurrentRoomProportions = function () {
-    window.toggleTourProportionsMenu(false);
-    window.saveTourChangesToMagazine();
-    if (typeof showToast === 'function') {
-      showToast('💾 Saved room proportions & seam alignment for everyone!');
-    }
-  };
-
-  window.setEditRoomAspectMode = function (mode) {
-    const inp = document.getElementById('editRoomAspectModeInput');
-    if (inp) inp.value = mode;
-
-    const btnIphone = document.getElementById('editRoomModeIphone');
-    const btnFull = document.getElementById('editRoomModeFull');
-    if (btnIphone) {
-      btnIphone.style.background = (mode === 'iphone-pano') ? 'rgba(6,214,160,0.2)' : 'rgba(255,255,255,0.08)';
-      btnIphone.style.color = (mode === 'iphone-pano') ? '#06D6A0' : '#fff';
-      btnIphone.style.borderColor = (mode === 'iphone-pano') ? '#06D6A0' : 'rgba(255,255,255,0.2)';
-    }
-    if (btnFull) {
-      btnFull.style.background = (mode === 'full-360') ? 'rgba(255,210,63,0.2)' : 'rgba(255,255,255,0.08)';
-      btnFull.style.color = (mode === 'full-360') ? '#FFD23F' : '#fff';
-      btnFull.style.borderColor = (mode === 'full-360') ? '#FFD23F' : 'rgba(255,255,255,0.2)';
-    }
-  };
-
-  window.setEditRoomVScaleSlider = function (val) {
-    const scale = (parseInt(val, 10) || 100) / 100;
-    const inp = document.getElementById('editRoomVScaleInput');
-    const lbl = document.getElementById('editRoomVScaleLabel');
-    if (inp) inp.value = scale;
-    if (lbl) lbl.textContent = `${Math.round(scale * 100)}%`;
-  };
-
-  // ==========================================
   // 4. DELETE ROOM / SPACE
   // ==========================================
 
@@ -4548,30 +3294,11 @@
       idx = activeSceneIndex;
     }
 
-    // If only 1 room remains, reset and clean the room to a fresh default state
     if (activeSceneList.length <= 1) {
-      const oldRoom = activeSceneList[0] || {};
-      const oldName = oldRoom.name || 'Room 1';
-      activeSceneList = [{
-        id: 'room_' + Date.now().toString(36),
-        name: 'Main Space',
-        location: (currentTourData && currentTourData.location) || 'Wasatch Front, UT',
-        tag: '360° Walkthrough',
-        panoUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2500&q=80',
-        tourUrl: '',
-        aspectMode: 'full-360',
-        vScale: 1.0,
-        blurb: 'Explore this space in 360°',
-        hotspots: []
-      }];
-      activeSceneIndex = 0;
-      window.closeEditRoomDialog();
-      window.closeManageRoomsDialog();
-      loadScene(0);
-      renderSceneSelector();
-      window.saveTourChangesToMagazine();
       if (typeof showToast === 'function') {
-        showToast(`🗑️ "${oldName}" reset to clean 360° space!`);
+        showToast('⚠️ A tour must have at least 1 room. Create another room first before deleting this one!');
+      } else {
+        alert('A tour must have at least 1 room. Create another room first before deleting this one!');
       }
       return;
     }
@@ -4579,6 +3306,10 @@
     const roomToDelete = activeSceneList[idx];
     const roomName = roomToDelete ? roomToDelete.name : `Room ${idx + 1}`;
     const deletedId = roomToDelete?.id;
+
+    if (!confirm(`Are you sure you want to delete "${roomName}"? This will permanently remove this room and any door pins pointing to it.`)) {
+      return;
+    }
 
     // 1. Remove room from list
     activeSceneList.splice(idx, 1);
@@ -4599,7 +3330,7 @@
       activeSceneIndex = Math.max(0, activeSceneIndex - 1);
     }
     if (activeSceneIndex >= activeSceneList.length) {
-      activeSceneIndex = Math.max(0, activeSceneList.length - 1);
+      activeSceneIndex = activeSceneList.length - 1;
     }
 
     window.closeEditRoomDialog();
@@ -4987,19 +3718,39 @@
   };
 
   // =========================================================================
-  // 360° MATTERPORT-GRADE CAMERA SCANNER & EQUIRECTANGULAR STITCHER ENGINE
+  // 360° CAMERA CAPTURE & REAL-TIME EQUIRECTANGULAR STITCHER ENGINE
+  // (In-browser spatial panorama scanner inspired by Teleport & HDReye)
   // =========================================================================
 
-  // Stable 16-stop horizon orbit (every 22.5°) with generous optical overlap
-  const SCAN_ROWS = [
-    { pitch: 0, count: 16 } // Primary level horizon orbit (360° room walkthrough)
+  // HDReye / Street View style multi-row spherical capture grid
+  // Upper row + lower row + horizon = full up/down coverage
+  // HDReye-style spherical capture grid (~16–20 guided shots)
+  // One active target at a time (like their blue dots), rest faint
+  const SCAN_ROWS_STANDARD = [
+    { pitch:  55, count: 6  },  // ceiling
+    { pitch:  20, count: 8  },  // upper
+    { pitch:  -5, count: 10 },  // horizon (most overlap)
+    { pitch: -30, count: 8  },  // lower
+    { pitch: -55, count: 6  }   // floor
   ];
-  let SCAN_TOTAL_NODES = 16;
+  // WIDE MODE — adds near-zenith and near-nadir rows plus denser horizon
+  // coverage so the final panorama has no gaps directly overhead/underfoot
+  // and blends more smoothly across busier walls (windows, furniture, etc).
+  const SCAN_ROWS_WIDE = [
+    { pitch:  80, count: 4  },  // straight up (zenith)
+    { pitch:  55, count: 8  },  // ceiling
+    { pitch:  25, count: 10 },  // upper
+    { pitch:   0, count: 14 },  // horizon (max overlap)
+    { pitch: -25, count: 10 },  // lower
+    { pitch: -55, count: 8  },  // floor
+    { pitch: -80, count: 4  }   // straight down (nadir)
+  ];
+  let scanWideMode = false;
+  let SCAN_TOTAL_NODES = 0;
 
-  let scanCaptureMode = 'sweep'; // 'sweep' (Matterport 1-Sweep) or 'radar' (12-Stop Guided)
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
   let scanStream = null;
-  let scanCameraFacing = 'environment';
+  let scanCameraFacing = 'environment'; // rear camera by default
   let scanSlots = [];
   let scanCurrentYaw = 0;
   let scanCurrentPitch = 0;
@@ -5016,19 +3767,13 @@
   let scanLoopAnimId = null;
   let scanSmoothYaw = 0;
   let scanSmoothPitch = 0;
-  let scanNodeEls = [];
+  let scanNodeEls = [];          // persistent DOM nodes — never recreate
   let scanNodesInitialized = false;
-
-  // Continuous sweep state
-  let scanIsSweeping = false;
-  let scanSweepStartYaw = 0;
-  let scanSweepCoveredDeg = 0;
-  let scanSweepLastSampleYaw = -999;
-  let scanSweepSamples = [];
 
   function initScanSlots() {
     scanSlots = [];
-    SCAN_ROWS.forEach(row => {
+    const rows = scanWideMode ? SCAN_ROWS_WIDE : SCAN_ROWS_STANDARD;
+    rows.forEach(row => {
       const step = 360 / row.count;
       for (let i = 0; i < row.count; i++) {
         scanSlots.push({
@@ -5036,18 +3781,43 @@
           pitch: row.pitch,
           captured: false,
           imgCanvas: null,
-          timestamp: 0,
-          captureYaw: i * step,
-          capturePitch: row.pitch
+          timestamp: 0
         });
       }
     });
-    SCAN_TOTAL_NODES = scanSlots.length; // 12
-    scanSweepSamples = [];
-    scanSweepCoveredDeg = 0;
-    scanSweepLastSampleYaw = -999;
-    scanIsSweeping = false;
+    SCAN_TOTAL_NODES = scanSlots.length;
   }
+
+  // Toggle between the standard capture grid and the wider one (more angles,
+  // reaches straight up/down). Resets any in-progress capture since the
+  // node layout changes — confirms first if the person already has shots.
+  window.toggleWideScanMode = function () {
+    const hasProgress = scanSlots.some(s => s.captured);
+    if (hasProgress && !confirm('Switching capture mode resets your current progress. Continue?')) {
+      return;
+    }
+    scanWideMode = !scanWideMode;
+    initScanSlots();
+    scanNodesInitialized = false;
+    scanNodeEls = [];
+    const nodesLayer = document.getElementById('scanNodesLayer');
+    if (nodesLayer) nodesLayer.innerHTML = '';
+    clearStitchPreviewCanvas();
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
+
+    const btn = document.getElementById('scanWideModeBtn');
+    if (btn) {
+      btn.textContent = scanWideMode ? '🌐 WIDE MODE: ON' : '🌐 WIDE MODE: OFF';
+      btn.style.background = scanWideMode ? '#06D6A0' : '#FFD23F';
+      btn.style.color = scanWideMode ? '#0d1b1e' : '#14121A';
+    }
+    if (typeof showToast === 'function') {
+      showToast(scanWideMode
+        ? `🌐 Wide mode on — ${SCAN_TOTAL_NODES} angles, full ceiling-to-floor coverage.`
+        : `Standard mode — ${SCAN_TOTAL_NODES} angles.`);
+    }
+  };
 
   function normalizeAngle360(deg) {
     let d = deg % 360;
@@ -5059,46 +3829,6 @@
     let diff = (target - current + 180) % 360 - 180;
     return diff < -180 ? diff + 360 : diff;
   }
-
-  window.switchScanCaptureMode = function (mode) {
-    scanCaptureMode = mode;
-    const tabSweep = document.getElementById('scanTabSweep');
-    const tabRadar = document.getElementById('scanTabRadar');
-    const compassWrap = document.getElementById('scanSweepCompassWrap');
-    const nodesLayer = document.getElementById('scanNodesLayer');
-    const sweepBtn = document.getElementById('scanSweepStartBtn');
-    const shutterBtn = document.getElementById('scanShutterBtn');
-
-    if (tabSweep) tabSweep.classList.toggle('active', mode === 'sweep');
-    if (tabRadar) tabRadar.classList.toggle('active', mode === 'radar');
-
-    if (compassWrap) compassWrap.style.display = (mode === 'sweep') ? 'flex' : 'none';
-    if (nodesLayer) nodesLayer.style.display = (mode === 'radar') ? 'block' : 'none';
-    if (sweepBtn) sweepBtn.style.display = (mode === 'sweep') ? 'inline-block' : 'none';
-    if (shutterBtn) shutterBtn.style.display = (mode === 'radar') ? 'flex' : 'none';
-
-    const ringStatus = document.getElementById('scanRingStatus');
-    if (ringStatus) {
-      ringStatus.textContent = (mode === 'sweep') ? 'TURN SLOWLY 360°' : 'ROTATE TO GLOWING DOT';
-    }
-
-    if (typeof showToast === 'function') {
-      showToast(mode === 'sweep'
-        ? '⚡ Matterport 1-Sweep Mode: Tap "START SWEEP" and turn in a smooth 360° circle.'
-        : '🎯 Matterport Guided Radar: Rotate to each dot; auto-snaps when locked.');
-    }
-  };
-
-  window.recenterScannerGyro = function () {
-    scanBaseYawOffset = scanSmoothYaw + scanBaseYawOffset;
-    scanCurrentYaw = 0;
-    scanSmoothYaw = 0;
-    scanCurrentPitch = 0;
-    scanSmoothPitch = 0;
-    if (typeof showToast === 'function') {
-      showToast('🎯 Heading calibrated! Current view set to 0° forward.');
-    }
-  };
 
   window.open360CameraScanner = async function (mode = 'new_room') {
     const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
@@ -5126,7 +3856,6 @@
     if (!modal) return;
     modal.style.display = 'flex';
 
-    window.switchScanCaptureMode(scanCaptureMode || 'sweep');
     renderScanSlotsRibbon();
     updateScanProgressBar();
     clearStitchPreviewCanvas();
@@ -5140,6 +3869,10 @@
     // Start UI Animation Loop
     if (scanLoopAnimId) cancelAnimationFrame(scanLoopAnimId);
     runScannerLoop();
+
+    if (typeof showToast === 'function') {
+      showToast('📸 HDReye mode: hold phone upright and TURN your body — circles stay on the walls. Center a circle → auto-snap.');
+    }
   };
 
   async function startScannerCameraFeed() {
@@ -5165,17 +3898,20 @@
       video.srcObject = scanStream;
       await video.play().catch(e => console.warn('Video play deferred:', e));
     } catch (err) {
-      console.warn('[Matterport 360 Scanner] Camera fallback:', err);
+      console.warn('[SpotLIGHT 360 Scanner] Camera stream error with high-res, fallback to standard video:', err);
       try {
         scanStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         video.srcObject = scanStream;
         await video.play().catch(e => console.warn('Video play deferred fallback:', e));
       } catch (err2) {
-        console.error('[Matterport 360 Scanner] Camera access failed:', err2);
+        console.error('[SpotLIGHT 360 Scanner] Camera access failed:', err2);
         const ringStatus = document.getElementById('scanRingStatus');
         if (ringStatus) {
-          ringStatus.textContent = 'CAMERA BLOCKED · ALLOW PERMISSION';
+          ringStatus.textContent = 'CAMERA BLOCKED · ALLOW PERMISSIONS';
           ringStatus.style.color = '#FF4D6D';
+        }
+        if (typeof showToast === 'function') {
+          showToast('⚠️ Camera permission needed to scan. Please allow camera in browser settings.');
         }
       }
     }
@@ -5185,21 +3921,26 @@
     scanCameraFacing = (scanCameraFacing === 'environment') ? 'user' : 'environment';
     await startScannerCameraFeed();
     if (typeof showToast === 'function') {
-      showToast(`🔄 Camera switched to: ${scanCameraFacing === 'environment' ? 'Rear / Room' : 'Front / Self'}`);
+      showToast(`🔄 Camera switched to: ${scanCameraFacing === 'environment' ? 'Rear / World' : 'Front / Self'}`);
     }
   };
 
-  // ===== ROCK-SOLID MATTERPORT GYRO ORIENTATION (ZERO JUMPING) =====
+  // ===== GYRO AIM (HDReye-style world-locked targets) =====
   let _scanOrientHandler = null;
+  let _scanOrientAbsHandler = null;
   let _scanRelSensor = null;
   let _scanGyroPrimed = false;
-  let _lastRawYaw = null;
 
   function stopScannerGyroListeners() {
     if (_scanOrientHandler) {
       window.removeEventListener('deviceorientation', _scanOrientHandler, true);
       window.removeEventListener('deviceorientation', _scanOrientHandler, false);
       _scanOrientHandler = null;
+    }
+    if (_scanOrientAbsHandler) {
+      window.removeEventListener('deviceorientationabsolute', _scanOrientAbsHandler, true);
+      window.removeEventListener('deviceorientationabsolute', _scanOrientAbsHandler, false);
+      _scanOrientAbsHandler = null;
     }
     if (_scanRelSensor) {
       try { _scanRelSensor.stop(); } catch (e) {}
@@ -5219,6 +3960,7 @@
     if (scanIsDragging) return;
 
     if (!_scanGyroPrimed) {
+      // First reading = "forward" — all targets relative to this facing (like HDReye)
       scanBaseYawOffset = yawDeg;
       scanSmoothYaw = 0;
       scanSmoothPitch = pitchDeg;
@@ -5226,7 +3968,7 @@
       scanCurrentPitch = pitchDeg;
       _scanGyroPrimed = true;
       scanHasGyro = true;
-      setSensorPill('📳 GYRO ACTIVE · READY', '#06D6A0');
+      setSensorPill('📳 GYRO AIM ON · TURN PHONE', '#06D6A0');
       var btn = document.getElementById('scanEnableGyroBtn');
       if (btn) {
         btn.textContent = '✅ GYRO ACTIVE';
@@ -5238,19 +3980,14 @@
 
     scanHasGyro = true;
     var targetYaw = normalizeAngle360(yawDeg - scanBaseYawOffset);
-    var targetPitch = Math.max(-45, Math.min(45, pitchDeg));
+    var targetPitch = Math.max(-85, Math.min(85, pitchDeg));
 
-    // Low-pass exponential moving average with unwrapped angle delta to eliminate jitter
+    // Responsive follow so dots stay on walls while you turn
     var dy = angleDiffSigned(targetYaw, scanSmoothYaw);
-    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.35);
-    scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.35;
+    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.5);
+    scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.5;
     scanCurrentYaw = scanSmoothYaw;
     scanCurrentPitch = scanSmoothPitch;
-
-    // In continuous sweep mode, sample keyframes automatically
-    if (scanIsSweeping) {
-      handleContinuousSweepProgress();
-    }
   }
 
   function onDeviceOrientationEvent(e) {
@@ -5258,19 +3995,34 @@
     if (e.beta === null || e.beta === undefined) return;
 
     var rawYaw;
+    // iOS compass heading is most stable when present
     if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
       rawYaw = e.webkitCompassHeading;
     } else if (e.absolute === true) {
       rawYaw = e.alpha;
     } else {
+      // Browser relative alpha (0–360). Invert so turning right increases yaw consistently
       rawYaw = (360 - e.alpha);
     }
 
-    // Stabilized pitch from beta (upright phone: beta ~ 85-95 -> pitch 0)
-    var rawPitch = (e.beta != null ? e.beta : 90) - 90;
-    if (e.gamma != null && Math.abs(e.gamma) > 45) {
-      // Phone is held horizontally/landscape
-      rawPitch = e.gamma > 0 ? (90 - e.gamma) : (-90 - e.gamma);
+    // Map beta/gamma → pitch depending on screen orientation
+    var rawPitch;
+    var orient = 0;
+    try {
+      if (screen.orientation && typeof screen.orientation.angle === 'number') {
+        orient = screen.orientation.angle;
+      } else if (typeof window.orientation === 'number') {
+        orient = window.orientation;
+      }
+    } catch (err) {}
+
+    if (orient === 90 || orient === -270) {
+      rawPitch = -(e.gamma != null ? e.gamma : 0);
+    } else if (orient === -90 || orient === 270) {
+      rawPitch = (e.gamma != null ? e.gamma : 0);
+    } else {
+      // Portrait: beta ~90 when upright → pitch 0
+      rawPitch = (e.beta != null ? e.beta : 90) - 90;
     }
 
     applyGyroLook(rawYaw, rawPitch);
@@ -5281,50 +4033,86 @@
     _scanGyroPrimed = false;
     scanHasGyro = false;
 
-    // Chrome RelativeOrientationSensor if available
+    // Modern Generic Sensor API (Chrome Android) — best when available
     try {
       if (typeof RelativeOrientationSensor === 'function') {
         var sensor = new RelativeOrientationSensor({ frequency: 60, referenceFrame: 'screen' });
         sensor.onreading = function () {
+          // quaternion [x,y,z,w] → yaw/pitch
           var q = sensor.quaternion;
           if (!q) return;
           var x = q[0], y = q[1], z = q[2], w = q[3];
+          // yaw (heading around Y)
           var siny = 2 * (w * y + z * x);
           var cosy = 1 - 2 * (y * y + x * x);
           var yaw = Math.atan2(siny, cosy) * (180 / Math.PI);
+          // pitch
           var sinp = 2 * (w * x - y * z);
-          var pitch = Math.asin(Math.max(-1, Math.min(1, sinp))) * (180 / Math.PI);
+          var pitch;
+          if (Math.abs(sinp) >= 1) pitch = (sinp > 0 ? 1 : -1) * 90;
+          else pitch = Math.asin(sinp) * (180 / Math.PI);
           applyGyroLook(normalizeAngle360(yaw), -pitch);
+        };
+        sensor.onerror = function () {
+          // fall through — deviceorientation still attached below
         };
         sensor.start();
         _scanRelSensor = sensor;
       }
-    } catch (err) {}
+    } catch (err) {
+      // ignore — use deviceorientation
+    }
 
     _scanOrientHandler = onDeviceOrientationEvent;
+    _scanOrientAbsHandler = onDeviceOrientationEvent;
     window.addEventListener('deviceorientation', _scanOrientHandler, true);
-    setSensorPill('📳 MOTION READY', '#06D6A0');
+    window.addEventListener('deviceorientationabsolute', _scanOrientAbsHandler, true);
+
+    setSensorPill('📳 MOVE PHONE — calibrating…', '#FFD23F');
+
+    setTimeout(function () {
+      if (!scanHasGyro) {
+        setSensorPill('👆 DRAG TO AIM (gyro not available)', '#FFD23F');
+        var btn = document.getElementById('scanEnableGyroBtn');
+        if (btn) {
+          btn.textContent = '🧭 TAP TO RETRY GYRO';
+          btn.style.background = '#FFD23F';
+        }
+      }
+    }, 3000);
   }
 
+  // MUST be called from a tap (iOS requirement)
   window.enableScannerGyroAim = async function () {
     var btn = document.getElementById('scanEnableGyroBtn');
     if (btn) {
       btn.textContent = '⏳ REQUESTING…';
       btn.disabled = true;
     }
+    setSensorPill('🔐 Allow Motion when prompted', '#FFD23F');
 
     try {
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
         var resp = await DeviceOrientationEvent.requestPermission();
         if (resp !== 'granted') {
-          setSensorPill('👆 DRAG TO ROTATE', '#FF4D6D');
+          setSensorPill('👆 DRAG TO AIM (motion denied)', '#FF4D6D');
           if (btn) {
-            btn.textContent = '🧭 MOTION DENIED (DRAG TO ROTATE)';
+            btn.textContent = '🧭 GYRO BLOCKED — USE DRAG';
             btn.disabled = false;
+            btn.style.background = '#FF4D6D';
+            btn.style.color = '#fff';
+          }
+          if (typeof showToast === 'function') {
+            showToast('Motion denied. Enable in Settings → Safari → Motion & Orientation Access');
           }
           return;
         }
+      }
+      // Also try DeviceMotion permission on some iOS versions
+      if (typeof DeviceMotionEvent !== 'undefined' &&
+          typeof DeviceMotionEvent.requestPermission === 'function') {
+        try { await DeviceMotionEvent.requestPermission(); } catch (e) {}
       }
     } catch (err) {
       console.warn('[Scanner gyro permission]', err);
@@ -5333,9 +4121,10 @@
     startOrientationListeners();
     if (btn) {
       btn.disabled = false;
-      btn.textContent = '✅ MOTION ACTIVE';
-      btn.style.background = '#06D6A0';
-      btn.style.color = '#0d1b1e';
+      btn.textContent = '🧭 CALIBRATING… TURN PHONE';
+    }
+    if (typeof showToast === 'function') {
+      showToast('Hold phone upright and slowly turn in a circle — targets lock to the room');
     }
   };
 
@@ -5343,14 +4132,24 @@
     var viewfinder = document.getElementById('scanViewfinderArea');
     _scanGyroPrimed = false;
     scanHasGyro = false;
+    setSensorPill('👉 TAP “ENABLE GYRO AIM”', '#FFD23F');
 
+    var btn = document.getElementById('scanEnableGyroBtn');
+    if (btn) {
+      btn.textContent = '🧭 ENABLE GYRO AIM';
+      btn.style.background = '#FFD23F';
+      btn.style.color = '#14121A';
+      btn.disabled = false;
+    }
+
+    // Auto-try on Android / desktop (no permission API). iOS still needs the button.
     var needsTap = (typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function');
     if (!needsTap) {
       startOrientationListeners();
     }
 
-    // Touch & mouse drag support
+    // Finger drag always available as backup
     if (viewfinder && !viewfinder._hasDragListeners) {
       viewfinder._hasDragListeners = true;
 
@@ -5365,11 +4164,10 @@
         if (!scanIsDragging) return;
         var dx = cx - scanDragStartX;
         var dy = cy - scanDragStartY;
-        scanCurrentYaw = normalizeAngle360(scanDragStartYaw - dx * 0.45);
-        scanCurrentPitch = Math.max(-45, Math.min(45, scanDragStartPitch + dy * 0.45));
+        scanCurrentYaw = normalizeAngle360(scanDragStartYaw - dx * 0.42);
+        scanCurrentPitch = Math.max(-85, Math.min(85, scanDragStartPitch + dy * 0.42));
         scanSmoothYaw = scanCurrentYaw;
         scanSmoothPitch = scanCurrentPitch;
-        if (scanIsSweeping) handleContinuousSweepProgress();
       };
       var onEnd = function () { scanIsDragging = false; };
 
@@ -5391,132 +4189,6 @@
     }
   }
 
-  // ===== MATTERPORT 1-SWEEP CONTINUOUS ROTATION ENGINE =====
-  window.toggleContinuousSweep = function () {
-    if (scanIsSweeping) {
-      // Stop sweep
-      scanIsSweeping = false;
-      var btn = document.getElementById('scanSweepStartBtn');
-      if (btn) {
-        btn.textContent = '▶ START SWEEP';
-        btn.style.background = '#06D6A0';
-        btn.style.color = '#0d1b1e';
-      }
-      return;
-    }
-
-    // Start sweep
-    scanIsSweeping = true;
-    scanSweepStartYaw = scanCurrentYaw;
-    scanSweepCoveredDeg = 0;
-    scanSweepLastSampleYaw = scanCurrentYaw;
-    scanSweepSamples = [];
-    initScanSlots();
-
-    var btn = document.getElementById('scanSweepStartBtn');
-    if (btn) {
-      btn.textContent = '⏹ STOP SWEEP';
-      btn.style.background = '#FF4D6D';
-      btn.style.color = '#fff';
-    }
-
-    // Take initial 0° sample
-    grabSweepFrame(0);
-
-    if (typeof showToast === 'function') {
-      showToast('⚡ Sweep active! Slowly turn your body in a full circle.');
-    }
-  };
-
-  function grabSweepFrame(targetSlotIdx) {
-    const video = document.getElementById('scanVideoFeed');
-    const workCanvas = document.getElementById('scanWorkCanvas');
-    const flashFx = document.getElementById('scanFlashFx');
-    if (!video || !workCanvas) return;
-
-    const vw = video.videoWidth || 1280;
-    const vh = video.videoHeight || 720;
-    if (vw === 0 || vh === 0) return;
-
-    workCanvas.width = vw;
-    workCanvas.height = vh;
-    const ctx = workCanvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, vw, vh);
-
-    const sliceCanvas = document.createElement('canvas');
-    sliceCanvas.width = vw;
-    sliceCanvas.height = vh;
-    sliceCanvas.getContext('2d').drawImage(workCanvas, 0, 0);
-
-    const slotIdx = (typeof targetSlotIdx === 'number' && targetSlotIdx >= 0 && targetSlotIdx < scanSlots.length)
-      ? targetSlotIdx
-      : Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
-
-    scanSlots[slotIdx].captured = true;
-    scanSlots[slotIdx].imgCanvas = sliceCanvas;
-    scanSlots[slotIdx].timestamp = Date.now();
-    scanSlots[slotIdx].captureYaw = scanCurrentYaw;
-    scanSlots[slotIdx].capturePitch = scanCurrentPitch;
-
-    if (flashFx) {
-      flashFx.classList.add('flash');
-      setTimeout(() => flashFx.classList.remove('flash'), 120);
-    }
-    if (navigator.vibrate) navigator.vibrate([25]);
-
-    updateStitchPreviewRibbon();
-    renderScanSlotsRibbon();
-    updateScanProgressBar();
-  }
-
-  function handleContinuousSweepProgress() {
-    const dYaw = angleDiffSigned(scanCurrentYaw, scanSweepLastSampleYaw);
-    if (Math.abs(dYaw) >= 18) {
-      // Capture frame at this angle step
-      scanSweepLastSampleYaw = scanCurrentYaw;
-      const targetSlot = Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
-      grabSweepFrame(targetSlot);
-    }
-
-    // Compute total progress towards 360°
-    const capturedCount = scanSlots.filter(s => s.captured).length;
-    const progressDeg = Math.min(360, Math.round((capturedCount / SCAN_TOTAL_NODES) * 360));
-    scanSweepCoveredDeg = progressDeg;
-
-    // Update Sweep SVG Ring
-    const progressCircle = document.getElementById('scanSweepProgressCircle');
-    const degLabel = document.getElementById('scanSweepDegLabel');
-    const subLabel = document.getElementById('scanSweepSubLabel');
-
-    if (progressCircle) {
-      const maxOffset = 534;
-      const offset = maxOffset * (1 - (progressDeg / 360));
-      progressCircle.style.strokeDashoffset = String(offset);
-    }
-    if (degLabel) degLabel.textContent = `${progressDeg}°`;
-
-    if (capturedCount >= SCAN_TOTAL_NODES) {
-      scanIsSweeping = false;
-      if (subLabel) {
-        subLabel.textContent = '✓ COMPLETE!';
-        subLabel.style.color = '#06D6A0';
-      }
-      var btn = document.getElementById('scanSweepStartBtn');
-      if (btn) {
-        btn.textContent = '✨ 360° CAPTURED';
-        btn.style.background = '#FFD23F';
-        btn.style.color = '#14121A';
-      }
-      if (typeof showToast === 'function') {
-        showToast('🎉 360° sweep complete! Stitching photosphere…');
-      }
-      // Auto-trigger stitch after brief delay
-      setTimeout(() => {
-        window.finishAndUse360Stitch();
-      }, 600);
-    }
-  }
-
   function runScannerLoop() {
     const anglePill = document.getElementById('scanAnglePill');
     const centerRing = document.getElementById('scanCenterRing');
@@ -5528,137 +4200,160 @@
     const viewfinder = document.getElementById('scanViewfinderArea');
 
     if (anglePill) {
-      anglePill.textContent = `${Math.round(scanCurrentYaw)}° / 360°`;
+      anglePill.textContent = `YAW: ${Math.round(scanCurrentYaw)}° · PITCH: ${Math.round(scanCurrentPitch)}°`;
     }
 
-    if (viewfinder) {
+    if (viewfinder && nodesLayer) {
       const vw = viewfinder.clientWidth || window.innerWidth;
       const vh = viewfinder.clientHeight || (window.innerHeight * 0.6);
       const centerX = vw / 2;
       const centerY = vh / 2;
-      const hFov = 75;
-      const vFov = 50;
+      // Approximate horizontal & vertical FOV of phone camera on screen
+      // Wider virtual FOV = more guide circles visible at once (HDReye-like density)
+      const hFov = 78;
+      const vFov = Math.max(50, hFov * (vh / Math.max(vw, 1)));
 
-      // Update Matterport 12-Stop Radar nodes if in radar mode
-      if (scanCaptureMode === 'radar' && nodesLayer) {
-        if (!scanNodesInitialized) {
-          nodesLayer.innerHTML = '';
-          scanNodeEls = scanSlots.map((slot, idx) => {
-            const el = document.createElement('div');
-            el.className = 'scan-node-marker pending';
-            el.dataset.idx = String(idx);
-            el.innerHTML = '<span></span>';
-            el.style.pointerEvents = 'auto';
-            el.onclick = () => window.captureSpecificScanAngle(idx);
-            nodesLayer.appendChild(el);
-            return el;
-          });
-          scanNodesInitialized = true;
+      // Create nodes ONCE
+      if (!scanNodesInitialized) {
+        nodesLayer.innerHTML = '';
+        scanNodeEls = scanSlots.map((slot, idx) => {
+          const el = document.createElement('div');
+          el.className = 'scan-node-marker pending';
+          el.dataset.idx = String(idx);
+          el.innerHTML = '<span></span>';
+          el.style.pointerEvents = 'auto';
+          el.onclick = () => window.captureSpecificScanAngle(idx);
+          nodesLayer.appendChild(el);
+          return el;
+        });
+        scanNodesInitialized = true;
+      }
+
+      let closestUncapturedIdx = -1;
+      let minAngularDistance = 999;
+      let alignedTargetIdx = -1;
+
+      // First pass: find nearest uncaptured target (HDReye "next blue dot")
+      for (let idx = 0; idx < scanSlots.length; idx++) {
+        const slot = scanSlots[idx];
+        if (slot.captured) continue;
+        const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+        const diffPitch = slot.pitch - scanCurrentPitch;
+        const angularDist = Math.hypot(diffYaw, diffPitch);
+        if (angularDist < minAngularDistance) {
+          minAngularDistance = angularDist;
+          closestUncapturedIdx = idx;
+        }
+      }
+
+      // Update every node — next target is BIG/bright, others faint (HDReye style)
+      for (let idx = 0; idx < scanSlots.length; idx++) {
+        const slot = scanSlots[idx];
+        const el = scanNodeEls[idx];
+        if (!el) continue;
+
+        const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+        const diffPitch = slot.pitch - scanCurrentPitch;
+        const angularDist = Math.hypot(diffYaw, diffPitch);
+
+        // Project relative to current look direction (world-locked targets)
+        const screenX = centerX + (diffYaw / hFov) * vw;
+        const screenY = centerY - (diffPitch / vFov) * vh;
+        const isVisible = Math.abs(diffYaw) < hFov * 1.25 && Math.abs(diffPitch) < vFov * 1.25;
+
+        if (!slot.captured && angularDist < 9) {
+          alignedTargetIdx = idx;
         }
 
-        let closestUncapturedIdx = -1;
-        let minAngularDistance = 999;
-        let alignedTargetIdx = -1;
+        el.style.transform = 'translate3d(' + screenX + 'px, ' + screenY + 'px, 0) translate(-50%, -50%)';
+        el.style.visibility = isVisible ? 'visible' : 'hidden';
+        el.style.pointerEvents = isVisible ? 'auto' : 'none';
 
-        for (let idx = 0; idx < scanSlots.length; idx++) {
-          const slot = scanSlots[idx];
-          if (slot.captured) continue;
-          const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
-          const diffPitch = slot.pitch - scanCurrentPitch;
-          const angularDist = Math.hypot(diffYaw, diffPitch);
-          if (angularDist < minAngularDistance) {
-            minAngularDistance = angularDist;
-            closestUncapturedIdx = idx;
-          }
-        }
-
-        for (let idx = 0; idx < scanSlots.length; idx++) {
-          const slot = scanSlots[idx];
-          const el = scanNodeEls[idx];
-          if (!el) continue;
-
-          const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
-          const diffPitch = slot.pitch - scanCurrentPitch;
-          const angularDist = Math.hypot(diffYaw, diffPitch);
-
-          const screenX = centerX + (diffYaw / hFov) * vw;
-          const screenY = centerY - (diffPitch / vFov) * vh;
-          const isVisible = Math.abs(diffYaw) < hFov * 1.1 && Math.abs(diffPitch) < vFov * 1.1;
-
-          if (!slot.captured && angularDist < 8.5) {
-            alignedTargetIdx = idx;
-          }
-
-          el.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
-          el.style.visibility = isVisible ? 'visible' : 'hidden';
-
-          const span = el.querySelector('span');
-          el.classList.remove('pending', 'aligned', 'captured', 'next-target');
-
-          if (slot.captured) {
-            el.classList.add('captured');
-            el.style.opacity = isVisible ? '0.75' : '0';
-            if (span) span.textContent = '✓';
-          } else if (angularDist < 8.5) {
-            el.classList.add('aligned');
-            el.style.opacity = '1';
-            if (span) span.textContent = '●';
-          } else if (idx === closestUncapturedIdx) {
-            el.classList.add('pending', 'next-target');
-            el.style.opacity = isVisible ? '1' : '0';
-            if (span) span.textContent = '';
-          } else {
-            el.classList.add('pending');
-            el.style.opacity = isVisible ? '0.25' : '0';
-            if (span) span.textContent = '';
-          }
-        }
-
-        // Center reticle feedback
-        if (alignedTargetIdx !== -1) {
-          const slot = scanSlots[alignedTargetIdx];
-          if (centerRing) {
-            centerRing.classList.add('aligned');
-            centerRing.classList.toggle('captured', !!slot.captured);
-          }
-          if (ringStatus) {
-            ringStatus.textContent = slot.captured ? `✓ CAPTURED (${Math.round(slot.yaw)}°)` : `LOCK · HOLD STEADY`;
-            ringStatus.style.color = slot.captured ? '#06D6A0' : '#FFD23F';
-          }
-
-          if (scanAutoSnap && !slot.captured) {
-            if (scanAlignedAngleIdx !== alignedTargetIdx) {
-              scanAlignedAngleIdx = alignedTargetIdx;
-              clearTimeout(scanAlignTimer);
-              scanAlignTimer = setTimeout(function () {
-                if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
-                  window.captureSpecificScanAngle(alignedTargetIdx);
-                }
-              }, 340);
-            }
-          }
+        const span = el.querySelector('span');
+        el.classList.remove('pending', 'aligned', 'captured', 'next-target');
+        if (slot.captured) {
+          el.classList.add('captured');
+          el.style.opacity = isVisible ? '0.85' : '0';
+          if (span) span.textContent = '✓';
+        } else if (angularDist < 9) {
+          el.classList.add('aligned');
+          el.style.opacity = '1';
+          if (span) span.textContent = '●';
+        } else if (idx === closestUncapturedIdx) {
+          // THE active HDReye-style target — large & bright
+          el.classList.add('pending', 'next-target');
+          el.style.opacity = isVisible ? '1' : '0';
+          if (span) span.textContent = '';
         } else {
-          scanAlignedAngleIdx = -1;
-          clearTimeout(scanAlignTimer);
-          if (centerRing) centerRing.classList.remove('aligned', 'captured');
-          if (ringStatus) {
-            ringStatus.textContent = 'ROTATE TO TARGET DOT';
-            ringStatus.style.color = 'rgba(255,255,255,0.75)';
-          }
+          // Other remaining targets — small faint dots
+          el.classList.add('pending');
+          el.style.opacity = isVisible ? '0.35' : '0';
+          if (span) span.textContent = '';
+        }
+      }
+
+      // Center reticle
+      if (alignedTargetIdx !== -1) {
+        const slot = scanSlots[alignedTargetIdx];
+        if (centerRing) {
+          centerRing.classList.add('aligned');
+          centerRing.classList.toggle('captured', !!slot.captured);
+        }
+        if (ringStatus) {
+          const rowLabel = slot.pitch > 15 ? 'UP' : (slot.pitch < -15 ? 'DOWN' : 'LEVEL');
+          ringStatus.textContent = slot.captured
+            ? `✓ CAPTURED (${rowLabel})`
+            : `LOCK · HOLD STEADY (${rowLabel})`;
+          ringStatus.style.color = slot.captured ? '#06D6A0' : '#FFD23F';
         }
 
-        // Guidance arrow
-        if (closestUncapturedIdx !== -1 && guideArrow && guideText && guideIcon) {
-          const t = scanSlots[closestUncapturedIdx];
-          const dYaw = angleDiffSigned(t.yaw, scanCurrentYaw);
-          if (Math.abs(dYaw) > 8) {
-            guideArrow.style.display = 'flex';
-            guideIcon.textContent = dYaw > 0 ? '➔' : '⬅';
-            guideText.textContent = `${dYaw > 0 ? 'TURN RIGHT ➔' : '⬅ TURN LEFT'} to ${Math.round(t.yaw)}°`;
-          } else {
-            guideArrow.style.display = 'none';
+        if (scanAutoSnap && !slot.captured) {
+          if (scanAlignedAngleIdx !== alignedTargetIdx) {
+            scanAlignedAngleIdx = alignedTargetIdx;
+            clearTimeout(scanAlignTimer);
+            scanAlignTimer = setTimeout(function () {
+              if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
+                window.captureCurrentScanAngle();
+              }
+            }, 380);
           }
         }
+      } else {
+        scanAlignedAngleIdx = -1;
+        clearTimeout(scanAlignTimer);
+        if (centerRing) {
+          centerRing.classList.remove('aligned', 'captured');
+        }
+        if (ringStatus) {
+          ringStatus.textContent = 'AIM AT A CIRCLE';
+          ringStatus.style.color = 'rgba(255,255,255,0.75)';
+        }
+      }
+
+      // Guidance
+      if (closestUncapturedIdx !== -1 && guideArrow && guideText && guideIcon) {
+        const t = scanSlots[closestUncapturedIdx];
+        const dYaw = angleDiffSigned(t.yaw, scanCurrentYaw);
+        const dPitch = t.pitch - scanCurrentPitch;
+        const absYaw = Math.abs(dYaw);
+        const absPitch = Math.abs(dPitch);
+
+        if (absYaw > 10 || absPitch > 10) {
+          guideArrow.style.display = 'flex';
+          let dir = '';
+          if (absPitch > absYaw) {
+            dir = dPitch > 0 ? 'TILT UP ↑' : 'TILT DOWN ↓';
+            guideIcon.textContent = dPitch > 0 ? '↑' : '↓';
+          } else {
+            dir = dYaw > 0 ? 'TURN RIGHT ➔' : '⬅ TURN LEFT';
+            guideIcon.textContent = dYaw > 0 ? '➔' : '⬅';
+          }
+          guideText.textContent = `${dir}  ·  next target`;
+        } else {
+          guideArrow.style.display = 'none';
+        }
+      } else if (guideArrow) {
+        guideArrow.style.display = 'none';
       }
     }
 
@@ -5673,24 +4368,76 @@
     scanAutoSnap = chk ? chk.checked : !scanAutoSnap;
   };
 
+  window.manualStepAngle = function (delta) {
+    scanCurrentYaw = normalizeAngle360(scanCurrentYaw + delta);
+    scanSmoothYaw = scanCurrentYaw;
+  };
+
   window.captureCurrentScanAngle = function () {
     let closestIdx = 0;
     let minDiff = 999;
+
     scanSlots.forEach((slot, idx) => {
-      const dYaw = Math.abs(angleDiffSigned(slot.yaw, scanCurrentYaw));
-      if (dYaw < minDiff) {
-        minDiff = dYaw;
+      const dYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+      const dPitch = slot.pitch - scanCurrentPitch;
+      const diff = Math.hypot(dYaw, dPitch);
+      if (diff < minDiff) {
+        minDiff = diff;
         closestIdx = idx;
       }
     });
+
     window.captureSpecificScanAngle(closestIdx);
   };
 
   window.captureSpecificScanAngle = function (slotIdx) {
-    grabSweepFrame(slotIdx);
+    const video = document.getElementById('scanVideoFeed');
+    const workCanvas = document.getElementById('scanWorkCanvas');
+    const flashFx = document.getElementById('scanFlashFx');
+    if (!video || !workCanvas || slotIdx < 0 || slotIdx >= scanSlots.length) return;
+
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+    if (vw === 0 || vh === 0) return;
+
+    workCanvas.width = vw;
+    workCanvas.height = vh;
+    const ctx = workCanvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, vw, vh);
+
+    // Save frame in memory canvas
+    const sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = vw;
+    sliceCanvas.height = vh;
+    const sliceCtx = sliceCanvas.getContext('2d');
+    sliceCtx.drawImage(workCanvas, 0, 0);
+
+    scanSlots[slotIdx].captured = true;
+    scanSlots[slotIdx].imgCanvas = sliceCanvas;
+    scanSlots[slotIdx].timestamp = Date.now();
+    // Record real aim at snap time (more accurate than ideal slot angle)
+    scanSlots[slotIdx].captureYaw = scanCurrentYaw;
+    scanSlots[slotIdx].capturePitch = scanCurrentPitch;
+
+    // Trigger Visual Flash & Haptics
+    if (flashFx) {
+      flashFx.classList.add('flash');
+      setTimeout(() => flashFx.classList.remove('flash'), 220);
+    }
+
+    if (navigator.vibrate) {
+      navigator.vibrate([40]);
+    }
+
+    // Update real-time panorama preview ribbon
+    updateStitchPreviewRibbon();
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
+
     if (typeof showToast === 'function') {
       const capturedCount = scanSlots.filter(s => s.captured).length;
-      showToast(`📸 Angle ${Math.round(scanSlots[slotIdx].yaw)}° captured! (${capturedCount}/${SCAN_TOTAL_NODES})`);
+      const s = scanSlots[slotIdx]; const row = s.pitch > 15 ? 'UP' : (s.pitch < -15 ? 'DOWN' : 'LEVEL');
+      showToast(`📸 ${row} ${Math.round(s.yaw)}° captured! (${capturedCount}/${SCAN_TOTAL_NODES})`);
     }
   };
 
@@ -5702,19 +4449,19 @@
     const barFill = document.getElementById('scanProgressBarFill');
     const finishBtn = document.getElementById('scanFinishUseBtn');
 
-    if (label) label.textContent = `${capturedCount} / ${SCAN_TOTAL_NODES} ANGLES (${percent}%)`;
+    if (label) label.textContent = `${capturedCount} / ${SCAN_TOTAL_NODES} ANGLES CAPTURED (${percent}%)`;
     if (barFill) barFill.style.width = `${percent}%`;
 
     if (finishBtn) {
-      if (capturedCount >= 6) {
+      if (capturedCount >= 8) {
         finishBtn.style.opacity = '1';
         finishBtn.style.pointerEvents = 'auto';
         finishBtn.disabled = false;
-        finishBtn.textContent = `✨ STITCH & SAVE 360° (${capturedCount}/${SCAN_TOTAL_NODES})`;
+        finishBtn.textContent = `✨ STITCH & USE 360° ROOM (${capturedCount}/${SCAN_TOTAL_NODES})`;
       } else {
         finishBtn.style.opacity = '0.6';
         finishBtn.disabled = false;
-        finishBtn.textContent = `✨ STITCH (need ${6 - capturedCount} more)`;
+        finishBtn.textContent = `✨ STITCH (need ${8 - capturedCount} more · aim for all 28)`;
       }
     }
   }
@@ -5725,9 +4472,10 @@
 
     track.innerHTML = scanSlots.map((slot, idx) => {
       const isCaptured = slot.captured;
+      const row = slot.pitch > 15 ? '↑' : (slot.pitch < -15 ? '↓' : '•');
       return `
         <div class="scan-slot-chip ${isCaptured ? 'captured' : ''}" onclick="window.manualJumpToSlot(${idx})">
-          <span style="font-size:10px;font-weight:800;">${Math.round(slot.yaw)}°</span>
+          <span style="font-size:10px;font-weight:800;">${row}${Math.round(slot.yaw)}°</span>
           <span style="font-size:9px;">${isCaptured ? '✓' : '○'}</span>
         </div>
       `;
@@ -5739,19 +4487,21 @@
     if (!slot) return;
     scanCurrentYaw = slot.yaw;
     scanSmoothYaw = slot.yaw;
+    scanCurrentPitch = slot.pitch;
+    scanSmoothPitch = slot.pitch;
   };
 
   function clearStitchPreviewCanvas() {
     const canvas = document.getElementById('panoStitchPreviewCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#14121A';
+    ctx.fillStyle = '#1A1822';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font = '11px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Live 360° Panorama Strip · Rotate phone to stitch room', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('Live 360° Equirectangular Preview · Snap angles to build room panorama', canvas.width / 2, canvas.height / 2);
   }
 
   function updateStitchPreviewRibbon() {
@@ -5765,18 +4515,25 @@
     ctx.fillRect(0, 0, pw, ph);
 
     const sliceWidth = pw / SCAN_TOTAL_NODES;
-    const blendOverlap = sliceWidth * 0.3;
+    const blendOverlap = sliceWidth * 0.28;
 
     scanSlots.forEach((slot, idx) => {
       if (slot.captured && slot.imgCanvas) {
         const destX = idx * sliceWidth;
+
+        // Draw with smooth horizontal overlap
         ctx.save();
         ctx.drawImage(slot.imgCanvas, 0, 0, slot.imgCanvas.width, slot.imgCanvas.height, destX - blendOverlap / 2, 0, sliceWidth + blendOverlap, ph);
         ctx.restore();
       } else {
-        ctx.fillStyle = 'rgba(255, 210, 63, 0.05)';
+        // Empty angle placeholder
+        ctx.fillStyle = 'rgba(255, 210, 63, 0.04)';
         ctx.fillRect(idx * sliceWidth + 1, 0, sliceWidth - 2, ph);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.strokeRect(idx * sliceWidth + 1, 0, sliceWidth - 2, ph);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.font = '10px monospace';
         ctx.textAlign = 'center';
         ctx.fillText(`${Math.round(slot.yaw)}°`, idx * sliceWidth + sliceWidth / 2, ph / 2);
@@ -5785,94 +4542,14 @@
   }
 
   window.resetCurrent360Scan = function () {
-    initScanSlots();
-    renderScanSlotsRibbon();
-    updateScanProgressBar();
-    clearStitchPreviewCanvas();
-    if (typeof showToast === 'function') showToast('🗑️ Scanner reset to 0°.');
-  };
-
-  /**
-   * Generates a 360° architectural room scan for instant testing and verification
-   */
-  window.simulateDemo360Scan = function () {
-    initScanSlots();
-    const work = document.createElement('canvas');
-    work.width = 960;
-    work.height = 720;
-    const wctx = work.getContext('2d');
-
-    const roomThemes = [
-      { name: 'North Living Room', sky: '#1f2430', wall: '#2d3345', floor: '#634b35', accent: '#FFD23F' },
-      { name: 'NE Fireplace & Art', sky: '#242a38', wall: '#343c50', floor: '#5a4330', accent: '#06D6A0' },
-      { name: 'East Grand Windows', sky: '#89a8c4', wall: '#e8edf2', floor: '#73573e', accent: '#4ea8de' },
-      { name: 'SE Mountain View Patio', sky: '#688ca8', wall: '#cfd8dc', floor: '#4a3828', accent: '#ffb703' },
-      { name: 'South Dining Suite', sky: '#2b2938', wall: '#3d394e', floor: '#614833', accent: '#fb8500' },
-      { name: 'SW Designer Kitchen', sky: '#20222a', wall: '#2e303b', floor: '#503b2b', accent: '#06D6A0' },
-      { name: 'West Marble Bar', sky: '#181a20', wall: '#232730', floor: '#423124', accent: '#FFD23F' },
-      { name: 'NW Modern Lounge', sky: '#1c1f28', wall: '#282d3a', floor: '#543f2e', accent: '#e63946' },
-      { name: 'North Corridor', sky: '#212530', wall: '#303646', floor: '#5e4632', accent: '#a8dadc' },
-      { name: 'NW Gallery Alcove', sky: '#1a1d26', wall: '#262a36', floor: '#4d3929', accent: '#f1faee' },
-      { name: 'North Entry Portal', sky: '#1d202b', wall: '#292f3d', floor: '#56402f', accent: '#FFD23F' },
-      { name: 'NNE Foyer & Lighting', sky: '#222632', wall: '#32394a', floor: '#604834', accent: '#06D6A0' }
-    ];
-
-    scanSlots.forEach((slot, idx) => {
-      const theme = roomThemes[idx % roomThemes.length];
-      wctx.fillStyle = theme.sky;
-      wctx.fillRect(0, 0, work.width, work.height * 0.35);
-
-      wctx.fillStyle = theme.wall;
-      wctx.fillRect(0, work.height * 0.35, work.width, work.height * 0.35);
-
-      wctx.fillStyle = theme.floor;
-      wctx.fillRect(0, work.height * 0.7, work.width, work.height * 0.3);
-
-      // Architectural pillar & window perspective lines
-      wctx.strokeStyle = 'rgba(255,255,255,0.18)';
-      wctx.lineWidth = 4;
-      wctx.beginPath();
-      wctx.moveTo(work.width * 0.15, 0); wctx.lineTo(work.width * 0.25, work.height);
-      wctx.moveTo(work.width * 0.85, 0); wctx.lineTo(work.width * 0.75, work.height);
-      wctx.moveTo(0, work.height * 0.35); wctx.lineTo(work.width, work.height * 0.35);
-      wctx.moveTo(0, work.height * 0.7); wctx.lineTo(work.width, work.height * 0.7);
-      wctx.stroke();
-
-      // Feature glowing badge
-      wctx.fillStyle = theme.accent;
-      wctx.beginPath();
-      wctx.arc(work.width * 0.5, work.height * 0.5, 45, 0, Math.PI * 2);
-      wctx.fill();
-
-      wctx.fillStyle = '#14121A';
-      wctx.font = 'bold 20px sans-serif';
-      wctx.textAlign = 'center';
-      wctx.fillText(`${Math.round(slot.yaw)}°`, work.width * 0.5, work.height * 0.5 + 7);
-
-      wctx.fillStyle = 'rgba(255,255,255,0.92)';
-      wctx.font = 'bold 22px sans-serif';
-      wctx.fillText(theme.name, work.width * 0.5, work.height * 0.25);
-
-      const sliceCanvas = document.createElement('canvas');
-      sliceCanvas.width = work.width;
-      sliceCanvas.height = work.height;
-      sliceCanvas.getContext('2d').drawImage(work, 0, 0);
-
-      slot.captured = true;
-      slot.imgCanvas = sliceCanvas;
-      slot.timestamp = Date.now();
-      slot.captureYaw = slot.yaw;
-      slot.capturePitch = slot.pitch;
-    });
-
-    scanCurrentYaw = 360;
-    scanSmoothYaw = 360;
-    updateStitchPreviewRibbon();
-    renderScanSlotsRibbon();
-    updateScanProgressBar();
-
-    if (typeof showToast === 'function') {
-      showToast('🧪 Demo 360° Scan ready! Tap "STITCH & SAVE 360°" to stitch room.');
+    if (confirm('Reset and clear all current captured angles for this room?')) {
+      initScanSlots();
+      renderScanSlotsRibbon();
+      updateScanProgressBar();
+      clearStitchPreviewCanvas();
+      if (typeof showToast === 'function') {
+        showToast('🗑️ 360° Scanner reset. You can start capturing from 0° again.');
+      }
     }
   };
 
@@ -5880,11 +4557,11 @@
     const modal = document.getElementById('tourCameraScanModal');
     if (modal) modal.style.display = 'none';
 
-    scanIsSweeping = false;
     if (scanStream) {
       scanStream.getTracks().forEach(t => t.stop());
       scanStream = null;
     }
+
     if (scanLoopAnimId) {
       cancelAnimationFrame(scanLoopAnimId);
       scanLoopAnimId = null;
@@ -5892,108 +4569,74 @@
   };
 
   /**
-   * Matterport-Grade Equirectangular Photosphere Stitching Engine
-   * Mathematically re-projects rectilinear camera sensor frames onto a seamless 2:1 equirectangular sphere
-   * with zero-fog multi-frame normalization, high-order feathering, and natural polar diffusion.
+   * Stitches all captured slices into a seamless 2:1 High-Resolution Equirectangular Photosphere
+   * and saves it directly to the tour room!
    */
   window.finishAndUse360Stitch = async function () {
     var shots = [];
     for (var si = 0; si < scanSlots.length; si++) {
       if (scanSlots[si].captured && scanSlots[si].imgCanvas) shots.push(scanSlots[si]);
     }
-    if (shots.length < 3) {
-      if (typeof showToast === 'function') {
-        showToast('⚠️ Please capture at least 3 angles or tap "DEMO SCAN" to test.');
-      }
+    if (shots.length < 4) {
+      alert('Capture at least 4 targets first (more = better 360).');
       return;
     }
 
     var finishBtn = document.getElementById('scanFinishUseBtn');
     if (finishBtn) {
-      finishBtn.textContent = '⏳ STITCHING 360° PHOTOSPHERE…';
+      finishBtn.textContent = '⏳ BUILDING 360°…';
       finishBtn.disabled = true;
     }
-    await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
+    await new Promise(function (r) {
+      requestAnimationFrame(function () { requestAnimationFrame(r); });
+    });
 
     try {
-      var W = 2048;
-      var H = 1024;
+      var W = 2560;
+      var H = 1280;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
       var ctx = canvas.getContext('2d');
 
-      // Separate clean Float32 accumulators (zero color bleed, zero fog)
-      var accumR = new Float32Array(W * H);
-      var accumG = new Float32Array(W * H);
-      var accumB = new Float32Array(W * H);
-      var accumWeight = new Float32Array(W * H);
-      var topCoverageRow = new Int32Array(W);
-      var botCoverageRow = new Int32Array(W);
-      topCoverageRow.fill(H);
-      botCoverageRow.fill(-1);
+      // Start with neutral fill so we never end up pure black
+      ctx.fillStyle = '#2a2835';
+      ctx.fillRect(0, 0, W, H);
 
-      // 1. Compute ambient ceiling and floor colors from frame edges
-      var topR = 240, topG = 240, topB = 242;
-      var botR = 190, botG = 175, botB = 160;
-      try {
-        var topTotR = 0, topTotG = 0, topTotB = 0, topN = 0;
-        var botTotR = 0, botTotG = 0, botTotB = 0, botN = 0;
+      var imgData = ctx.createImageData(W, H);
+      var data = imgData.data;
+      // seed with dark gray so empty areas aren't pure black
+      for (var zi = 0; zi < data.length; zi += 4) {
+        data[zi] = 42; data[zi + 1] = 40; data[zi + 2] = 52; data[zi + 3] = 255;
+      }
+      var wSum = new Float32Array(W * H);
 
-        shots.forEach(s => {
-          if (s.imgCanvas) {
-            var sc = s.imgCanvas.getContext('2d').getImageData(0, 0, s.imgCanvas.width, s.imgCanvas.height).data;
-            var w = s.imgCanvas.width;
-            var h = s.imgCanvas.height;
-            var topRows = Math.min(24, Math.floor(h * 0.08));
-            var botRows = Math.min(24, Math.floor(h * 0.08));
+      // Angular FOV of phone camera (degrees) — wide for good coverage
+      var FOV_H = 62;
+      var FOV_V = 48;
 
-            for (var ty = 0; ty < topRows; ty++) {
-              for (var tx = 0; tx < w; tx += 6) {
-                var p = (ty * w + tx) * 4;
-                topTotR += sc[p]; topTotG += sc[p + 1]; topTotB += sc[p + 2];
-                topN++;
-              }
-            }
-            for (var by = h - botRows; by < h; by++) {
-              for (var bx = 0; bx < w; bx += 6) {
-                var p2 = (by * w + bx) * 4;
-                botTotR += sc[p2]; botTotG += sc[p2 + 1]; botTotB += sc[p2 + 2];
-                botN++;
-              }
-            }
-          }
-        });
-
-        if (topN > 0) {
-          topR = Math.round(topTotR / topN);
-          topG = Math.round(topTotG / topN);
-          topB = Math.round(topTotB / topN);
-        }
-        if (botN > 0) {
-          botR = Math.round(botTotR / botN);
-          botG = Math.round(botTotG / botN);
-          botB = Math.round(botTotB / botN);
-        }
-      } catch (e) {}
-
-      // 2. Project each rectilinear frame into the equirectangular sphere
-      for (var fi = 0; fi < shots.length; fi++) {
-        if (finishBtn) finishBtn.textContent = `⏳ BLENDING FRAME ${fi + 1}/${shots.length}…`;
-        await new Promise(r => setTimeout(r, 0));
+      var fi;
+      for (fi = 0; fi < shots.length; fi++) {
+        if (finishBtn) finishBtn.textContent = '⏳ STITCHING ' + (fi + 1) + '/' + shots.length + '…';
+        await new Promise(function (r) { setTimeout(r, 0); });
 
         var slot = shots[fi];
         var src = slot.imgCanvas;
         if (!src || src.width < 2) continue;
 
+        var yawDeg = (typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw;
+        var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
+        // normalize yaw 0..360
+        yawDeg = ((yawDeg % 360) + 360) % 360;
+
+        // Downscale
+        var maxW = 1024;
         var ww = src.width;
         var wh = src.height;
-        var maxDim = 1024;
         var work = src;
-        if (ww > maxDim || wh > maxDim) {
-          var scale = maxDim / Math.max(ww, wh);
-          ww = Math.round(ww * scale);
-          wh = Math.round(wh * scale);
+        if (ww > maxW) {
+          ww = maxW;
+          wh = Math.round(src.height * (maxW / src.width));
           work = document.createElement('canvas');
           work.width = ww;
           work.height = wh;
@@ -6001,29 +4644,26 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // Optical FOV calculation based on frame aspect ratio
-        var aspect = ww / wh;
-        var diagFovRad = (76 * Math.PI) / 180;
-        var tanHalfDiag = Math.tan(diagFovRad * 0.5);
-        var tanHalfH = tanHalfDiag * (aspect / Math.sqrt(aspect * aspect + 1));
-        var tanHalfV = tanHalfDiag * (1 / Math.sqrt(aspect * aspect + 1));
-        var fovHDeg = 2 * Math.atan(tanHalfH) * (180 / Math.PI);
-        var fovVDeg = 2 * Math.atan(tanHalfV) * (180 / Math.PI);
+        // Mild exposure normalize so bright frames don't wash out the blend
+        var sumL = 0, nL = 0;
+        for (var li = 0; li < srcPx.length; li += 32) {
+          sumL += 0.299 * srcPx[li] + 0.587 * srcPx[li + 1] + 0.114 * srcPx[li + 2];
+          nL++;
+        }
+        var avgL = nL ? sumL / nL : 128;
+        var expScale = avgL > 10 ? Math.min(1.35, Math.max(0.75, 140 / avgL)) : 1;
 
-        var yawDeg = normalizeAngle360((typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw);
-        var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
-
-        // Bounding box in equirectangular coordinates
-        var padH = fovHDeg * 0.58 + 4;
-        var padV = fovVDeg * 0.58 + 4;
-        var minLat = Math.max(-88, pitchDeg - padV);
-        var maxLat = Math.min(88, pitchDeg + padV);
-        var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
-        var row1 = Math.min(H - 1, Math.ceil(((90 - minLat) / 180) * H));
+        // Region of pano this shot can cover
+        var yPad = FOV_H * 0.55 + 6;
+        var pPad = FOV_V * 0.55 + 6;
+        var lat0 = Math.max(-90, pitchDeg - pPad);
+        var lat1 = Math.min(90, pitchDeg + pPad);
+        var row0 = Math.max(0, Math.floor((90 - lat1) / 180 * H));
+        var row1 = Math.min(H - 1, Math.ceil((90 - lat0) / 180 * H));
 
         var lonRanges = [];
-        var lonA = yawDeg - padH;
-        var lonB = yawDeg + padH;
+        var lonA = yawDeg - yPad;
+        var lonB = yawDeg + yPad;
         if (lonA < 0) {
           lonRanges.push([lonA + 360, 360]);
           lonRanges.push([0, lonB]);
@@ -6034,39 +4674,33 @@
           lonRanges.push([lonA, lonB]);
         }
 
-        for (var row = row0; row <= row1; row++) {
-          var lat = 90 - (row / H) * 180;
-          var dPitchRad = ((lat - pitchDeg) * Math.PI) / 180;
+        var row, col, ri;
+        for (row = row0; row <= row1; row++) {
+          var lat = 90 - (row / H) * 180; // +90 top → -90 bottom
 
-          for (var ri = 0; ri < lonRanges.length; ri++) {
-            var c0 = Math.max(0, Math.floor((lonRanges[ri][0] / 360) * W));
-            var c1 = Math.min(W - 1, Math.ceil((lonRanges[ri][1] / 360) * W));
+          for (ri = 0; ri < lonRanges.length; ri++) {
+            var c0 = Math.max(0, Math.floor(lonRanges[ri][0] / 360 * W));
+            var c1 = Math.min(W - 1, Math.ceil(lonRanges[ri][1] / 360 * W));
 
-            for (var col = c0; col <= c1; col++) {
-              var lon = (col / W) * 360;
+            for (col = c0; col <= c1; col++) {
+              var lon = (col / W) * 360; // 0..360
+
+              // Signed angular offset from camera aim to this pano direction
               var dYaw = lon - yawDeg;
               if (dYaw > 180) dYaw -= 360;
               if (dYaw < -180) dYaw += 360;
-              var dYawRad = (dYaw * Math.PI) / 180;
+              var dPitch = lat - pitchDeg;
 
-              // Unit ray in camera space
-              var rX = Math.cos(dPitchRad) * Math.sin(dYawRad);
-              var rY = Math.sin(dPitchRad);
-              var rZ = Math.cos(dPitchRad) * Math.cos(dYawRad);
-              if (rZ <= 0.05) continue;
+              if (Math.abs(dYaw) > FOV_H * 0.5 || Math.abs(dPitch) > FOV_V * 0.5) continue;
 
-              // Project onto flat camera sensor plane
-              var uCam = (rX / rZ) / tanHalfH;
-              var vCam = (rY / rZ) / tanHalfV;
-              var absU = Math.abs(uCam);
-              var absV = Math.abs(vCam);
-              if (absU >= 0.98 || absV >= 0.98) continue;
-
-              var fx = (uCam * 0.5 + 0.5) * (ww - 1);
-              var fy = (0.5 - vCam * 0.5) * (wh - 1);
+              // Map angle offset → source image UV (center of photo = camera look)
+              var u = dYaw / (FOV_H * 0.5);   // -1..1
+              var v = dPitch / (FOV_V * 0.5); // -1..1
+              var fx = (0.5 + u * 0.5) * (ww - 1);
+              var fy = (0.5 - v * 0.5) * (wh - 1);
               if (fx < 0 || fy < 0 || fx >= ww - 1 || fy >= wh - 1) continue;
 
-              // Bilinear interpolation
+              // Bilinear sample
               var x0 = fx | 0;
               var y0 = fy | 0;
               var tx = fx - x0;
@@ -6077,120 +4711,108 @@
               var i10 = (y0 * ww + x1) * 4;
               var i01 = (y1 * ww + x0) * 4;
               var i11 = (y1 * ww + x1) * 4;
+              var r = (srcPx[i00] * (1 - tx) + srcPx[i10] * tx) * (1 - ty) +
+                      (srcPx[i01] * (1 - tx) + srcPx[i11] * tx) * ty;
+              var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) +
+                      (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
+              var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) +
+                      (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              var r = (srcPx[i00] * (1 - tx) + srcPx[i10] * tx) * (1 - ty) + (srcPx[i01] * (1 - tx) + srcPx[i11] * tx) * ty;
-              var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
-              var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
+              // Strong center weight — edges of phone photos are soft & distorted
+              var au = Math.min(1, Math.abs(u));
+              var av = Math.min(1, Math.abs(v));
+              var wu = 0.5 * (1 + Math.cos(Math.PI * au));
+              var wv = 0.5 * (1 + Math.cos(Math.PI * av));
+              var wt = wu * wv;
+              wt = wt * wt; // square → prefer sharp photo centers, less ghosting
+              if (wt < 0.04) continue;
 
-              // Smooth cosine-squared edge feathering (clean overlap, zero fog)
-              var edgeW = (1.0 - absU * absU) * (1.0 - absV * absV);
-              var wt = Math.max(0.01, edgeW * edgeW);
-
-              var pIdx = row * W + col;
-              accumR[pIdx] += r * wt;
-              accumG[pIdx] += g * wt;
-              accumB[pIdx] += b * wt;
-              accumWeight[pIdx] += wt;
-
-              if (row < topCoverageRow[col]) topCoverageRow[col] = row;
-              if (row > botCoverageRow[col]) botCoverageRow[col] = row;
+              var idx = row * W + col;
+              var di = idx * 4;
+              data[di]     += Math.min(255, r * expScale) * wt;
+              data[di + 1] += Math.min(255, g * expScale) * wt;
+              data[di + 2] += Math.min(255, b * expScale) * wt;
+              wSum[idx]    += wt;
             }
           }
         }
       }
 
-      // 3. Composite final image: 100% crisp camera pixels + seamless polar inpainting
-      var outImg = ctx.createImageData(W, H);
-      var outData = outImg.data;
-
-      // Extract boundary colors per column for natural seamless ceiling & floor fill
-      var colTopR = new Uint8Array(W);
-      var colTopG = new Uint8Array(W);
-      var colTopB = new Uint8Array(W);
-      var colBotR = new Uint8Array(W);
-      var colBotG = new Uint8Array(W);
-      var colBotB = new Uint8Array(W);
-
-      for (var col = 0; col < W; col++) {
-        var topR_c = topR, topG_c = topG, topB_c = topB;
-        var botR_c = botR, botG_c = botG, botB_c = botB;
-
-        var tRow = topCoverageRow[col];
-        if (tRow < H) {
-          var tIdx = tRow * W + col;
-          if (accumWeight[tIdx] > 0) {
-            topR_c = Math.round(accumR[tIdx] / accumWeight[tIdx]);
-            topG_c = Math.round(accumG[tIdx] / accumWeight[tIdx]);
-            topB_c = Math.round(accumB[tIdx] / accumWeight[tIdx]);
-          }
+      // Normalize where we have coverage
+      var covered = 0;
+      for (var i = 0; i < W * H; i++) {
+        var w = wSum[i];
+        var di = i * 4;
+        if (w > 0.02) {
+          data[di]     = Math.min(255, data[di] / w);
+          data[di + 1] = Math.min(255, data[di + 1] / w);
+          data[di + 2] = Math.min(255, data[di + 2] / w);
+          data[di + 3] = 255;
+          covered++;
         }
-
-        var bRow = botCoverageRow[col];
-        if (bRow >= 0) {
-          var bIdx = bRow * W + col;
-          if (accumWeight[bIdx] > 0) {
-            botR_c = Math.round(accumR[bIdx] / accumWeight[bIdx]);
-            botG_c = Math.round(accumG[bIdx] / accumWeight[bIdx]);
-            botB_c = Math.round(accumB[bIdx] / accumWeight[bIdx]);
-          }
-        }
-
-        colTopR[col] = topR_c; colTopG[col] = topG_c; colTopB[col] = topB_c;
-        colBotR[col] = botR_c; colBotG[col] = botG_c; colBotB[col] = botB_c;
       }
+      ctx.putImageData(imgData, 0, 0);
 
-      // Render all pixels
-      for (var y = 0; y < H; y++) {
-        for (var x = 0; x < W; x++) {
-          var pIdx2 = y * W + x;
-          var di = pIdx2 * 4;
-          var w = accumWeight[pIdx2];
-
-          if (w > 0.0001) {
-            // Direct pure normalized photographic pixel (ZERO FOG / VIGNETTE)
-            outData[di]     = Math.min(255, Math.max(0, Math.round(accumR[pIdx2] / w)));
-            outData[di + 1] = Math.min(255, Math.max(0, Math.round(accumG[pIdx2] / w)));
-            outData[di + 2] = Math.min(255, Math.max(0, Math.round(accumB[pIdx2] / w)));
-          } else {
-            // Polar inpainting: smoothly extend real edge colors into ambient ceiling/floor
-            var topLimit = topCoverageRow[x];
-            var botLimit = botCoverageRow[x];
-
-            if (topLimit < H && y < topLimit) {
-              var tCeil = topLimit > 0 ? (y / topLimit) : 1;
-              tCeil = Math.max(0, Math.min(1, tCeil));
-              outData[di]     = Math.round(topR * (1 - tCeil) + colTopR[x] * tCeil);
-              outData[di + 1] = Math.round(topG * (1 - tCeil) + colTopG[x] * tCeil);
-              outData[di + 2] = Math.round(topB * (1 - tCeil) + colTopB[x] * tCeil);
-            } else if (botLimit >= 0 && y > botLimit) {
-              var tFloor = (H - 1 > botLimit) ? ((y - botLimit) / (H - 1 - botLimit)) : 0;
-              tFloor = Math.max(0, Math.min(1, tFloor));
-              outData[di]     = Math.round(colBotR[x] * (1 - tFloor) + botR * tFloor);
-              outData[di + 1] = Math.round(colBotG[x] * (1 - tFloor) + botG * tFloor);
-              outData[di + 2] = Math.round(colBotB[x] * (1 - tFloor) + botB * tFloor);
-            } else {
-              var vNorm = y / (H - 1);
-              outData[di]     = Math.round(topR * (1 - vNorm) + botR * vNorm);
-              outData[di + 1] = Math.round(topG * (1 - vNorm) + botG * vNorm);
-              outData[di + 2] = Math.round(topB * (1 - vNorm) + botB * vNorm);
+      if (covered < 1000) {
+        // Emergency fallback: simple side-by-side strip so user always sees something
+        console.warn('[stitch] low coverage (' + covered + '), using strip fallback');
+        ctx.fillStyle = '#1a1822';
+        ctx.fillRect(0, 0, W, H);
+        var stripH = Math.floor(H * 0.7);
+        var stripY = Math.floor((H - stripH) / 2);
+        var cellW = Math.floor(W / shots.length);
+        for (var k = 0; k < shots.length; k++) {
+          var sc = shots[k].imgCanvas;
+          if (!sc) continue;
+          ctx.drawImage(sc, 0, 0, sc.width, sc.height, k * cellW, stripY, cellW + 2, stripH);
+        }
+      } else {
+        // Light hole fill
+        if (finishBtn) finishBtn.textContent = '⏳ BLENDING…';
+        await new Promise(function (r) { setTimeout(r, 0); });
+        var buf = ctx.getImageData(0, 0, W, H);
+        var bd = buf.data;
+        for (var pass = 0; pass < 2; pass++) {
+          for (var y = 1; y < H - 1; y++) {
+            for (var x = 0; x < W; x++) {
+              var ii = (y * W + x) * 4;
+              if (bd[ii] > 50 || bd[ii + 1] > 48) continue;
+              // only fill near-empty
+              if (wSum[y * W + x] > 0.02) continue;
+              var sr = 0, sg = 0, sb = 0, sn = 0;
+              for (var dy = -1; dy <= 1; dy++) {
+                for (var dx = -1; dx <= 1; dx++) {
+                  if (!dx && !dy) continue;
+                  var nx = (x + dx + W) % W;
+                  var ny = y + dy;
+                  if (ny < 0 || ny >= H) continue;
+                  var jj = (ny * W + nx) * 4;
+                  if (bd[jj] > 50) {
+                    sr += bd[jj]; sg += bd[jj + 1]; sb += bd[jj + 2]; sn++;
+                  }
+                }
+              }
+              if (sn > 0) {
+                bd[ii] = sr / sn;
+                bd[ii + 1] = sg / sn;
+                bd[ii + 2] = sb / sn;
+              }
             }
           }
-          outData[di + 3] = 255;
         }
+        ctx.putImageData(buf, 0, 0);
       }
 
-      ctx.putImageData(outImg, 0, 0);
+      if (finishBtn) finishBtn.textContent = '⏳ SAVING…';
+      await new Promise(function (r) { setTimeout(r, 0); });
 
-      if (finishBtn) finishBtn.textContent = '⏳ SAVING 360° ROOM…';
-      await new Promise(r => setTimeout(r, 0));
-
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.94);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.95);
       var finalUrl = dataUrl;
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
-          var blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.94));
-          var file = new File([blob], `matterport_360_${Date.now()}.jpg`, { type: 'image/jpeg' });
+          var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.95); });
+          var file = new File([blob], '360_scan_' + Date.now() + '.jpg', { type: 'image/jpeg' });
           var up = await window.uploadToSupabaseStorage(file);
           if (up && up.url) finalUrl = up.url;
         } catch (e) {}
@@ -6201,20 +4823,17 @@
         if (cur) {
           cur.panoUrl = finalUrl;
           cur.tourUrl = '';
-          cur.aspectMode = 'full-360';
-          cur.tag = '360° Matterport Photosphere';
+          cur.tag = '360° Real-Time Camera Scan';
         }
       } else {
         activeSceneList.push({
           id: 'scan-room-' + Date.now().toString(36),
-          name: '📸 360° Room ' + (activeSceneList.length + 1),
+          name: '📸 Scanned Room ' + (activeSceneList.length + 1),
           location: (currentTourData && currentTourData.location) || 'Salt Lake City, UT',
-          tag: '360° Matterport Photosphere',
+          tag: '360° Camera Photosphere',
           panoUrl: finalUrl,
           tourUrl: '',
-          aspectMode: 'full-360',
-          vScale: 1.0,
-          blurb: '360° walkthrough room captured in real-time',
+          blurb: 'Full 360° space stitched from device camera',
           hotspots: [{
             pitch: 0, yaw: 180, label: '🚪 Back to Previous Room',
             targetScene: (activeSceneList[activeSceneIndex] && activeSceneList[activeSceneIndex].id) ||
@@ -6228,13 +4847,13 @@
       if (typeof window.saveTourChangesToMagazine === 'function') window.saveTourChangesToMagazine();
       renderSceneSelector();
       loadScene(activeSceneIndex);
-      if (typeof showToast === 'function') showToast('🎉 360° Photosphere stitched and saved!');
+      if (typeof showToast === 'function') showToast('🎉 360° saved — drag to look around');
     } catch (err) {
       console.error('[stitch]', err);
-      if (typeof showToast === 'function') showToast('❌ Stitch failed: ' + (err && err.message ? err.message : String(err)));
+      alert('Stitch failed: ' + (err && err.message ? err.message : String(err)));
     } finally {
       if (finishBtn) {
-        finishBtn.textContent = '✨ STITCH & SAVE 360°';
+        finishBtn.textContent = '✨ STITCH & USE 360° ROOM (SAVE)';
         finishBtn.disabled = false;
       }
     }
@@ -6317,14 +4936,10 @@
       const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
       const editBtn = document.getElementById('tourEditModeBtn');
       const editorBar = document.getElementById('tourEditorBar');
-      const propPopover = document.getElementById('tourProportionsPopover');
       if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
       if (editorBar && !unlocked) {
         editorBar.classList.remove('active');
         isEditorMode = false;
-      }
-      if (propPopover && !unlocked) {
-        propPopover.style.display = 'none';
       }
     }
   };
@@ -6334,13 +4949,11 @@
     const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
     const editBtn = document.getElementById('tourEditModeBtn');
     const editorBar = document.getElementById('tourEditorBar');
-    const propPopover = document.getElementById('tourProportionsPopover');
     if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
     if (!unlocked) {
       isEditorMode = false;
       if (editBtn) editBtn.classList.remove('active');
       if (editorBar) editorBar.classList.remove('active');
-      if (propPopover) propPopover.style.display = 'none';
     }
   };
 
