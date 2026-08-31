@@ -5154,13 +5154,21 @@
         shotGains[gi] = Math.max(0.72, Math.min(1.38, gainVal));
       }
 
-      // Arrays for continuous multi-ray accumulation (Zero Seams / Zero Hard Edges)
-      var accR = new Float32Array(W * H);
-      var accG = new Float32Array(W * H);
-      var accB = new Float32Array(W * H);
-      var accWeight = new Float32Array(W * H);
+      // Best and secondary shot ray assignment arrays (Zero Double-Vision Ghosting)
+      var bestWeight = new Float32Array(W * H);
+      var bestShotId = new Int16Array(W * H);
+      bestShotId.fill(-1);
+      var secWeight = new Float32Array(W * H);
 
-      // PASS 1: Project spherical rays with continuous smooth weighting & anti-vignette correction
+      var pixelR = new Float32Array(W * H);
+      var pixelG = new Float32Array(W * H);
+      var pixelB = new Float32Array(W * H);
+
+      var secR = new Float32Array(W * H);
+      var secG = new Float32Array(W * H);
+      var secB = new Float32Array(W * H);
+
+      // PASS 1: Project spherical rays with Voronoi winner-take-all & anti-vignette correction
       for (var si = 0; si < shotDatas.length; si++) {
         if (finishBtn) finishBtn.textContent = '⏳ EQUALIZING & BLENDING ' + (si + 1) + '/' + shotDatas.length + '…';
         await new Promise(function (r) { setTimeout(r, 0); });
@@ -5237,7 +5245,7 @@
               var fy = (0.5 - v * 0.5) * (sWh - 1);
               if (fx < 0 || fy < 0 || fx >= sWw - 1 || fy >= sWh - 1) continue;
 
-              // Continuous, smooth bi-quadratic weight function (strictly 0 at sensor boundaries)
+              // Optical weight (highest at lens center, 0 at sensor boundaries)
               var wu = Math.max(0, 1.0 - uSq);
               var wv = Math.max(0, 1.0 - vSq);
               var optWeight = (wu * wu) * (wv * wv);
@@ -5269,10 +5277,24 @@
               b = Math.min(255, b * totalGain);
 
               var pIdx = row * W + col;
-              accR[pIdx] += r * optWeight;
-              accG[pIdx] += g * optWeight;
-              accB[pIdx] += b * optWeight;
-              accWeight[pIdx] += optWeight;
+
+              if (optWeight > bestWeight[pIdx]) {
+                secWeight[pIdx] = bestWeight[pIdx];
+                secR[pIdx] = pixelR[pIdx];
+                secG[pIdx] = pixelG[pIdx];
+                secB[pIdx] = pixelB[pIdx];
+
+                bestWeight[pIdx] = optWeight;
+                bestShotId[pIdx] = si;
+                pixelR[pIdx] = r;
+                pixelG[pIdx] = g;
+                pixelB[pIdx] = b;
+              } else if (optWeight > secWeight[pIdx]) {
+                secWeight[pIdx] = optWeight;
+                secR[pIdx] = r;
+                secG[pIdx] = g;
+                secB[pIdx] = b;
+              }
             }
           }
         }
@@ -5284,14 +5306,14 @@
       var outImg = ctx.createImageData(W, H);
       var outData = outImg.data;
 
-      // Extract raw top and bottom coverage envelope rows where weight is strong
+      // Extract raw top and bottom coverage envelope rows where best shot exists
       var rawTopRow = new Int32Array(W);
       var rawBotRow = new Int32Array(W);
       for (var c = 0; c < W; c++) {
         var firstValid = H;
         var lastValid = -1;
         for (var r = 0; r < H; r++) {
-          if (accWeight[r * W + c] > 0.05) {
+          if (bestShotId[r * W + c] >= 0) {
             if (firstValid === H) firstValid = r;
             lastValid = r;
           }
@@ -5329,17 +5351,17 @@
       for (var c = 0; c < W; c++) {
         var tRow = Math.min(H - 1, Math.max(0, Math.round(smoothTopLimit[c])));
         var tIdx = tRow * W + c;
-        var tr = (accWeight[tIdx] > 0.01) ? (accR[tIdx] / accWeight[tIdx]) : topR;
-        var tg = (accWeight[tIdx] > 0.01) ? (accG[tIdx] / accWeight[tIdx]) : topG;
-        var tb = (accWeight[tIdx] > 0.01) ? (accB[tIdx] / accWeight[tIdx]) : topB;
+        var tr = (bestShotId[tIdx] >= 0) ? pixelR[tIdx] : topR;
+        var tg = (bestShotId[tIdx] >= 0) ? pixelG[tIdx] : topG;
+        var tb = (bestShotId[tIdx] >= 0) ? pixelB[tIdx] : topB;
         colTopR[c] = tr; colTopG[c] = tg; colTopB[c] = tb;
         sumTopR += tr; sumTopG += tg; sumTopB += tb; cntTop++;
 
         var bRow = Math.min(H - 1, Math.max(0, Math.round(smoothBotLimit[c])));
         var bIdx = bRow * W + c;
-        var br = (accWeight[bIdx] > 0.01) ? (accR[bIdx] / accWeight[bIdx]) : botR;
-        var bg = (accWeight[bIdx] > 0.01) ? (accG[bIdx] / accWeight[bIdx]) : botG;
-        var bb = (accWeight[bIdx] > 0.01) ? (accB[bIdx] / accWeight[bIdx]) : botB;
+        var br = (bestShotId[bIdx] >= 0) ? pixelR[bIdx] : botR;
+        var bg = (bestShotId[bIdx] >= 0) ? pixelG[bIdx] : botG;
+        var bb = (bestShotId[bIdx] >= 0) ? pixelB[bIdx] : botB;
         colBotR[c] = br; colBotG[c] = bg; colBotB[c] = bb;
         sumBotR += br; sumBotG += bg; sumBotB += bb; cntBot++;
       }
@@ -5352,33 +5374,40 @@
       var ambFlrG  = cntBot > 0 ? (sumBotG / cntBot) : botG;
       var ambFlrB  = cntBot > 0 ? (sumBotB / cntBot) : botB;
 
-      // Populate full panorama buffer
+      // Populate full panorama buffer (Sharp Crisp Objects with Micro-Feathered Seam Transition)
       for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
           var pIdx2 = y * W + x;
           var di = pIdx2 * 4;
-          var wTotal = accWeight[pIdx2];
+
+          var shotId = bestShotId[pIdx2];
+          var w1 = bestWeight[pIdx2];
 
           var tLimit = smoothTopLimit[x];
           var bLimit = smoothBotLimit[x];
 
-          if (wTotal > 0.15 && y >= tLimit && y <= bLimit) {
-            // Crisp, continuous blended interior camera exposure
-            outData[di]     = Math.min(255, Math.max(0, Math.round(accR[pIdx2] / wTotal)));
-            outData[di + 1] = Math.min(255, Math.max(0, Math.round(accG[pIdx2] / wTotal)));
-            outData[di + 2] = Math.min(255, Math.max(0, Math.round(accB[pIdx2] / wTotal)));
-          } else if (wTotal > 0.01 && y >= tLimit && y <= bLimit) {
-            // Micro boundary blend
-            var innerR = accR[pIdx2] / wTotal;
-            var innerG = accG[pIdx2] / wTotal;
-            var innerB = accB[pIdx2] / wTotal;
-            var normW = wTotal / 0.15;
-            var bgR = (y < (tLimit + bLimit) * 0.5) ? colTopR[x] : colBotR[x];
-            var bgG = (y < (tLimit + bLimit) * 0.5) ? colTopG[x] : colBotG[x];
-            var bgB = (y < (tLimit + bLimit) * 0.5) ? colTopB[x] : colBotB[x];
-            outData[di]     = Math.min(255, Math.max(0, Math.round(innerR * normW + bgR * (1 - normW))));
-            outData[di + 1] = Math.min(255, Math.max(0, Math.round(innerG * normW + bgG * (1 - normW))));
-            outData[di + 2] = Math.min(255, Math.max(0, Math.round(innerB * normW + bgB * (1 - normW))));
+          if (shotId >= 0 && w1 > 0 && y >= tLimit && y <= bLimit) {
+            var pr = pixelR[pIdx2];
+            var pg = pixelG[pIdx2];
+            var pb = pixelB[pIdx2];
+
+            // Micro-feather strictly at overlapping boundary seams (ratio > 0.72)
+            var w2 = secWeight[pIdx2];
+            if (w2 > 0) {
+              var ratio = w2 / w1;
+              if (ratio > 0.72) {
+                var t = (ratio - 0.72) / 0.28;
+                var smoothT = t * t * (3.0 - 2.0 * t);
+                var blend = 0.5 * smoothT;
+                pr = pr * (1.0 - blend) + secR[pIdx2] * blend;
+                pg = pg * (1.0 - blend) + secG[pIdx2] * blend;
+                pb = pb * (1.0 - blend) + secB[pIdx2] * blend;
+              }
+            }
+
+            outData[di]     = Math.min(255, Math.max(0, Math.round(pr)));
+            outData[di + 1] = Math.min(255, Math.max(0, Math.round(pg)));
+            outData[di + 2] = Math.min(255, Math.max(0, Math.round(pb)));
           } else if (y < tLimit) {
             // Smooth ceiling cosine gradient towards zenith
             var tCeil = tLimit > 0 ? (y / tLimit) : 1;
