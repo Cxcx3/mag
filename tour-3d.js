@@ -4759,13 +4759,10 @@
         }
       } catch (e) {}
 
-      // 2. Optical ray projection for each camera frame
-      var diagFovDeg = 82; // standard wide camera FOV
-      var diagFovRad = (diagFovDeg * Math.PI) / 180;
-      var tanDiag = Math.tan(diagFovRad * 0.5);
-
+      // 2. Optical ray projection with dynamic aspect ratio and crisp Voronoi center-weighting
+      // Mobile sensors in portrait have narrower horizontal FOV and taller vertical FOV
       for (var fi = 0; fi < shots.length; fi++) {
-        if (finishBtn) finishBtn.textContent = '⏳ BLENDING ' + (fi + 1) + '/' + shots.length + '…';
+        if (finishBtn) finishBtn.textContent = '⏳ PROJECTING ' + (fi + 1) + '/' + shots.length + '…';
         await new Promise(function (r) { setTimeout(r, 0); });
 
         var slot = shots[fi];
@@ -4787,7 +4784,12 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // Accurate rectilinear sensor projection parameters
+        // True mobile optical sensor angles (Portrait vs Landscape aware)
+        var isPortrait = wh >= ww;
+        var diagFovDeg = isPortrait ? 74 : 78;
+        var diagFovRad = (diagFovDeg * Math.PI) / 180;
+        var tanDiag = Math.tan(diagFovRad * 0.5);
+
         var aspect = ww / wh;
         var tanHalfH = tanDiag * (aspect / Math.sqrt(aspect * aspect + 1));
         var tanHalfV = tanDiag * (1 / Math.sqrt(aspect * aspect + 1));
@@ -4804,8 +4806,8 @@
         var cosPitch = Math.cos(pitchRad), sinPitch = Math.sin(pitchRad);
 
         // Bounding box in equirectangular coordinates
-        var padH = fovHDeg * 0.60 + 5;
-        var padV = fovVDeg * 0.60 + 5;
+        var padH = fovHDeg * 0.55 + 3;
+        var padV = fovVDeg * 0.55 + 3;
         var minLat = Math.max(-89.5, pitchDeg - padV);
         var maxLat = Math.min(89.5, pitchDeg + padV);
         var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
@@ -4853,14 +4855,14 @@
               var camY = ry * cosPitch - rz_horiz * sinPitch;
               var camZ = ry * sinPitch + rz_horiz * cosPitch;
 
-              if (camZ <= 0.04) continue; // behind camera
+              if (camZ <= 0.05) continue; // behind camera
 
               // Perspective projection to sensor plane
               var u = (camX / camZ) / tanHalfH;
               var v = (camY / camZ) / tanHalfV;
               var absU = Math.abs(u);
               var absV = Math.abs(v);
-              if (absU >= 0.985 || absV >= 0.985) continue;
+              if (absU >= 0.96 || absV >= 0.96) continue;
 
               var fx = (0.5 + u * 0.5) * (ww - 1);
               var fy = (0.5 - v * 0.5) * (wh - 1);
@@ -4882,11 +4884,12 @@
               var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
               var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              // Smooth cosine-hann window weighting for seamless overlap without edge blur
-              var wu = Math.cos(u * Math.PI * 0.5);
-              var wv = Math.cos(v * Math.PI * 0.5);
-              var wt = Math.pow(wu * wv, 2.0);
-              if (wt < 0.002) wt = 0.002;
+              // High-order power falloff (exponent 4.5): creates sharp seam transitions at optimal boundaries
+              // preventing double-vision curtains, blurred furniture edges, or ghosting duplicates
+              var edgeDistU = Math.max(0, 1.0 - absU);
+              var edgeDistV = Math.max(0, 1.0 - absV);
+              var wt = Math.pow(edgeDistU * edgeDistV, 4.5);
+              if (wt < 0.0001) wt = 0.0001;
 
               var pIdx = row * W + col;
               accumR[pIdx] += r * wt;
