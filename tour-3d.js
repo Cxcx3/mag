@@ -5146,6 +5146,29 @@
     runScannerLoop();
   };
 
+  let scanUseWideLens = false;
+  let scanCurrentCaptureFovDeg = 76; // diagonal FOV used by the stitcher — must match whichever physical lens is active
+  let _wideLensDeviceId = null;
+  let _cameraDevicesEnumerated = false;
+
+  // Looks for a distinct ultra-wide-angle back camera exposed by the device
+  // (iPhones and many recent Androids expose this as a separate camera, not
+  // just a digital zoom-out). Requires at least one prior getUserMedia call
+  // so device labels are unlocked. Result is cached per scanner session.
+  async function findWideLensDeviceId() {
+    if (_cameraDevicesEnumerated) return _wideLensDeviceId;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter(d => d.kind === 'videoinput');
+      const wide = videoInputs.find(d => /ultra\s*-?\s*wide|0\.5x/i.test(d.label || ''));
+      _wideLensDeviceId = wide ? wide.deviceId : null;
+      if (_wideLensDeviceId) _cameraDevicesEnumerated = true; // only lock in once we actually found it (labels may be empty on first pass)
+    } catch (e) {
+      _wideLensDeviceId = null;
+    }
+    return _wideLensDeviceId;
+  }
+
   async function startScannerCameraFeed() {
     const video = document.getElementById('scanVideoFeed');
     if (!video) return;
@@ -5155,17 +5178,15 @@
       scanStream = null;
     }
 
-    try {
-      const constraints = {
-        video: {
-          facingMode: scanCameraFacing,
-          width: { ideal: 1920, min: 640 },
-          height: { ideal: 1080, min: 480 }
-        },
-        audio: false
-      };
+    const wideLensId = scanUseWideLens ? await findWideLensDeviceId() : null;
+    scanCurrentCaptureFovDeg = (scanUseWideLens && wideLensId) ? 118 : 76;
 
-      scanStream = await navigator.mediaDevices.getUserMedia(constraints);
+    try {
+      const videoConstraints = wideLensId
+        ? { deviceId: { exact: wideLensId }, width: { ideal: 1920, min: 640 }, height: { ideal: 1080, min: 480 } }
+        : { facingMode: scanCameraFacing, width: { ideal: 1920, min: 640 }, height: { ideal: 1080, min: 480 } };
+
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
       video.srcObject = scanStream;
       await video.play().catch(e => console.warn('Video play deferred:', e));
     } catch (err) {
@@ -5174,6 +5195,7 @@
         scanStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         video.srcObject = scanStream;
         await video.play().catch(e => console.warn('Video play deferred fallback:', e));
+        scanCurrentCaptureFovDeg = 76; // fell back to default lens — use standard FOV
       } catch (err2) {
         console.error('[Matterport 360 Scanner] Camera access failed:', err2);
         const ringStatus = document.getElementById('scanRingStatus');
@@ -5190,6 +5212,32 @@
     await startScannerCameraFeed();
     if (typeof showToast === 'function') {
       showToast(`🔄 Camera switched to: ${scanCameraFacing === 'environment' ? 'Rear / Room' : 'Front / Self'}`);
+    }
+  };
+
+  // Toggles between the phone's standard back lens and its ultra-wide lens
+  // (when the device actually has one). A wider real FOV per shot means
+  // fewer stitching seams and noticeably less blur in the final photo.
+  window.toggleWideLensCamera = async function () {
+    const wideLensId = await findWideLensDeviceId();
+    if (!wideLensId) {
+      if (typeof showToast === 'function') {
+        showToast('⚠️ This device doesn\'t expose a separate ultra-wide camera.');
+      }
+      return;
+    }
+    scanUseWideLens = !scanUseWideLens;
+    await startScannerCameraFeed();
+    const btn = document.getElementById('scanWideLensBtn');
+    if (btn) {
+      btn.textContent = scanUseWideLens ? '🌐 WIDE: ON' : '🌐 WIDE LENS';
+      btn.style.background = scanUseWideLens ? '#06D6A0' : '';
+      btn.style.color = scanUseWideLens ? '#0d1b1e' : '';
+    }
+    if (typeof showToast === 'function') {
+      showToast(scanUseWideLens
+        ? '🌐 Ultra-wide lens active — captures much more per shot.'
+        : 'Standard lens active.');
     }
   };
 
@@ -5452,58 +5500,12 @@
     }
   };
 
-  // Which row (ceiling / horizon / floor) the scanner currently considers
-  // "active" for targeting. Sticky with hysteresis — see updateStickyActiveRow —
-  // so hovering near the boundary between two rows doesn't cause the guide
-  // dots to flicker back and forth between them.
-  let scanActiveRowPitch = 0;
-
-  function getRowPitches() {
-    return SCAN_ROWS.map(r => r.pitch);
-  }
-
-  // Locks onto the nearest row and only switches to a different row once the
-  // person has moved meaningfully closer to it (hysteresis margin below),
-  // rather than re-picking the single nearest row every animation frame.
-  function updateStickyActiveRow(currentPitch) {
-    const rows = getRowPitches();
-    const HYSTERESIS = 10; // degrees — must be clearly closer to switch rows
-    let bestRow = scanActiveRowPitch;
-    let bestDist = Math.abs(currentPitch - scanActiveRowPitch);
-    rows.forEach(rp => {
-      const d = Math.abs(currentPitch - rp);
-      if (d + HYSTERESIS < bestDist) {
-        bestDist = d;
-        bestRow = rp;
-      }
-    });
-    scanActiveRowPitch = bestRow;
-    return scanActiveRowPitch;
-  }
-
   // Finds the nearest not-yet-captured slot to a given yaw/pitch — used so
   // sweeping while tilted up/down correctly fills the ceiling/floor rows
-  // instead of always targeting the horizon row. Locks onto one row at a
-  // time (via updateStickyActiveRow) so it doesn't flicker between rows.
+  // instead of always targeting the horizon row.
   function findNearestOpenSlotIdx(yawDeg, pitchDeg) {
-    const activeRow = updateStickyActiveRow(pitchDeg);
-
-    // First choice: nearest open slot within the currently-locked row (yaw only)
     let closestIdx = -1;
     let minDist = Infinity;
-    for (let i = 0; i < scanSlots.length; i++) {
-      const slot = scanSlots[i];
-      if (slot.captured || slot.pitch !== activeRow) continue;
-      const dYaw = Math.abs(angleDiffSigned(slot.yaw, yawDeg));
-      if (dYaw < minDist) {
-        minDist = dYaw;
-        closestIdx = i;
-      }
-    }
-    if (closestIdx !== -1) return closestIdx;
-
-    // That row is fully captured — fall back to nearest open slot in any row
-    minDist = Infinity;
     for (let i = 0; i < scanSlots.length; i++) {
       const slot = scanSlots[i];
       if (slot.captured) continue;
@@ -5662,21 +5664,18 @@
           scanNodesInitialized = true;
         }
 
-        const activeRowPitch = updateStickyActiveRow(scanCurrentPitch);
-
         let closestUncapturedIdx = -1;
         let minAngularDistance = 999;
         let alignedTargetIdx = -1;
 
-        // Only slots in the currently-locked row compete for "closest"/"aligned" —
-        // this is what stops the ceiling and horizon dots from fighting each other
-        // as your pitch drifts near the boundary between them.
         for (let idx = 0; idx < scanSlots.length; idx++) {
           const slot = scanSlots[idx];
-          if (slot.captured || slot.pitch !== activeRowPitch) continue;
-          const diffYaw = Math.abs(angleDiffSigned(slot.yaw, scanCurrentYaw));
-          if (diffYaw < minAngularDistance) {
-            minAngularDistance = diffYaw;
+          if (slot.captured) continue;
+          const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+          const diffPitch = slot.pitch - scanCurrentPitch;
+          const angularDist = Math.hypot(diffYaw, diffPitch);
+          if (angularDist < minAngularDistance) {
+            minAngularDistance = angularDist;
             closestUncapturedIdx = idx;
           }
         }
@@ -5688,16 +5687,13 @@
 
           const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
           const diffPitch = slot.pitch - scanCurrentPitch;
-          const isActiveRow = slot.pitch === activeRowPitch;
-          const angularDist = isActiveRow ? Math.abs(diffYaw) : Math.hypot(diffYaw, diffPitch);
+          const angularDist = Math.hypot(diffYaw, diffPitch);
 
           const screenX = centerX + (diffYaw / hFov) * vw;
           const screenY = centerY - (diffPitch / vFov) * vh;
           const isVisible = Math.abs(diffYaw) < hFov * 1.1 && Math.abs(diffPitch) < vFov * 1.1;
 
-          // Only the active row's slots are eligible to show as "aligned" —
-          // other rows stay dim/pending even if geometrically close on screen.
-          if (isActiveRow && !slot.captured && angularDist < 10) {
+          if (!slot.captured && angularDist < 8.5) {
             alignedTargetIdx = idx;
           }
 
@@ -5711,7 +5707,7 @@
             el.classList.add('captured');
             el.style.opacity = isVisible ? '0.75' : '0';
             if (span) span.textContent = '✓';
-          } else if (isActiveRow && angularDist < 10) {
+          } else if (angularDist < 8.5) {
             el.classList.add('aligned');
             el.style.opacity = '1';
             if (span) span.textContent = '●';
@@ -5720,10 +5716,8 @@
             el.style.opacity = isVisible ? '1' : '0';
             if (span) span.textContent = '';
           } else {
-            // Dim rows that aren't currently active, so they read as
-            // reference points rather than competing targets.
             el.classList.add('pending');
-            el.style.opacity = isVisible ? (isActiveRow ? '0.25' : '0.12') : '0';
+            el.style.opacity = isVisible ? '0.25' : '0';
             if (span) span.textContent = '';
           }
         }
@@ -5769,18 +5763,6 @@
             guideArrow.style.display = 'flex';
             guideIcon.textContent = dYaw > 0 ? '➔' : '⬅';
             guideText.textContent = `${dYaw > 0 ? 'TURN RIGHT ➔' : '⬅ TURN LEFT'} to ${Math.round(t.yaw)}°`;
-          } else {
-            guideArrow.style.display = 'none';
-          }
-        } else if (closestUncapturedIdx === -1 && guideArrow && guideText && guideIcon) {
-          // Current row is fully captured — point toward whichever row still has open slots
-          const rows = getRowPitches();
-          const otherOpenRow = rows.find(rp => rp !== activeRowPitch && scanSlots.some(s => s.pitch === rp && !s.captured));
-          if (typeof otherOpenRow === 'number') {
-            guideArrow.style.display = 'flex';
-            const goUp = otherOpenRow > activeRowPitch;
-            guideIcon.textContent = goUp ? '⬆' : '⬇';
-            guideText.textContent = goUp ? 'TILT UP for the ceiling row' : 'TILT DOWN for the floor row';
           } else {
             guideArrow.style.display = 'none';
           }
