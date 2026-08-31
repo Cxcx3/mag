@@ -3768,16 +3768,16 @@
       { pitch: 0, count: 12 }
     ],
     standard: [
-      { pitch:  30, count: 8 },
-      { pitch:   0, count: 8 },
-      { pitch: -30, count: 8 }
+      { pitch:  28, count: 12 },
+      { pitch:   0, count: 12 },
+      { pitch: -28, count: 12 }
     ],
     pro: [
-      { pitch:  70, count: 2 },
-      { pitch:  35, count: 8 },
+      { pitch:  60, count: 6 },
+      { pitch:  28, count: 12 },
       { pitch:   0, count: 12 },
-      { pitch: -35, count: 8 },
-      { pitch: -70, count: 2 }
+      { pitch: -28, count: 12 },
+      { pitch: -60, count: 6 }
     ]
   };
   let scanCapturePreset = 'quick'; // 'quick', 'standard', 'pro'
@@ -4817,22 +4817,24 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // Optical FOV calibrated for smartphone lenses
-        // Most phone main cameras have a 68°–72° horizontal FOV in landscape, meaning in portrait (wh > ww)
-        // the horizontal FOV is ~52°–56° and vertical FOV is ~68°–72°.
-        var isPortrait = wh >= ww;
-        // Phone lenses: ~26mm equivalent full-frame focal length => ~68.5° horizontal in landscape
-        var hFovDeg = isPortrait ? 54.0 : 70.0;
-        var hFovRad = (hFovDeg * Math.PI) / 180;
-        var tanHalfH = Math.tan(hFovRad * 0.5);
+        // Optical FOV mathematically derived from standard 26mm full-frame equivalent smartphone main sensor
+        // Diagonal FOV = 78.5°
+        var diagFovDeg = 78.5;
+        var diagFovRad = (diagFovDeg * Math.PI) / 180;
+        var tanDiag = Math.tan(diagFovRad * 0.5);
         var aspect = ww / wh;
-        var tanHalfV = tanHalfH / aspect;
-        var fovHDeg = hFovDeg;
+        var tanHalfH = tanDiag * (aspect / Math.sqrt(aspect * aspect + 1));
+        var tanHalfV = tanDiag * (1 / Math.sqrt(aspect * aspect + 1));
+        var fovHDeg = 2 * Math.atan(tanHalfH) * (180 / Math.PI);
         var fovVDeg = 2 * Math.atan(tanHalfV) * (180 / Math.PI);
 
-        var yawDeg = (typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw;
-        var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
-        yawDeg = ((yawDeg % 360) + 360) % 360;
+        // Yaw angle stabilization: preserve uniform 360 circle distribution while respecting user aim
+        var idealYaw = typeof slot.yaw === 'number' ? slot.yaw : 0;
+        var capYaw = (typeof slot.captureYaw === 'number') ? slot.captureYaw : idealYaw;
+        var capPitch = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
+        var dYaw = angleDiffSigned(capYaw, idealYaw);
+        var yawDeg = (Math.abs(dYaw) < 14) ? normalizeAngle360(idealYaw + dYaw * 0.25) : capYaw;
+        var pitchDeg = Math.max(-85, Math.min(85, capPitch));
 
         var yawRad = (yawDeg * Math.PI) / 180;
         var pitchRad = (pitchDeg * Math.PI) / 180;
@@ -4855,7 +4857,11 @@
         });
       }
 
-      // PASS 1: Project rays & assign closest optical ray center (Voronoi winner-take-all)
+      // Arrays for optical ray weighting & seamless transition
+      var bestWeight = new Float32Array(W * H);
+      var secWeight = new Float32Array(W * H);
+
+      // PASS 1: Project spherical rays to sensor perspective
       for (var si = 0; si < shotDatas.length; si++) {
         if (finishBtn) finishBtn.textContent = '⏳ ALIGNING ' + (si + 1) + '/' + shotDatas.length + '…';
         await new Promise(function (r) { setTimeout(r, 0); });
@@ -4870,8 +4876,8 @@
         var sCosY = sData.cosYaw, sSinY = sData.sinYaw;
         var sCosP = sData.cosPitch, sSinP = sData.sinPitch;
 
-        var padH = sData.fovHDeg * 0.52 + 1.5;
-        var padV = sData.fovVDeg * 0.52 + 1.5;
+        var padH = sData.fovHDeg * 0.55 + 2.0;
+        var padV = sData.fovVDeg * 0.55 + 2.0;
         var minLat = Math.max(-89.5, sData.pitchDeg - padV);
         var maxLat = Math.min(89.5, sData.pitchDeg + padV);
         var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
@@ -4932,8 +4938,12 @@
               var fy = (0.5 - v * 0.5) * (sWh - 1);
               if (fx < 0 || fy < 0 || fx >= sWw - 1 || fy >= sWh - 1) continue;
 
-              // Distance from optical center (0 is dead center, >1 is edge)
-              var distSq = u * u + v * v;
+              // Distance from optical center (0 is center, 1 is edge)
+              var rSq = (u * u + v * v) / (0.98 * 0.98);
+              if (rSq >= 1.0) continue;
+
+              // Optical weight (highest at center, smooth cosine rolloff at edges)
+              var optWeight = Math.pow(1.0 - rSq, 2.0);
 
               // Bilinear interpolation
               var x0 = fx | 0;
@@ -4953,14 +4963,13 @@
 
               var pIdx = row * W + col;
 
-              if (distSq < bestDistSq[pIdx]) {
-                // Demote previous best to second
-                secondDistSq[pIdx] = bestDistSq[pIdx];
+              if (optWeight > bestWeight[pIdx]) {
+                secWeight[pIdx] = bestWeight[pIdx];
                 secR[pIdx] = pixelR[pIdx];
                 secG[pIdx] = pixelG[pIdx];
                 secB[pIdx] = pixelB[pIdx];
 
-                bestDistSq[pIdx] = distSq;
+                bestWeight[pIdx] = optWeight;
                 bestShotId[pIdx] = sId;
                 pixelR[pIdx] = r;
                 pixelG[pIdx] = g;
@@ -4968,8 +4977,8 @@
 
                 if (row < topCoverageRow[col]) topCoverageRow[col] = row;
                 if (row > botCoverageRow[col]) botCoverageRow[col] = row;
-              } else if (distSq < secondDistSq[pIdx]) {
-                secondDistSq[pIdx] = distSq;
+              } else if (optWeight > secWeight[pIdx]) {
+                secWeight[pIdx] = optWeight;
                 secR[pIdx] = r;
                 secG[pIdx] = g;
                 secB[pIdx] = b;
@@ -5083,20 +5092,33 @@
         smoothBotB[c] = sbb / count;
       }
 
-      // Populate full image: razor-sharp Voronoi with micro-seam feathering + organic diffusion
+      // Populate full image: sharp body rendering + sigmoidal micro-feathered seam transition
       for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
           var pIdx2 = y * W + x;
           var di = pIdx2 * 4;
           var shotId = bestShotId[pIdx2];
+          var w1 = bestWeight[pIdx2];
 
-          if (shotId >= 0) {
+          if (shotId >= 0 && w1 > 0) {
             var pr = pixelR[pIdx2];
             var pg = pixelG[pIdx2];
             var pb = pixelB[pIdx2];
 
-            // Pure Voronoi nearest-ray assignment for crystal clarity
-            // (Completely eliminates ghosting, duplicate curtains/monitors, and double vision)
+            var w2 = secWeight[pIdx2];
+            if (w2 > 0) {
+              var ratio = w2 / w1; // 0 to 1
+              // Micro-feather strictly at the boundary seam (ratio > 0.68)
+              if (ratio > 0.68) {
+                var t = (ratio - 0.68) / 0.32; // normalized 0 to 1
+                var smoothT = t * t * (3.0 - 2.0 * t); // smoothstep
+                var blend = 0.5 * smoothT; // 0 to 0.5
+                pr = Math.round(pr * (1.0 - blend) + secR[pIdx2] * blend);
+                pg = Math.round(pg * (1.0 - blend) + secG[pIdx2] * blend);
+                pb = Math.round(pb * (1.0 - blend) + secB[pIdx2] * blend);
+              }
+            }
+
             outData[di]     = Math.min(255, Math.max(0, pr));
             outData[di + 1] = Math.min(255, Math.max(0, pg));
             outData[di + 2] = Math.min(255, Math.max(0, pb));
