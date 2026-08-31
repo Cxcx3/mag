@@ -4817,16 +4817,17 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // Optical FOV calibrated for smartphone lenses (ultra-wide & standard rectilinear)
+        // Optical FOV calibrated for smartphone lenses
+        // Most phone main cameras have a 68°–72° horizontal FOV in landscape, meaning in portrait (wh > ww)
+        // the horizontal FOV is ~52°–56° and vertical FOV is ~68°–72°.
         var isPortrait = wh >= ww;
-        var diagFovDeg = isPortrait ? 78 : 75;
-        var diagFovRad = (diagFovDeg * Math.PI) / 180;
-        var tanDiag = Math.tan(diagFovRad * 0.5);
-
+        // Phone lenses: ~26mm equivalent full-frame focal length => ~68.5° horizontal in landscape
+        var hFovDeg = isPortrait ? 54.0 : 70.0;
+        var hFovRad = (hFovDeg * Math.PI) / 180;
+        var tanHalfH = Math.tan(hFovRad * 0.5);
         var aspect = ww / wh;
-        var tanHalfH = tanDiag * (aspect / Math.sqrt(aspect * aspect + 1));
-        var tanHalfV = tanDiag * (1 / Math.sqrt(aspect * aspect + 1));
-        var fovHDeg = 2 * Math.atan(tanHalfH) * (180 / Math.PI);
+        var tanHalfV = tanHalfH / aspect;
+        var fovHDeg = hFovDeg;
         var fovVDeg = 2 * Math.atan(tanHalfV) * (180 / Math.PI);
 
         var yawDeg = (typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw;
@@ -5094,21 +5095,8 @@
             var pg = pixelG[pIdx2];
             var pb = pixelB[pIdx2];
 
-            // Micro-seam feathering only right at the Voronoi boundary between overlapping photos
-            var d1 = bestDistSq[pIdx2];
-            var d2 = secondDistSq[pIdx2];
-            if (d2 < 900.0) {
-              var diff = Math.abs(d2 - d1);
-              if (diff < 0.08) {
-                // Within transition zone
-                var t = (diff / 0.08) * 0.5; // 0 at seam line, 0.5 at margin
-                var blendWeight = 0.5 - t;   // blend secondary shot gently
-                pr = Math.round(pr * (1 - blendWeight) + secR[pIdx2] * blendWeight);
-                pg = Math.round(pg * (1 - blendWeight) + secG[pIdx2] * blendWeight);
-                pb = Math.round(pb * (1 - blendWeight) + secB[pIdx2] * blendWeight);
-              }
-            }
-
+            // Pure Voronoi nearest-ray assignment for crystal clarity
+            // (Completely eliminates ghosting, duplicate curtains/monitors, and double vision)
             outData[di]     = Math.min(255, Math.max(0, pr));
             outData[di + 1] = Math.min(255, Math.max(0, pg));
             outData[di + 2] = Math.min(255, Math.max(0, pb));
