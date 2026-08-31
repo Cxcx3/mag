@@ -2939,10 +2939,10 @@
                 <span class="scan-title">📸 360° MATTERPORT SCANNER</span>
                 <!-- Mode Switcher Tabs -->
                 <div class="scan-mode-tabs">
-                  <button type="button" class="scan-mode-tab" id="scanTabSweep" onclick="window.switchScanCaptureMode('sweep')" title="Turn in a continuous 360° circle (Fast & Seamless)">
+                  <button type="button" class="scan-mode-tab active" id="scanTabSweep" onclick="window.switchScanCaptureMode('sweep')" title="Turn in a continuous 360° circle (Fast & Seamless)">
                     ⚡ 1-SWEEP 360°
                   </button>
-                  <button type="button" class="scan-mode-tab active" id="scanTabRadar" onclick="window.switchScanCaptureMode('radar')" title="Matterport-style guided radar stops — dots track your phone">
+                  <button type="button" class="scan-mode-tab" id="scanTabRadar" onclick="window.switchScanCaptureMode('radar')" title="Matterport-style guided radar stops">
                     🎯 12-STOP RADAR
                   </button>
                 </div>
@@ -4991,12 +4991,16 @@
   // =========================================================================
 
   // Stable 16-stop horizon orbit (every 22.5°) with generous optical overlap
+  // Three-row spherical grid: ceiling, horizon, floor — so the top and bottom
+  // of the stitched photo are REAL captured pixels, not extrapolated color fill.
   const SCAN_ROWS = [
-    { pitch: 0, count: 16 } // Primary level horizon orbit (360° room walkthrough)
+    { pitch: 40, count: 10 },  // ceiling ring
+    { pitch: 0,  count: 16 },  // primary horizon ring (walls)
+    { pitch: -40, count: 10 }  // floor ring
   ];
-  let SCAN_TOTAL_NODES = 16;
+  let SCAN_TOTAL_NODES = 36;
 
-  let scanCaptureMode = 'radar'; // guided dots track the phone; sweep hides them
+  let scanCaptureMode = 'sweep'; // 'sweep' (Matterport 1-Sweep) or 'radar' (12-Stop Guided)
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
   let scanStream = null;
   let scanCameraFacing = 'environment';
@@ -5079,7 +5083,7 @@
 
     const ringStatus = document.getElementById('scanRingStatus');
     if (ringStatus) {
-      ringStatus.textContent = (mode === 'sweep') ? 'TURN SLOWLY 360°' : 'ROTATE TO GLOWING DOT';
+      ringStatus.textContent = (mode === 'sweep') ? 'TURN SLOWLY · TILT UP/DOWN' : 'ROTATE TO GLOWING DOT';
     }
 
     if (typeof showToast === 'function') {
@@ -5126,7 +5130,7 @@
     if (!modal) return;
     modal.style.display = 'flex';
 
-    window.switchScanCaptureMode(scanCaptureMode || 'radar');
+    window.switchScanCaptureMode(scanCaptureMode || 'sweep');
     renderScanSlotsRibbon();
     updateScanProgressBar();
     clearStitchPreviewCanvas();
@@ -5194,6 +5198,9 @@
   let _scanRelSensor = null;
   let _scanGyroPrimed = false;
   let _lastRawYaw = null;
+  // Relative (delta-integrated) yaw tracking — see onDeviceOrientationEvent for why.
+  let _scanLastRawAlpha = null;
+  let _scanIntegratedYawAccum = 0;
 
   function stopScannerGyroListeners() {
     if (_scanOrientHandler) {
@@ -5240,33 +5247,54 @@
     var targetYaw = normalizeAngle360(yawDeg - scanBaseYawOffset);
     var targetPitch = Math.max(-45, Math.min(45, pitchDeg));
 
-    // Responsive enough to track phone turns; light pitch damp only
+    // Low-pass exponential moving average with unwrapped angle delta to eliminate jitter
     var dy = angleDiffSigned(targetYaw, scanSmoothYaw);
-    var dp = targetPitch - scanSmoothPitch;
-    if (Math.abs(dy) < 0.35) dy = 0;
-    if (Math.abs(dp) < 0.5) dp = 0;
-    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.28);
-    scanSmoothPitch = scanSmoothPitch + dp * 0.22;
+    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.35);
+    scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.35;
     scanCurrentYaw = scanSmoothYaw;
     scanCurrentPitch = scanSmoothPitch;
 
+    // In continuous sweep mode, sample keyframes automatically
     if (scanIsSweeping) {
       handleContinuousSweepProgress();
     }
   }
 
   function onDeviceOrientationEvent(e) {
-    // Fallback only when RelativeOrientationSensor is not running
-    if (_scanRelSensor) return;
     if (e.alpha === null || e.alpha === undefined) return;
     if (e.beta === null || e.beta === undefined) return;
 
-    // Relative yaw only — never magnetic compass (compass freezes / fights gyro)
-    var rawYaw = (360 - e.alpha);
+    // IMPORTANT: We deliberately do NOT use webkitCompassHeading (or absolute
+    // alpha) here. That's an ABSOLUTE magnetic-north reading, and indoors —
+    // especially near metal door frames, appliances, laptops, etc — it can
+    // "stick" and barely move for seconds at a time even while the phone is
+    // actively being turned. That produced a frozen guide dot even though
+    // the camera view was clearly panning across the room.
+    //
+    // Instead we track ONLY the frame-to-frame CHANGE in the device's raw
+    // alpha reading and integrate it ourselves into a free-running counter.
+    // We don't care about true north for this — only relative rotation
+    // since the scan started — so this sidesteps magnetic interference
+    // entirely and tracks real physical rotation far more responsively.
+    var rawAlpha = e.alpha;
+    if (_scanLastRawAlpha === null) {
+      _scanLastRawAlpha = rawAlpha;
+    } else {
+      var delta = rawAlpha - _scanLastRawAlpha;
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      _scanIntegratedYawAccum -= delta; // sign flipped to match our yaw convention
+      _scanLastRawAlpha = rawAlpha;
+    }
+    var rawYaw = normalizeAngle360(_scanIntegratedYawAccum);
+
+    // Stabilized pitch from beta (upright phone: beta ~ 85-95 -> pitch 0)
     var rawPitch = (e.beta != null ? e.beta : 90) - 90;
     if (e.gamma != null && Math.abs(e.gamma) > 45) {
+      // Phone is held horizontally/landscape
       rawPitch = e.gamma > 0 ? (90 - e.gamma) : (-90 - e.gamma);
     }
+
     applyGyroLook(rawYaw, rawPitch);
   }
 
@@ -5274,8 +5302,10 @@
     stopScannerGyroListeners();
     _scanGyroPrimed = false;
     scanHasGyro = false;
+    _scanLastRawAlpha = null;
+    _scanIntegratedYawAccum = 0;
 
-    var usedRelative = false;
+    // Chrome RelativeOrientationSensor if available
     try {
       if (typeof RelativeOrientationSensor === 'function') {
         var sensor = new RelativeOrientationSensor({ frequency: 60, referenceFrame: 'screen' });
@@ -5292,18 +5322,12 @@
         };
         sensor.start();
         _scanRelSensor = sensor;
-        usedRelative = true;
       }
-    } catch (err) {
-      usedRelative = false;
-    }
+    } catch (err) {}
 
-    // Only attach deviceorientation if relative sensor is unavailable
-    if (!usedRelative) {
-      _scanOrientHandler = onDeviceOrientationEvent;
-      window.addEventListener('deviceorientation', _scanOrientHandler, true);
-    }
-    setSensorPill(usedRelative ? '📳 RELATIVE GYRO' : '📳 MOTION READY', '#06D6A0');
+    _scanOrientHandler = onDeviceOrientationEvent;
+    window.addEventListener('deviceorientation', _scanOrientHandler, true);
+    setSensorPill('📳 MOTION READY', '#06D6A0');
   }
 
   window.enableScannerGyroAim = async function () {
@@ -5420,13 +5444,79 @@
       btn.style.color = '#fff';
     }
 
-    // Take initial 0° sample
-    grabSweepFrame(0);
+    // Take initial sample at whatever angle the phone is currently pointed
+    grabSweepFrame();
 
     if (typeof showToast === 'function') {
-      showToast('⚡ Sweep active! Slowly turn your body in a full circle.');
+      showToast('⚡ Sweep active! Turn slowly for the walls — then tilt up for the ceiling and down for the floor while continuing to turn.');
     }
   };
+
+  // Which row (ceiling / horizon / floor) the scanner currently considers
+  // "active" for targeting. Sticky with hysteresis — see updateStickyActiveRow —
+  // so hovering near the boundary between two rows doesn't cause the guide
+  // dots to flicker back and forth between them.
+  let scanActiveRowPitch = 0;
+
+  function getRowPitches() {
+    return SCAN_ROWS.map(r => r.pitch);
+  }
+
+  // Locks onto the nearest row and only switches to a different row once the
+  // person has moved meaningfully closer to it (hysteresis margin below),
+  // rather than re-picking the single nearest row every animation frame.
+  function updateStickyActiveRow(currentPitch) {
+    const rows = getRowPitches();
+    const HYSTERESIS = 10; // degrees — must be clearly closer to switch rows
+    let bestRow = scanActiveRowPitch;
+    let bestDist = Math.abs(currentPitch - scanActiveRowPitch);
+    rows.forEach(rp => {
+      const d = Math.abs(currentPitch - rp);
+      if (d + HYSTERESIS < bestDist) {
+        bestDist = d;
+        bestRow = rp;
+      }
+    });
+    scanActiveRowPitch = bestRow;
+    return scanActiveRowPitch;
+  }
+
+  // Finds the nearest not-yet-captured slot to a given yaw/pitch — used so
+  // sweeping while tilted up/down correctly fills the ceiling/floor rows
+  // instead of always targeting the horizon row. Locks onto one row at a
+  // time (via updateStickyActiveRow) so it doesn't flicker between rows.
+  function findNearestOpenSlotIdx(yawDeg, pitchDeg) {
+    const activeRow = updateStickyActiveRow(pitchDeg);
+
+    // First choice: nearest open slot within the currently-locked row (yaw only)
+    let closestIdx = -1;
+    let minDist = Infinity;
+    for (let i = 0; i < scanSlots.length; i++) {
+      const slot = scanSlots[i];
+      if (slot.captured || slot.pitch !== activeRow) continue;
+      const dYaw = Math.abs(angleDiffSigned(slot.yaw, yawDeg));
+      if (dYaw < minDist) {
+        minDist = dYaw;
+        closestIdx = i;
+      }
+    }
+    if (closestIdx !== -1) return closestIdx;
+
+    // That row is fully captured — fall back to nearest open slot in any row
+    minDist = Infinity;
+    for (let i = 0; i < scanSlots.length; i++) {
+      const slot = scanSlots[i];
+      if (slot.captured) continue;
+      const dYaw = angleDiffSigned(slot.yaw, yawDeg);
+      const dPitch = slot.pitch - pitchDeg;
+      const dist = Math.hypot(dYaw, dPitch * 1.4);
+      if (dist < minDist) {
+        minDist = dist;
+        closestIdx = i;
+      }
+    }
+    return closestIdx;
+  }
 
   function grabSweepFrame(targetSlotIdx) {
     const video = document.getElementById('scanVideoFeed');
@@ -5450,7 +5540,8 @@
 
     const slotIdx = (typeof targetSlotIdx === 'number' && targetSlotIdx >= 0 && targetSlotIdx < scanSlots.length)
       ? targetSlotIdx
-      : Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
+      : findNearestOpenSlotIdx(scanCurrentYaw, scanCurrentPitch);
+    if (slotIdx === -1) return;
 
     scanSlots[slotIdx].captured = true;
     scanSlots[slotIdx].imgCanvas = sliceCanvas;
@@ -5471,11 +5562,12 @@
 
   function handleContinuousSweepProgress() {
     const dYaw = angleDiffSigned(scanCurrentYaw, scanSweepLastSampleYaw);
-    if (Math.abs(dYaw) >= 18) {
-      // Capture frame at this angle step
+    if (Math.abs(dYaw) >= 15) {
+      // Capture frame at this angle step — nearest open slot to current yaw AND pitch,
+      // so tilting up/down while turning fills the ceiling/floor rows correctly.
       scanSweepLastSampleYaw = scanCurrentYaw;
-      const targetSlot = Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
-      grabSweepFrame(targetSlot);
+      const targetSlot = findNearestOpenSlotIdx(scanCurrentYaw, scanCurrentPitch);
+      if (targetSlot !== -1) grabSweepFrame(targetSlot);
     }
 
     // Compute total progress towards 360°
@@ -5495,6 +5587,20 @@
     }
     if (degLabel) degLabel.textContent = `${progressDeg}°`;
 
+    // Nudge the person to tilt if one row still needs coverage while another is done
+    if (subLabel && capturedCount < SCAN_TOTAL_NODES) {
+      const ceilingLeft = scanSlots.filter(s => s.pitch > 20 && !s.captured).length;
+      const floorLeft = scanSlots.filter(s => s.pitch < -20 && !s.captured).length;
+      const horizonLeft = scanSlots.filter(s => Math.abs(s.pitch) <= 20 && !s.captured).length;
+      if (horizonLeft === 0 && ceilingLeft > 0) {
+        subLabel.textContent = 'TILT UP FOR CEILING';
+      } else if (horizonLeft === 0 && floorLeft > 0) {
+        subLabel.textContent = 'TILT DOWN FOR FLOOR';
+      } else {
+        subLabel.textContent = 'TURN SLOWLY';
+      }
+    }
+
     if (capturedCount >= SCAN_TOTAL_NODES) {
       scanIsSweeping = false;
       if (subLabel) {
@@ -5508,7 +5614,7 @@
         btn.style.color = '#14121A';
       }
       if (typeof showToast === 'function') {
-        showToast('🎉 360° sweep complete! Stitching photosphere…');
+        showToast('🎉 Full coverage complete! Stitching photosphere…');
       }
       // Auto-trigger stitch after brief delay
       setTimeout(() => {
@@ -5556,18 +5662,21 @@
           scanNodesInitialized = true;
         }
 
+        const activeRowPitch = updateStickyActiveRow(scanCurrentPitch);
+
         let closestUncapturedIdx = -1;
         let minAngularDistance = 999;
         let alignedTargetIdx = -1;
 
+        // Only slots in the currently-locked row compete for "closest"/"aligned" —
+        // this is what stops the ceiling and horizon dots from fighting each other
+        // as your pitch drifts near the boundary between them.
         for (let idx = 0; idx < scanSlots.length; idx++) {
           const slot = scanSlots[idx];
-          if (slot.captured) continue;
-          const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
-          const diffPitch = slot.pitch - scanCurrentPitch;
-          const angularDist = Math.hypot(diffYaw, diffPitch);
-          if (angularDist < minAngularDistance) {
-            minAngularDistance = angularDist;
+          if (slot.captured || slot.pitch !== activeRowPitch) continue;
+          const diffYaw = Math.abs(angleDiffSigned(slot.yaw, scanCurrentYaw));
+          if (diffYaw < minAngularDistance) {
+            minAngularDistance = diffYaw;
             closestUncapturedIdx = idx;
           }
         }
@@ -5579,13 +5688,16 @@
 
           const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
           const diffPitch = slot.pitch - scanCurrentPitch;
-          const angularDist = Math.hypot(diffYaw, diffPitch);
+          const isActiveRow = slot.pitch === activeRowPitch;
+          const angularDist = isActiveRow ? Math.abs(diffYaw) : Math.hypot(diffYaw, diffPitch);
 
           const screenX = centerX + (diffYaw / hFov) * vw;
           const screenY = centerY - (diffPitch / vFov) * vh;
           const isVisible = Math.abs(diffYaw) < hFov * 1.1 && Math.abs(diffPitch) < vFov * 1.1;
 
-          if (!slot.captured && angularDist < 8.5) {
+          // Only the active row's slots are eligible to show as "aligned" —
+          // other rows stay dim/pending even if geometrically close on screen.
+          if (isActiveRow && !slot.captured && angularDist < 10) {
             alignedTargetIdx = idx;
           }
 
@@ -5599,7 +5711,7 @@
             el.classList.add('captured');
             el.style.opacity = isVisible ? '0.75' : '0';
             if (span) span.textContent = '✓';
-          } else if (angularDist < 8.5) {
+          } else if (isActiveRow && angularDist < 10) {
             el.classList.add('aligned');
             el.style.opacity = '1';
             if (span) span.textContent = '●';
@@ -5608,8 +5720,10 @@
             el.style.opacity = isVisible ? '1' : '0';
             if (span) span.textContent = '';
           } else {
+            // Dim rows that aren't currently active, so they read as
+            // reference points rather than competing targets.
             el.classList.add('pending');
-            el.style.opacity = isVisible ? '0.25' : '0';
+            el.style.opacity = isVisible ? (isActiveRow ? '0.25' : '0.12') : '0';
             if (span) span.textContent = '';
           }
         }
@@ -5658,6 +5772,18 @@
           } else {
             guideArrow.style.display = 'none';
           }
+        } else if (closestUncapturedIdx === -1 && guideArrow && guideText && guideIcon) {
+          // Current row is fully captured — point toward whichever row still has open slots
+          const rows = getRowPitches();
+          const otherOpenRow = rows.find(rp => rp !== activeRowPitch && scanSlots.some(s => s.pitch === rp && !s.captured));
+          if (typeof otherOpenRow === 'number') {
+            guideArrow.style.display = 'flex';
+            const goUp = otherOpenRow > activeRowPitch;
+            guideIcon.textContent = goUp ? '⬆' : '⬇';
+            guideText.textContent = goUp ? 'TILT UP for the ceiling row' : 'TILT DOWN for the floor row';
+          } else {
+            guideArrow.style.display = 'none';
+          }
         }
       }
     }
@@ -5674,16 +5800,8 @@
   };
 
   window.captureCurrentScanAngle = function () {
-    let closestIdx = 0;
-    let minDiff = 999;
-    scanSlots.forEach((slot, idx) => {
-      const dYaw = Math.abs(angleDiffSigned(slot.yaw, scanCurrentYaw));
-      if (dYaw < minDiff) {
-        minDiff = dYaw;
-        closestIdx = idx;
-      }
-    });
-    window.captureSpecificScanAngle(closestIdx);
+    const closestIdx = findNearestOpenSlotIdx(scanCurrentYaw, scanCurrentPitch);
+    if (closestIdx !== -1) window.captureSpecificScanAngle(closestIdx);
   };
 
   window.captureSpecificScanAngle = function (slotIdx) {
@@ -5706,7 +5824,8 @@
     if (barFill) barFill.style.width = `${percent}%`;
 
     if (finishBtn) {
-      if (capturedCount >= 6) {
+      const minNeeded = Math.ceil(SCAN_TOTAL_NODES * 0.35); // ~35% coverage minimum
+      if (capturedCount >= minNeeded) {
         finishBtn.style.opacity = '1';
         finishBtn.style.pointerEvents = 'auto';
         finishBtn.disabled = false;
@@ -5714,7 +5833,7 @@
       } else {
         finishBtn.style.opacity = '0.6';
         finishBtn.disabled = false;
-        finishBtn.textContent = `✨ STITCH (need ${6 - capturedCount} more)`;
+        finishBtn.textContent = `✨ STITCH (need ${minNeeded - capturedCount} more)`;
       }
     }
   }
@@ -5916,9 +6035,8 @@
     await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
 
     try {
-      // Checkpoint stitch (same algorithm) — higher res for less blur
-      var W = 4096;
-      var H = 2048;
+      var W = 2880;
+      var H = 1440;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
@@ -5989,7 +6107,7 @@
 
         var ww = src.width;
         var wh = src.height;
-        var maxDim = 1280; // slightly more source detail than checkpoint 1024
+        var maxDim = 1400;
         var work = src;
         if (ww > maxDim || wh > maxDim) {
           var scale = maxDim / Math.max(ww, wh);
@@ -6002,9 +6120,9 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // Same projection math as checkpoint — only FOV nudged wider (76° → 84°)
+        // Optical FOV calculation based on frame aspect ratio
         var aspect = ww / wh;
-        var diagFovRad = (84 * Math.PI) / 180;
+        var diagFovRad = (76 * Math.PI) / 180;
         var tanHalfDiag = Math.tan(diagFovRad * 0.5);
         var tanHalfH = tanHalfDiag * (aspect / Math.sqrt(aspect * aspect + 1));
         var tanHalfV = tanHalfDiag * (1 / Math.sqrt(aspect * aspect + 1));
@@ -6014,7 +6132,7 @@
         var yawDeg = normalizeAngle360((typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw);
         var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
 
-        // Bounding box — same formula as checkpoint
+        // Bounding box in equirectangular coordinates
         var padH = fovHDeg * 0.58 + 4;
         var padV = fovVDeg * 0.58 + 4;
         var minLat = Math.max(-88, pitchDeg - padV);
@@ -6185,12 +6303,12 @@
       if (finishBtn) finishBtn.textContent = '⏳ SAVING 360° ROOM…';
       await new Promise(r => setTimeout(r, 0));
 
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.96);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.94);
       var finalUrl = dataUrl;
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
-          var blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.96));
+          var blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.94));
           var file = new File([blob], `matterport_360_${Date.now()}.jpg`, { type: 'image/jpeg' });
           var up = await window.uploadToSupabaseStorage(file);
           if (up && up.url) finalUrl = up.url;
