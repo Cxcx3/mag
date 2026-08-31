@@ -4991,10 +4991,14 @@
   // =========================================================================
 
   // Stable 16-stop horizon orbit (every 22.5°) with generous optical overlap
+  // Three-row spherical grid: ceiling, horizon, floor — so the top and bottom
+  // of the stitched photo are REAL captured pixels, not extrapolated color fill.
   const SCAN_ROWS = [
-    { pitch: 0, count: 16 } // Primary level horizon orbit (360° room walkthrough)
+    { pitch: 40, count: 10 },  // ceiling ring
+    { pitch: 0,  count: 16 },  // primary horizon ring (walls)
+    { pitch: -40, count: 10 }  // floor ring
   ];
-  let SCAN_TOTAL_NODES = 16;
+  let SCAN_TOTAL_NODES = 36;
 
   let scanCaptureMode = 'sweep'; // 'sweep' (Matterport 1-Sweep) or 'radar' (12-Stop Guided)
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
@@ -5079,7 +5083,7 @@
 
     const ringStatus = document.getElementById('scanRingStatus');
     if (ringStatus) {
-      ringStatus.textContent = (mode === 'sweep') ? 'TURN SLOWLY 360°' : 'ROTATE TO GLOWING DOT';
+      ringStatus.textContent = (mode === 'sweep') ? 'TURN SLOWLY · TILT UP/DOWN' : 'ROTATE TO GLOWING DOT';
     }
 
     if (typeof showToast === 'function') {
@@ -5420,13 +5424,33 @@
       btn.style.color = '#fff';
     }
 
-    // Take initial 0° sample
-    grabSweepFrame(0);
+    // Take initial sample at whatever angle the phone is currently pointed
+    grabSweepFrame();
 
     if (typeof showToast === 'function') {
-      showToast('⚡ Sweep active! Slowly turn your body in a full circle.');
+      showToast('⚡ Sweep active! Turn slowly for the walls — then tilt up for the ceiling and down for the floor while continuing to turn.');
     }
   };
+
+  // Finds the nearest not-yet-captured slot to a given yaw/pitch — used so
+  // sweeping while tilted up/down correctly fills the ceiling/floor rows
+  // instead of always targeting the horizon row.
+  function findNearestOpenSlotIdx(yawDeg, pitchDeg) {
+    let closestIdx = -1;
+    let minDist = Infinity;
+    for (let i = 0; i < scanSlots.length; i++) {
+      const slot = scanSlots[i];
+      if (slot.captured) continue;
+      const dYaw = angleDiffSigned(slot.yaw, yawDeg);
+      const dPitch = slot.pitch - pitchDeg;
+      const dist = Math.hypot(dYaw, dPitch * 1.4);
+      if (dist < minDist) {
+        minDist = dist;
+        closestIdx = i;
+      }
+    }
+    return closestIdx;
+  }
 
   function grabSweepFrame(targetSlotIdx) {
     const video = document.getElementById('scanVideoFeed');
@@ -5450,7 +5474,8 @@
 
     const slotIdx = (typeof targetSlotIdx === 'number' && targetSlotIdx >= 0 && targetSlotIdx < scanSlots.length)
       ? targetSlotIdx
-      : Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
+      : findNearestOpenSlotIdx(scanCurrentYaw, scanCurrentPitch);
+    if (slotIdx === -1) return;
 
     scanSlots[slotIdx].captured = true;
     scanSlots[slotIdx].imgCanvas = sliceCanvas;
@@ -5471,11 +5496,12 @@
 
   function handleContinuousSweepProgress() {
     const dYaw = angleDiffSigned(scanCurrentYaw, scanSweepLastSampleYaw);
-    if (Math.abs(dYaw) >= 18) {
-      // Capture frame at this angle step
+    if (Math.abs(dYaw) >= 15) {
+      // Capture frame at this angle step — nearest open slot to current yaw AND pitch,
+      // so tilting up/down while turning fills the ceiling/floor rows correctly.
       scanSweepLastSampleYaw = scanCurrentYaw;
-      const targetSlot = Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
-      grabSweepFrame(targetSlot);
+      const targetSlot = findNearestOpenSlotIdx(scanCurrentYaw, scanCurrentPitch);
+      if (targetSlot !== -1) grabSweepFrame(targetSlot);
     }
 
     // Compute total progress towards 360°
@@ -5495,6 +5521,20 @@
     }
     if (degLabel) degLabel.textContent = `${progressDeg}°`;
 
+    // Nudge the person to tilt if one row still needs coverage while another is done
+    if (subLabel && capturedCount < SCAN_TOTAL_NODES) {
+      const ceilingLeft = scanSlots.filter(s => s.pitch > 20 && !s.captured).length;
+      const floorLeft = scanSlots.filter(s => s.pitch < -20 && !s.captured).length;
+      const horizonLeft = scanSlots.filter(s => Math.abs(s.pitch) <= 20 && !s.captured).length;
+      if (horizonLeft === 0 && ceilingLeft > 0) {
+        subLabel.textContent = 'TILT UP FOR CEILING';
+      } else if (horizonLeft === 0 && floorLeft > 0) {
+        subLabel.textContent = 'TILT DOWN FOR FLOOR';
+      } else {
+        subLabel.textContent = 'TURN SLOWLY';
+      }
+    }
+
     if (capturedCount >= SCAN_TOTAL_NODES) {
       scanIsSweeping = false;
       if (subLabel) {
@@ -5508,7 +5548,7 @@
         btn.style.color = '#14121A';
       }
       if (typeof showToast === 'function') {
-        showToast('🎉 360° sweep complete! Stitching photosphere…');
+        showToast('🎉 Full coverage complete! Stitching photosphere…');
       }
       // Auto-trigger stitch after brief delay
       setTimeout(() => {
@@ -5674,16 +5714,8 @@
   };
 
   window.captureCurrentScanAngle = function () {
-    let closestIdx = 0;
-    let minDiff = 999;
-    scanSlots.forEach((slot, idx) => {
-      const dYaw = Math.abs(angleDiffSigned(slot.yaw, scanCurrentYaw));
-      if (dYaw < minDiff) {
-        minDiff = dYaw;
-        closestIdx = idx;
-      }
-    });
-    window.captureSpecificScanAngle(closestIdx);
+    const closestIdx = findNearestOpenSlotIdx(scanCurrentYaw, scanCurrentPitch);
+    if (closestIdx !== -1) window.captureSpecificScanAngle(closestIdx);
   };
 
   window.captureSpecificScanAngle = function (slotIdx) {
@@ -5706,7 +5738,8 @@
     if (barFill) barFill.style.width = `${percent}%`;
 
     if (finishBtn) {
-      if (capturedCount >= 6) {
+      const minNeeded = Math.ceil(SCAN_TOTAL_NODES * 0.35); // ~35% coverage minimum
+      if (capturedCount >= minNeeded) {
         finishBtn.style.opacity = '1';
         finishBtn.style.pointerEvents = 'auto';
         finishBtn.disabled = false;
@@ -5714,7 +5747,7 @@
       } else {
         finishBtn.style.opacity = '0.6';
         finishBtn.disabled = false;
-        finishBtn.textContent = `✨ STITCH (need ${6 - capturedCount} more)`;
+        finishBtn.textContent = `✨ STITCH (need ${minNeeded - capturedCount} more)`;
       }
     }
   }
@@ -5916,8 +5949,8 @@
     await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
 
     try {
-      var W = 2048;
-      var H = 1024;
+      var W = 2880;
+      var H = 1440;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
@@ -5988,7 +6021,7 @@
 
         var ww = src.width;
         var wh = src.height;
-        var maxDim = 1024;
+        var maxDim = 1400;
         var work = src;
         if (ww > maxDim || wh > maxDim) {
           var scale = maxDim / Math.max(ww, wh);
