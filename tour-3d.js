@@ -4991,14 +4991,10 @@
   // =========================================================================
 
   // Stable 16-stop horizon orbit (every 22.5°) with generous optical overlap
-  // Three-row spherical grid: ceiling, horizon, floor — so the top and bottom
-  // of the stitched photo are REAL captured pixels, not extrapolated color fill.
   const SCAN_ROWS = [
-    { pitch: 40, count: 10 },  // ceiling ring
-    { pitch: 0,  count: 16 },  // primary horizon ring (walls)
-    { pitch: -40, count: 10 }  // floor ring
+    { pitch: 0, count: 16 } // Primary level horizon orbit (360° room walkthrough)
   ];
-  let SCAN_TOTAL_NODES = 36;
+  let SCAN_TOTAL_NODES = 16;
 
   let scanCaptureMode = 'sweep'; // 'sweep' (Matterport 1-Sweep) or 'radar' (12-Stop Guided)
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
@@ -5083,7 +5079,7 @@
 
     const ringStatus = document.getElementById('scanRingStatus');
     if (ringStatus) {
-      ringStatus.textContent = (mode === 'sweep') ? 'TURN SLOWLY · TILT UP/DOWN' : 'ROTATE TO GLOWING DOT';
+      ringStatus.textContent = (mode === 'sweep') ? 'TURN SLOWLY 360°' : 'ROTATE TO GLOWING DOT';
     }
 
     if (typeof showToast === 'function') {
@@ -5146,29 +5142,6 @@
     runScannerLoop();
   };
 
-  let scanUseWideLens = false;
-  let scanCurrentCaptureFovDeg = 76; // diagonal FOV used by the stitcher — must match whichever physical lens is active
-  let _wideLensDeviceId = null;
-  let _cameraDevicesEnumerated = false;
-
-  // Looks for a distinct ultra-wide-angle back camera exposed by the device
-  // (iPhones and many recent Androids expose this as a separate camera, not
-  // just a digital zoom-out). Requires at least one prior getUserMedia call
-  // so device labels are unlocked. Result is cached per scanner session.
-  async function findWideLensDeviceId() {
-    if (_cameraDevicesEnumerated) return _wideLensDeviceId;
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoInputs = devices.filter(d => d.kind === 'videoinput');
-      const wide = videoInputs.find(d => /ultra\s*-?\s*wide|0\.5x/i.test(d.label || ''));
-      _wideLensDeviceId = wide ? wide.deviceId : null;
-      if (_wideLensDeviceId) _cameraDevicesEnumerated = true; // only lock in once we actually found it (labels may be empty on first pass)
-    } catch (e) {
-      _wideLensDeviceId = null;
-    }
-    return _wideLensDeviceId;
-  }
-
   async function startScannerCameraFeed() {
     const video = document.getElementById('scanVideoFeed');
     if (!video) return;
@@ -5178,15 +5151,17 @@
       scanStream = null;
     }
 
-    const wideLensId = scanUseWideLens ? await findWideLensDeviceId() : null;
-    scanCurrentCaptureFovDeg = (scanUseWideLens && wideLensId) ? 118 : 76;
-
     try {
-      const videoConstraints = wideLensId
-        ? { deviceId: { exact: wideLensId }, width: { ideal: 1920, min: 640 }, height: { ideal: 1080, min: 480 } }
-        : { facingMode: scanCameraFacing, width: { ideal: 1920, min: 640 }, height: { ideal: 1080, min: 480 } };
+      const constraints = {
+        video: {
+          facingMode: scanCameraFacing,
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 }
+        },
+        audio: false
+      };
 
-      scanStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
+      scanStream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = scanStream;
       await video.play().catch(e => console.warn('Video play deferred:', e));
     } catch (err) {
@@ -5195,7 +5170,6 @@
         scanStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         video.srcObject = scanStream;
         await video.play().catch(e => console.warn('Video play deferred fallback:', e));
-        scanCurrentCaptureFovDeg = 76; // fell back to default lens — use standard FOV
       } catch (err2) {
         console.error('[Matterport 360 Scanner] Camera access failed:', err2);
         const ringStatus = document.getElementById('scanRingStatus');
@@ -5215,40 +5189,11 @@
     }
   };
 
-  // Toggles between the phone's standard back lens and its ultra-wide lens
-  // (when the device actually has one). A wider real FOV per shot means
-  // fewer stitching seams and noticeably less blur in the final photo.
-  window.toggleWideLensCamera = async function () {
-    const wideLensId = await findWideLensDeviceId();
-    if (!wideLensId) {
-      if (typeof showToast === 'function') {
-        showToast('⚠️ This device doesn\'t expose a separate ultra-wide camera.');
-      }
-      return;
-    }
-    scanUseWideLens = !scanUseWideLens;
-    await startScannerCameraFeed();
-    const btn = document.getElementById('scanWideLensBtn');
-    if (btn) {
-      btn.textContent = scanUseWideLens ? '🌐 WIDE: ON' : '🌐 WIDE LENS';
-      btn.style.background = scanUseWideLens ? '#06D6A0' : '';
-      btn.style.color = scanUseWideLens ? '#0d1b1e' : '';
-    }
-    if (typeof showToast === 'function') {
-      showToast(scanUseWideLens
-        ? '🌐 Ultra-wide lens active — captures much more per shot.'
-        : 'Standard lens active.');
-    }
-  };
-
   // ===== ROCK-SOLID MATTERPORT GYRO ORIENTATION (ZERO JUMPING) =====
   let _scanOrientHandler = null;
   let _scanRelSensor = null;
   let _scanGyroPrimed = false;
   let _lastRawYaw = null;
-  // Relative (delta-integrated) yaw tracking — see onDeviceOrientationEvent for why.
-  let _scanLastRawAlpha = null;
-  let _scanIntegratedYawAccum = 0;
 
   function stopScannerGyroListeners() {
     if (_scanOrientHandler) {
@@ -5312,29 +5257,14 @@
     if (e.alpha === null || e.alpha === undefined) return;
     if (e.beta === null || e.beta === undefined) return;
 
-    // IMPORTANT: We deliberately do NOT use webkitCompassHeading (or absolute
-    // alpha) here. That's an ABSOLUTE magnetic-north reading, and indoors —
-    // especially near metal door frames, appliances, laptops, etc — it can
-    // "stick" and barely move for seconds at a time even while the phone is
-    // actively being turned. That produced a frozen guide dot even though
-    // the camera view was clearly panning across the room.
-    //
-    // Instead we track ONLY the frame-to-frame CHANGE in the device's raw
-    // alpha reading and integrate it ourselves into a free-running counter.
-    // We don't care about true north for this — only relative rotation
-    // since the scan started — so this sidesteps magnetic interference
-    // entirely and tracks real physical rotation far more responsively.
-    var rawAlpha = e.alpha;
-    if (_scanLastRawAlpha === null) {
-      _scanLastRawAlpha = rawAlpha;
+    var rawYaw;
+    if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+      rawYaw = e.webkitCompassHeading;
+    } else if (e.absolute === true) {
+      rawYaw = e.alpha;
     } else {
-      var delta = rawAlpha - _scanLastRawAlpha;
-      if (delta > 180) delta -= 360;
-      if (delta < -180) delta += 360;
-      _scanIntegratedYawAccum -= delta; // sign flipped to match our yaw convention
-      _scanLastRawAlpha = rawAlpha;
+      rawYaw = (360 - e.alpha);
     }
-    var rawYaw = normalizeAngle360(_scanIntegratedYawAccum);
 
     // Stabilized pitch from beta (upright phone: beta ~ 85-95 -> pitch 0)
     var rawPitch = (e.beta != null ? e.beta : 90) - 90;
@@ -5350,8 +5280,6 @@
     stopScannerGyroListeners();
     _scanGyroPrimed = false;
     scanHasGyro = false;
-    _scanLastRawAlpha = null;
-    _scanIntegratedYawAccum = 0;
 
     // Chrome RelativeOrientationSensor if available
     try {
@@ -5492,33 +5420,13 @@
       btn.style.color = '#fff';
     }
 
-    // Take initial sample at whatever angle the phone is currently pointed
-    grabSweepFrame();
+    // Take initial 0° sample
+    grabSweepFrame(0);
 
     if (typeof showToast === 'function') {
-      showToast('⚡ Sweep active! Turn slowly for the walls — then tilt up for the ceiling and down for the floor while continuing to turn.');
+      showToast('⚡ Sweep active! Slowly turn your body in a full circle.');
     }
   };
-
-  // Finds the nearest not-yet-captured slot to a given yaw/pitch — used so
-  // sweeping while tilted up/down correctly fills the ceiling/floor rows
-  // instead of always targeting the horizon row.
-  function findNearestOpenSlotIdx(yawDeg, pitchDeg) {
-    let closestIdx = -1;
-    let minDist = Infinity;
-    for (let i = 0; i < scanSlots.length; i++) {
-      const slot = scanSlots[i];
-      if (slot.captured) continue;
-      const dYaw = angleDiffSigned(slot.yaw, yawDeg);
-      const dPitch = slot.pitch - pitchDeg;
-      const dist = Math.hypot(dYaw, dPitch * 1.4);
-      if (dist < minDist) {
-        minDist = dist;
-        closestIdx = i;
-      }
-    }
-    return closestIdx;
-  }
 
   function grabSweepFrame(targetSlotIdx) {
     const video = document.getElementById('scanVideoFeed');
@@ -5542,8 +5450,7 @@
 
     const slotIdx = (typeof targetSlotIdx === 'number' && targetSlotIdx >= 0 && targetSlotIdx < scanSlots.length)
       ? targetSlotIdx
-      : findNearestOpenSlotIdx(scanCurrentYaw, scanCurrentPitch);
-    if (slotIdx === -1) return;
+      : Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
 
     scanSlots[slotIdx].captured = true;
     scanSlots[slotIdx].imgCanvas = sliceCanvas;
@@ -5564,12 +5471,11 @@
 
   function handleContinuousSweepProgress() {
     const dYaw = angleDiffSigned(scanCurrentYaw, scanSweepLastSampleYaw);
-    if (Math.abs(dYaw) >= 15) {
-      // Capture frame at this angle step — nearest open slot to current yaw AND pitch,
-      // so tilting up/down while turning fills the ceiling/floor rows correctly.
+    if (Math.abs(dYaw) >= 18) {
+      // Capture frame at this angle step
       scanSweepLastSampleYaw = scanCurrentYaw;
-      const targetSlot = findNearestOpenSlotIdx(scanCurrentYaw, scanCurrentPitch);
-      if (targetSlot !== -1) grabSweepFrame(targetSlot);
+      const targetSlot = Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
+      grabSweepFrame(targetSlot);
     }
 
     // Compute total progress towards 360°
@@ -5589,20 +5495,6 @@
     }
     if (degLabel) degLabel.textContent = `${progressDeg}°`;
 
-    // Nudge the person to tilt if one row still needs coverage while another is done
-    if (subLabel && capturedCount < SCAN_TOTAL_NODES) {
-      const ceilingLeft = scanSlots.filter(s => s.pitch > 20 && !s.captured).length;
-      const floorLeft = scanSlots.filter(s => s.pitch < -20 && !s.captured).length;
-      const horizonLeft = scanSlots.filter(s => Math.abs(s.pitch) <= 20 && !s.captured).length;
-      if (horizonLeft === 0 && ceilingLeft > 0) {
-        subLabel.textContent = 'TILT UP FOR CEILING';
-      } else if (horizonLeft === 0 && floorLeft > 0) {
-        subLabel.textContent = 'TILT DOWN FOR FLOOR';
-      } else {
-        subLabel.textContent = 'TURN SLOWLY';
-      }
-    }
-
     if (capturedCount >= SCAN_TOTAL_NODES) {
       scanIsSweeping = false;
       if (subLabel) {
@@ -5616,7 +5508,7 @@
         btn.style.color = '#14121A';
       }
       if (typeof showToast === 'function') {
-        showToast('🎉 Full coverage complete! Stitching photosphere…');
+        showToast('🎉 360° sweep complete! Stitching photosphere…');
       }
       // Auto-trigger stitch after brief delay
       setTimeout(() => {
@@ -5782,8 +5674,16 @@
   };
 
   window.captureCurrentScanAngle = function () {
-    const closestIdx = findNearestOpenSlotIdx(scanCurrentYaw, scanCurrentPitch);
-    if (closestIdx !== -1) window.captureSpecificScanAngle(closestIdx);
+    let closestIdx = 0;
+    let minDiff = 999;
+    scanSlots.forEach((slot, idx) => {
+      const dYaw = Math.abs(angleDiffSigned(slot.yaw, scanCurrentYaw));
+      if (dYaw < minDiff) {
+        minDiff = dYaw;
+        closestIdx = idx;
+      }
+    });
+    window.captureSpecificScanAngle(closestIdx);
   };
 
   window.captureSpecificScanAngle = function (slotIdx) {
@@ -5806,8 +5706,7 @@
     if (barFill) barFill.style.width = `${percent}%`;
 
     if (finishBtn) {
-      const minNeeded = Math.ceil(SCAN_TOTAL_NODES * 0.35); // ~35% coverage minimum
-      if (capturedCount >= minNeeded) {
+      if (capturedCount >= 6) {
         finishBtn.style.opacity = '1';
         finishBtn.style.pointerEvents = 'auto';
         finishBtn.disabled = false;
@@ -5815,7 +5714,7 @@
       } else {
         finishBtn.style.opacity = '0.6';
         finishBtn.disabled = false;
-        finishBtn.textContent = `✨ STITCH (need ${minNeeded - capturedCount} more)`;
+        finishBtn.textContent = `✨ STITCH (need ${6 - capturedCount} more)`;
       }
     }
   }
@@ -6017,8 +5916,8 @@
     await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
 
     try {
-      var W = 2880;
-      var H = 1440;
+      var W = 2048;
+      var H = 1024;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
@@ -6089,7 +5988,7 @@
 
         var ww = src.width;
         var wh = src.height;
-        var maxDim = 1400;
+        var maxDim = 1024;
         var work = src;
         if (ww > maxDim || wh > maxDim) {
           var scale = maxDim / Math.max(ww, wh);
