@@ -2172,7 +2172,7 @@
 
             <!-- Matterport-style Best Practices Pro Guide Banner (Collapsible) -->
             <div class="scan-pro-guide-banner" id="scanProGuideBanner" style="display:none;">
-              <div class="scan-guide-grid">
+              <div class="scan-guide-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
                 <div class="scan-guide-card">
                   <span class="scan-guide-card-icon">🔄</span>
                   <div>
@@ -2183,22 +2183,29 @@
                 <div class="scan-guide-card">
                   <span class="scan-guide-card-icon">📏</span>
                   <div>
-                    <strong>Stay 24"+ From Walls</strong>
-                    <p>Maintain distance from close furniture to prevent slice distortion.</p>
+                    <strong>Stay 24" From Walls</strong>
+                    <p>Keep camera 24 in (60 cm) from walls and objects to avoid warps and slices.</p>
                   </div>
                 </div>
                 <div class="scan-guide-card">
                   <span class="scan-guide-card-icon">🚶</span>
                   <div>
                     <strong>5–8 ft Scan Spacing</strong>
-                    <p>Keep clear line of sight between scan spots for multi-room walkthroughs.</p>
+                    <p>Space scans 5–8 ft apart so the system has enough overlap to align correctly.</p>
                   </div>
                 </div>
                 <div class="scan-guide-card">
                   <span class="scan-guide-card-icon">✨</span>
                   <div>
-                    <strong>Hold Steady for Snap</strong>
-                    <p>Auto-snap locks when reticle aligns and motion is smooth.</p>
+                    <strong>Hold Steady & De-Clutter</strong>
+                    <p>Remove close clutter and hold camera steady to prevent motion blur.</p>
+                  </div>
+                </div>
+                <div class="scan-guide-card">
+                  <span class="scan-guide-card-icon">🪟</span>
+                  <div>
+                    <strong>Mark Windows & Mirrors</strong>
+                    <p>Mark high-contrast windows and mirrors to prevent reflection & exposure errors.</p>
                   </div>
                 </div>
               </div>
@@ -5109,17 +5116,57 @@
         sd.sinPitch = Math.sin(pRad);
       }
 
-      // Arrays for optical ray weighting & seamless transition
-      var bestWeight = new Float32Array(W * H);
-      var secWeight = new Float32Array(W * H);
+      // =========================================================================
+      // EXPOSURE & LUMINANCE EQUALIZATION (Matterport-Style Gain Balancing)
+      // =========================================================================
+      // Compute center-weighted average luminance for each shot
+      var shotLums = new Float32Array(shotDatas.length);
+      var totalAvgLum = 0;
+      for (var li = 0; li < shotDatas.length; li++) {
+        var sLi = shotDatas[li];
+        var sPxArr = sLi.srcPx;
+        var sW = sLi.ww, sH = sLi.wh;
+        var lSum = 0, lCount = 0;
+        // Sample center 50% box to avoid lens corner dark spots
+        var cx0 = Math.floor(sW * 0.25), cx1 = Math.floor(sW * 0.75);
+        var cy0 = Math.floor(sH * 0.25), cy1 = Math.floor(sH * 0.75);
+        var step = Math.max(2, Math.floor(sW / 40));
+        for (var sy = cy0; sy < cy1; sy += step) {
+          for (var sx = cx0; sx < cx1; sx += step) {
+            var pOff = (sy * sW + sx) * 4;
+            var lumVal = sPxArr[pOff] * 0.299 + sPxArr[pOff + 1] * 0.587 + sPxArr[pOff + 2] * 0.114;
+            lSum += lumVal;
+            lCount++;
+          }
+        }
+        var avgL = lCount > 0 ? (lSum / lCount) : 128;
+        shotLums[li] = Math.max(25, avgL);
+        totalAvgLum += shotLums[li];
+      }
+      var targetSceneLum = totalAvgLum / shotDatas.length;
 
-      // PASS 1: Project spherical rays to sensor perspective
+      // Assign balanced gain multiplier to each shot (gentle exponent 0.60 to prevent over-boosting windows)
+      var shotGains = new Float32Array(shotDatas.length);
+      for (var gi = 0; gi < shotDatas.length; gi++) {
+        var rawRatio = targetSceneLum / shotLums[gi];
+        // Compress ratio into [0.72, 1.38]
+        var gainVal = Math.pow(rawRatio, 0.60);
+        shotGains[gi] = Math.max(0.72, Math.min(1.38, gainVal));
+      }
+
+      // Arrays for continuous multi-ray accumulation (Zero Seams / Zero Hard Edges)
+      var accR = new Float32Array(W * H);
+      var accG = new Float32Array(W * H);
+      var accB = new Float32Array(W * H);
+      var accWeight = new Float32Array(W * H);
+
+      // PASS 1: Project spherical rays with continuous smooth weighting & anti-vignette correction
       for (var si = 0; si < shotDatas.length; si++) {
-        if (finishBtn) finishBtn.textContent = '⏳ ALIGNING ' + (si + 1) + '/' + shotDatas.length + '…';
+        if (finishBtn) finishBtn.textContent = '⏳ EQUALIZING & BLENDING ' + (si + 1) + '/' + shotDatas.length + '…';
         await new Promise(function (r) { setTimeout(r, 0); });
 
         var sData = shotDatas[si];
-        var sId = sData.id;
+        var sGain = shotGains[si];
         var sPx = sData.srcPx;
         var sWw = sData.ww;
         var sWh = sData.wh;
@@ -5128,8 +5175,8 @@
         var sCosY = sData.cosYaw, sSinY = sData.sinYaw;
         var sCosP = sData.cosPitch, sSinP = sData.sinPitch;
 
-        var padH = sData.fovHDeg * 0.55 + 2.0;
-        var padV = sData.fovVDeg * 0.55 + 2.0;
+        var padH = sData.fovHDeg * 0.58 + 3.0;
+        var padV = sData.fovVDeg * 0.58 + 3.0;
         var minLat = Math.max(-89.5, sData.pitchDeg - padV);
         var maxLat = Math.min(89.5, sData.pitchDeg + padV);
         var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
@@ -5182,20 +5229,23 @@
               // Project to sensor UV [-1, 1]
               var u = (camX / camZ) / sTanH;
               var v = (camY / camZ) / sTanV;
-              var absU = Math.abs(u);
-              var absV = Math.abs(v);
-              if (absU >= 0.98 || absV >= 0.98) continue; // Outside camera sensor
+              var uSq = u * u;
+              var vSq = v * v;
+              if (uSq >= 0.98 || vSq >= 0.98) continue; // Outside camera sensor
 
               var fx = (0.5 + u * 0.5) * (sWw - 1);
               var fy = (0.5 - v * 0.5) * (sWh - 1);
               if (fx < 0 || fy < 0 || fx >= sWw - 1 || fy >= sWh - 1) continue;
 
-              // Distance from optical center (0 is center, 1 is edge)
-              var rSq = (u * u + v * v) / (0.98 * 0.98);
-              if (rSq >= 1.0) continue;
+              // Continuous, smooth bi-quadratic weight function (strictly 0 at sensor boundaries)
+              var wu = Math.max(0, 1.0 - uSq);
+              var wv = Math.max(0, 1.0 - vSq);
+              var optWeight = (wu * wu) * (wv * wv);
+              if (optWeight <= 0.0001) continue;
 
-              // Optical weight (highest at center, smooth cosine rolloff at edges)
-              var optWeight = Math.pow(1.0 - rSq, 2.0);
+              // Radial anti-vignette gain: brightens darker lens corners
+              var vignetteComp = 1.0 + 0.18 * (uSq + vSq);
+              var totalGain = sGain * vignetteComp;
 
               // Bilinear interpolation
               var x0 = fx | 0;
@@ -5209,68 +5259,63 @@
               var i01 = (y1 * sWw + x0) * 4;
               var i11 = (y1 * sWw + x1) * 4;
 
-              var r = Math.round((sPx[i00] * (1 - tx) + sPx[i10] * tx) * (1 - ty) + (sPx[i01] * (1 - tx) + sPx[i11] * tx) * ty);
-              var g = Math.round((sPx[i00 + 1] * (1 - tx) + sPx[i10 + 1] * tx) * (1 - ty) + (sPx[i01 + 1] * (1 - tx) + sPx[i11 + 1] * tx) * ty);
-              var b = Math.round((sPx[i00 + 2] * (1 - tx) + sPx[i10 + 2] * tx) * (1 - ty) + (sPx[i01 + 2] * (1 - tx) + sPx[i11 + 2] * tx) * ty);
+              var r = (sPx[i00] * (1 - tx) + sPx[i10] * tx) * (1 - ty) + (sPx[i01] * (1 - tx) + sPx[i11] * tx) * ty;
+              var g = (sPx[i00 + 1] * (1 - tx) + sPx[i10 + 1] * tx) * (1 - ty) + (sPx[i01 + 1] * (1 - tx) + sPx[i11 + 1] * tx) * ty;
+              var b = (sPx[i00 + 2] * (1 - tx) + sPx[i10 + 2] * tx) * (1 - ty) + (sPx[i01 + 2] * (1 - tx) + sPx[i11 + 2] * tx) * ty;
+
+              // Apply exposure & vignette correction
+              r = Math.min(255, r * totalGain);
+              g = Math.min(255, g * totalGain);
+              b = Math.min(255, b * totalGain);
 
               var pIdx = row * W + col;
-
-              if (optWeight > bestWeight[pIdx]) {
-                secWeight[pIdx] = bestWeight[pIdx];
-                secR[pIdx] = pixelR[pIdx];
-                secG[pIdx] = pixelG[pIdx];
-                secB[pIdx] = pixelB[pIdx];
-
-                bestWeight[pIdx] = optWeight;
-                bestShotId[pIdx] = sId;
-                pixelR[pIdx] = r;
-                pixelG[pIdx] = g;
-                pixelB[pIdx] = b;
-
-                if (row < topCoverageRow[col]) topCoverageRow[col] = row;
-                if (row > botCoverageRow[col]) botCoverageRow[col] = row;
-              } else if (optWeight > secWeight[pIdx]) {
-                secWeight[pIdx] = optWeight;
-                secR[pIdx] = r;
-                secG[pIdx] = g;
-                secB[pIdx] = b;
-              }
+              accR[pIdx] += r * optWeight;
+              accG[pIdx] += g * optWeight;
+              accB[pIdx] += b * optWeight;
+              accWeight[pIdx] += optWeight;
             }
           }
         }
       }
 
-      // 3. Gap-Free Multi-Scale Diffusion & Polar Ambient Inpainting
+      // =========================================================================
+      // CONTINUOUS POLAR AMBIENT INPAINTING WITH SMOOTH HORIZONTAL CURVES
+      // =========================================================================
       var outImg = ctx.createImageData(W, H);
       var outData = outImg.data;
 
-      // Check which columns have valid pixel captures
-      var hasCol = new Uint8Array(W);
+      // Extract raw top and bottom coverage envelope rows where weight is strong
+      var rawTopRow = new Int32Array(W);
+      var rawBotRow = new Int32Array(W);
       for (var c = 0; c < W; c++) {
-        if (topCoverageRow[c] < H && botCoverageRow[c] >= 0) {
-          hasCol[c] = 1;
-        }
-      }
-
-      // Bridge any completely skipped horizontal column gaps (circular 360 wrapping)
-      for (var c = 0; c < W; c++) {
-        if (!hasCol[c]) {
-          // Find left valid
-          var lDist = 1, lIdx = (c - 1 + W) % W;
-          while (!hasCol[lIdx] && lDist < W) { lIdx = (lIdx - 1 + W) % W; lDist++; }
-          // Find right valid
-          var rDist = 1, rIdx = (c + 1) % W;
-          while (!hasCol[rIdx] && rDist < W) { rIdx = (rIdx + 1) % W; rDist++; }
-
-          if (hasCol[lIdx] && hasCol[rIdx]) {
-            var frac = lDist / (lDist + rDist);
-            topCoverageRow[c] = Math.round(topCoverageRow[lIdx] * (1 - frac) + topCoverageRow[rIdx] * frac);
-            botCoverageRow[c] = Math.round(botCoverageRow[lIdx] * (1 - frac) + botCoverageRow[rIdx] * frac);
+        var firstValid = H;
+        var lastValid = -1;
+        for (var r = 0; r < H; r++) {
+          if (accWeight[r * W + c] > 0.05) {
+            if (firstValid === H) firstValid = r;
+            lastValid = r;
           }
         }
+        rawTopRow[c] = firstValid;
+        rawBotRow[c] = lastValid;
       }
 
-      // Extract smooth boundary colors per column from captured pixels
+      // Apply wide box filter (window 48) on top/bottom coverage boundaries to eliminate triangular/sawtooth teeth
+      var smoothTopLimit = new Float32Array(W);
+      var smoothBotLimit = new Float32Array(W);
+      var winR = 48;
+      for (var c = 0; c < W; c++) {
+        var tSum = 0, bSum = 0, tCnt = 0, bCnt = 0;
+        for (var wo = -winR; wo <= winR; wo++) {
+          var wc = (c + wo + W) % W;
+          if (rawTopRow[wc] < H) { tSum += rawTopRow[wc]; tCnt++; }
+          if (rawBotRow[wc] >= 0) { bSum += rawBotRow[wc]; bCnt++; }
+        }
+        smoothTopLimit[c] = tCnt > 0 ? (tSum / tCnt) : (H * 0.25);
+        smoothBotLimit[c] = bCnt > 0 ? (bSum / bCnt) : (H * 0.75);
+      }
+
+      // Extract smoothed wall edge boundary colors per column
       var colTopR = new Float32Array(W);
       var colTopG = new Float32Array(W);
       var colTopB = new Float32Array(W);
@@ -5282,34 +5327,24 @@
       var sumBotR = 0, sumBotG = 0, sumBotB = 0, cntBot = 0;
 
       for (var c = 0; c < W; c++) {
-        var tRow = topCoverageRow[c];
-        var tr = topR, tg = topG, tb = topB;
-        if (tRow < H) {
-          var tIdx = tRow * W + c;
-          if (bestShotId[tIdx] >= 0) {
-            tr = pixelR[tIdx];
-            tg = pixelG[tIdx];
-            tb = pixelB[tIdx];
-            sumTopR += tr; sumTopG += tg; sumTopB += tb; cntTop++;
-          }
-        }
+        var tRow = Math.min(H - 1, Math.max(0, Math.round(smoothTopLimit[c])));
+        var tIdx = tRow * W + c;
+        var tr = (accWeight[tIdx] > 0.01) ? (accR[tIdx] / accWeight[tIdx]) : topR;
+        var tg = (accWeight[tIdx] > 0.01) ? (accG[tIdx] / accWeight[tIdx]) : topG;
+        var tb = (accWeight[tIdx] > 0.01) ? (accB[tIdx] / accWeight[tIdx]) : topB;
         colTopR[c] = tr; colTopG[c] = tg; colTopB[c] = tb;
+        sumTopR += tr; sumTopG += tg; sumTopB += tb; cntTop++;
 
-        var bRow = botCoverageRow[c];
-        var br = botR, bg = botG, bb = botB;
-        if (bRow >= 0) {
-          var bIdx = bRow * W + c;
-          if (bestShotId[bIdx] >= 0) {
-            br = pixelR[bIdx];
-            bg = pixelG[bIdx];
-            bb = pixelB[bIdx];
-            sumBotR += br; sumBotG += bg; sumBotB += bb; cntBot++;
-          }
-        }
+        var bRow = Math.min(H - 1, Math.max(0, Math.round(smoothBotLimit[c])));
+        var bIdx = bRow * W + c;
+        var br = (accWeight[bIdx] > 0.01) ? (accR[bIdx] / accWeight[bIdx]) : botR;
+        var bg = (accWeight[bIdx] > 0.01) ? (accG[bIdx] / accWeight[bIdx]) : botG;
+        var bb = (accWeight[bIdx] > 0.01) ? (accB[bIdx] / accWeight[bIdx]) : botB;
         colBotR[c] = br; colBotG[c] = bg; colBotB[c] = bb;
+        sumBotR += br; sumBotG += bg; sumBotB += bb; cntBot++;
       }
 
-      // Global ambient ceiling and floor colors
+      // Global ambient ceiling and floor tones
       var ambCeilR = cntTop > 0 ? (sumTopR / cntTop) : topR;
       var ambCeilG = cntTop > 0 ? (sumTopG / cntTop) : topG;
       var ambCeilB = cntTop > 0 ? (sumTopB / cntTop) : topB;
@@ -5317,91 +5352,49 @@
       var ambFlrG  = cntBot > 0 ? (sumBotG / cntBot) : botG;
       var ambFlrB  = cntBot > 0 ? (sumBotB / cntBot) : botB;
 
-      // 1D Moving average filter on boundary colors for zero horizontal striping
-      var smoothTopR = new Float32Array(W);
-      var smoothTopG = new Float32Array(W);
-      var smoothTopB = new Float32Array(W);
-      var smoothBotR = new Float32Array(W);
-      var smoothBotG = new Float32Array(W);
-      var smoothBotB = new Float32Array(W);
-
-      var rad = 12;
-      for (var c = 0; c < W; c++) {
-        var str = 0, stg = 0, stb = 0;
-        var sbr = 0, sbg = 0, sbb = 0;
-        var count = 0;
-        for (var offset = -rad; offset <= rad; offset++) {
-          var sc = (c + offset + W) % W;
-          str += colTopR[sc]; stg += colTopG[sc]; stb += colTopB[sc];
-          sbr += colBotR[sc]; sbg += colBotG[sc]; sbb += colBotB[sc];
-          count++;
-        }
-        smoothTopR[c] = str / count;
-        smoothTopG[c] = stg / count;
-        smoothTopB[c] = stb / count;
-        smoothBotR[c] = sbr / count;
-        smoothBotG[c] = sbg / count;
-        smoothBotB[c] = sbb / count;
-      }
-
-      // Populate full image: sharp body rendering + sigmoidal micro-feathered seam transition
+      // Populate full panorama buffer
       for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
           var pIdx2 = y * W + x;
           var di = pIdx2 * 4;
-          var shotId = bestShotId[pIdx2];
-          var w1 = bestWeight[pIdx2];
+          var wTotal = accWeight[pIdx2];
 
-          if (shotId >= 0 && w1 > 0) {
-            var pr = pixelR[pIdx2];
-            var pg = pixelG[pIdx2];
-            var pb = pixelB[pIdx2];
+          var tLimit = smoothTopLimit[x];
+          var bLimit = smoothBotLimit[x];
 
-            var w2 = secWeight[pIdx2];
-            if (w2 > 0) {
-              var ratio = w2 / w1; // 0 to 1
-              // Micro-feather strictly at the boundary seam (ratio > 0.68)
-              if (ratio > 0.68) {
-                var t = (ratio - 0.68) / 0.32; // normalized 0 to 1
-                var smoothT = t * t * (3.0 - 2.0 * t); // smoothstep
-                var blend = 0.5 * smoothT; // 0 to 0.5
-                pr = Math.round(pr * (1.0 - blend) + secR[pIdx2] * blend);
-                pg = Math.round(pg * (1.0 - blend) + secG[pIdx2] * blend);
-                pb = Math.round(pb * (1.0 - blend) + secB[pIdx2] * blend);
-              }
-            }
-
-            outData[di]     = Math.min(255, Math.max(0, pr));
-            outData[di + 1] = Math.min(255, Math.max(0, pg));
-            outData[di + 2] = Math.min(255, Math.max(0, pb));
+          if (wTotal > 0.15 && y >= tLimit && y <= bLimit) {
+            // Crisp, continuous blended interior camera exposure
+            outData[di]     = Math.min(255, Math.max(0, Math.round(accR[pIdx2] / wTotal)));
+            outData[di + 1] = Math.min(255, Math.max(0, Math.round(accG[pIdx2] / wTotal)));
+            outData[di + 2] = Math.min(255, Math.max(0, Math.round(accB[pIdx2] / wTotal)));
+          } else if (wTotal > 0.01 && y >= tLimit && y <= bLimit) {
+            // Micro boundary blend
+            var innerR = accR[pIdx2] / wTotal;
+            var innerG = accG[pIdx2] / wTotal;
+            var innerB = accB[pIdx2] / wTotal;
+            var normW = wTotal / 0.15;
+            var bgR = (y < (tLimit + bLimit) * 0.5) ? colTopR[x] : colBotR[x];
+            var bgG = (y < (tLimit + bLimit) * 0.5) ? colTopG[x] : colBotG[x];
+            var bgB = (y < (tLimit + bLimit) * 0.5) ? colTopB[x] : colBotB[x];
+            outData[di]     = Math.min(255, Math.max(0, Math.round(innerR * normW + bgR * (1 - normW))));
+            outData[di + 1] = Math.min(255, Math.max(0, Math.round(innerG * normW + bgG * (1 - normW))));
+            outData[di + 2] = Math.min(255, Math.max(0, Math.round(innerB * normW + bgB * (1 - normW))));
+          } else if (y < tLimit) {
+            // Smooth ceiling cosine gradient towards zenith
+            var tCeil = tLimit > 0 ? (y / tLimit) : 1;
+            tCeil = Math.max(0, Math.min(1, tCeil));
+            var curve = 0.5 * (1 - Math.cos(tCeil * Math.PI)); // Cosine ease
+            outData[di]     = Math.min(255, Math.max(0, Math.round(ambCeilR * (1 - curve) + colTopR[x] * curve)));
+            outData[di + 1] = Math.min(255, Math.max(0, Math.round(ambCeilG * (1 - curve) + colTopG[x] * curve)));
+            outData[di + 2] = Math.min(255, Math.max(0, Math.round(ambCeilB * (1 - curve) + colTopB[x] * curve)));
           } else {
-            var topLimit = topCoverageRow[x];
-            var botLimit = botCoverageRow[x];
-
-            if (topLimit < H && y < topLimit) {
-              // Ceiling: smooth organic cosine curve from wall top into ambient zenith
-              var tCeil = topLimit > 0 ? (y / topLimit) : 1;
-              tCeil = Math.max(0, Math.min(1, tCeil));
-              var curve = Math.pow(tCeil, 0.7);
-              outData[di]     = Math.min(255, Math.max(0, Math.round(ambCeilR * (1 - curve) + smoothTopR[x] * curve)));
-              outData[di + 1] = Math.min(255, Math.max(0, Math.round(ambCeilG * (1 - curve) + smoothTopG[x] * curve)));
-              outData[di + 2] = Math.min(255, Math.max(0, Math.round(ambCeilB * (1 - curve) + smoothTopB[x] * curve)));
-            } else if (botLimit >= 0 && y > botLimit) {
-              // Floor: smooth organic cosine curve from wall bottom into ambient nadir
-              var tFloor = (H - 1 > botLimit) ? ((y - botLimit) / (H - 1 - botLimit)) : 0;
-              tFloor = Math.max(0, Math.min(1, tFloor));
-              var curve2 = Math.pow(1 - tFloor, 0.7);
-              outData[di]     = Math.min(255, Math.max(0, Math.round(ambFlrR * (1 - curve2) + smoothBotR[x] * curve2)));
-              outData[di + 1] = Math.min(255, Math.max(0, Math.round(ambFlrG * (1 - curve2) + smoothBotG[x] * curve2)));
-              outData[di + 2] = Math.min(255, Math.max(0, Math.round(ambFlrB * (1 - curve2) + smoothBotB[x] * curve2)));
-            } else {
-              // Interior gap interpolation
-              var vNorm = y / (H - 1);
-              var curve3 = 0.5 * (1 - Math.cos(vNorm * Math.PI));
-              outData[di]     = Math.min(255, Math.max(0, Math.round(smoothTopR[x] * (1 - curve3) + smoothBotR[x] * curve3)));
-              outData[di + 1] = Math.min(255, Math.max(0, Math.round(smoothTopG[x] * (1 - curve3) + smoothBotG[x] * curve3)));
-              outData[di + 2] = Math.min(255, Math.max(0, Math.round(smoothTopB[x] * (1 - curve3) + smoothBotB[x] * curve3)));
-            }
+            // Smooth floor cosine gradient towards nadir
+            var tFloor = (H - 1 > bLimit) ? ((y - bLimit) / (H - 1 - bLimit)) : 0;
+            tFloor = Math.max(0, Math.min(1, tFloor));
+            var curve2 = 0.5 * (1 + Math.cos(tFloor * Math.PI)); // Cosine ease
+            outData[di]     = Math.min(255, Math.max(0, Math.round(ambFlrR * (1 - curve2) + colBotR[x] * curve2)));
+            outData[di + 1] = Math.min(255, Math.max(0, Math.round(ambFlrG * (1 - curve2) + colBotG[x] * curve2)));
+            outData[di + 2] = Math.min(255, Math.max(0, Math.round(ambFlrB * (1 - curve2) + colBotB[x] * curve2)));
           }
           outData[di + 3] = 255;
         }
