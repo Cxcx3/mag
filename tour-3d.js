@@ -212,10 +212,10 @@
   // Camera & Navigation State
   let yaw = 0;
   let pitch = 0;
-  let fov = 75;
+  let fov = 65;
   let targetYaw = 0;
   let targetPitch = 0;
-  let targetFov = 75;
+  let targetFov = 65;
 
   let isDragging = false;
   let startX = 0;
@@ -343,7 +343,7 @@
         alpha: false,
         powerPreference: 'high-performance'
       });
-      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
       threeRenderer.setSize(width, height);
 
       threeScene = new THREE.Scene();
@@ -368,45 +368,318 @@
   }
 
   /**
-   * Loads Equirectangular Texture into Three.js Sphere
+   * Loads Equirectangular or Cylindrical (iPhone Pano) Texture into Three.js Sphere
+   * with Zero-Distortion Auto Aspect Processing, Matterport Pro Multi-Band Ambient Diffusion, and 16x Anisotropic Filtering.
    */
-  function loadThreePanoTexture(urlOrCanvas) {
+  function loadThreePanoTexture(urlOrCanvas, sceneOverride) {
     if (!threeSphere) {
       if (!initThreeEngine()) return;
     }
     const loader = document.getElementById('tourLoader');
+    if (loader) loader.classList.remove('hidden');
+
+    const curScene = sceneOverride || activeSceneList[activeSceneIndex] || {};
+    // Aspect Modes: 'matterport-arc' (0% seam natural arc), '360-loop' / 'iphone-pano' (continuous loop), 'full-360' (2:1 sphere)
+    const aspectMode = curScene.aspectMode || 'matterport-arc';
+    const vScale = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
+    const vOffset = typeof curScene.vOffset === 'number' ? curScene.vOffset : 0;
+    const hShift = typeof curScene.hShift === 'number' ? curScene.hShift : 0; // 0° to 360° horizontal seam rotation
+    const seamBlend = typeof curScene.seamBlend === 'number' ? curScene.seamBlend : 0.08; // 0.0 to 0.20 seam feather width
+    const seamVOffset = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0; // -50px to +50px vertical tilt trim
+    const hSpan = typeof curScene.hSpan === 'number' ? curScene.hSpan : 1.0; // 0.70 to 1.05 horizontal sweep crop/span
+    const typeBadge = document.getElementById('tourTypeBadge');
 
     if (typeof urlOrCanvas === 'string' && urlOrCanvas) {
-      threeTextureLoader.load(
-        urlOrCanvas,
-        (texture) => {
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-          texture.generateMipmaps = false;
-          
-          if (currentTexture) currentTexture.dispose();
-          currentTexture = texture;
-          threeSphere.material.map = texture;
-          threeSphere.material.needsUpdate = true;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const nw = img.naturalWidth || img.width || 2048;
+        const nh = img.naturalHeight || img.height || 1024;
+        const ar = nw / nh;
+        
+        const isWidePano = (aspectMode === 'matterport-arc') || (aspectMode === 'iphone-pano') || (aspectMode === '360-loop') || (aspectMode !== 'full-360' && ar > 2.0);
 
-          if (loader) loader.classList.add('hidden');
-        },
-        undefined,
-        (err) => {
-          console.warn('[SpotLIGHT 360] Remote texture load notice, using procedural backdrop:', err);
-          const fallbackCanvas = getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-fallback');
-          const texture = new THREE.CanvasTexture(fallbackCanvas);
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-
-          if (currentTexture) currentTexture.dispose();
-          currentTexture = texture;
-          threeSphere.material.map = texture;
-          threeSphere.material.needsUpdate = true;
-
-          if (loader) loader.classList.add('hidden');
+        if (typeBadge) {
+          if (aspectMode === 'matterport-arc' || (isWidePano && aspectMode !== '360-loop' && aspectMode !== 'full-360')) {
+            typeBadge.textContent = '✨ MATTERPORT PRO (0% SEAM)';
+            typeBadge.style.background = 'rgba(6, 214, 160, 0.18)';
+            typeBadge.style.borderColor = '#06D6A0';
+            typeBadge.style.color = '#06D6A0';
+          } else if (aspectMode === '360-loop' || aspectMode === 'iphone-pano') {
+            typeBadge.textContent = '🔄 360° LOOP WALKTHROUGH';
+            typeBadge.style.background = 'rgba(255, 210, 63, 0.18)';
+            typeBadge.style.borderColor = '#FFD23F';
+            typeBadge.style.color = '#FFD23F';
+          } else {
+            typeBadge.textContent = '🌐 360° PHOTOSPHERE (2:1)';
+            typeBadge.style.background = 'rgba(255, 210, 63, 0.15)';
+            typeBadge.style.borderColor = 'rgba(255, 210, 63, 0.35)';
+            typeBadge.style.color = '#FFD23F';
+          }
         }
-      );
+
+        let finalTexture = null;
+
+        if (isWidePano) {
+          // Construct Ultra-HD 2:1 Master Canvas to eliminate vertical stretching
+          const maxGpuSize = threeRenderer ? Math.min(threeRenderer.capabilities.maxTextureSize || 4096, 4096) : 4096;
+          const canvasW = Math.min(Math.max(nw, 2048), maxGpuSize);
+          const canvasH = Math.floor(canvasW / 2); // Exact 2:1 Equirectangular Sphere Ratio
+
+          const canvas = document.createElement('canvas');
+          canvas.width = canvasW;
+          canvas.height = canvasH;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+          const isArcMode = (aspectMode === 'matterport-arc');
+
+          // Compute exact natural vertical height to maintain 1:1 real-world physical room proportions
+          let panoH = Math.min(canvasH, Math.round((canvasW / Math.max(ar, 1.8)) * vScale));
+          if (isArcMode) {
+            panoH = Math.min(canvasH - 60, Math.max(Math.floor(canvasH * 0.45), Math.round(canvasH * 0.52 * vScale)));
+          }
+          const panoY = Math.max(0, Math.min(canvasH - panoH, Math.round((canvasH - panoH) / 2) + vOffset));
+
+          // Sample edge and wall colors for intelligent ambient room fill
+          const sampleC = document.createElement('canvas');
+          sampleC.width = 64;
+          sampleC.height = 64;
+          const sCtxSample = sampleC.getContext('2d');
+          sCtxSample.drawImage(img, 0, 0, 64, 64);
+
+          let tr = 235, tg = 235, tb = 235; // top ceiling
+          let br = 65, bg = 55, bb = 50;    // bottom floor
+          let lr = 220, lg = 215, lb = 210; // left wall (door side)
+          let rr = 220, rg = 215, rb = 210; // right wall (window side)
+
+          try {
+            const topData = sCtxSample.getImageData(0, 0, 64, 4).data;
+            let sumR = 0, sumG = 0, sumB = 0, count = topData.length / 4;
+            for (let i = 0; i < topData.length; i += 4) {
+              sumR += topData[i]; sumG += topData[i+1]; sumB += topData[i+2];
+            }
+            tr = Math.round(sumR / count); tg = Math.round(sumG / count); tb = Math.round(sumB / count);
+
+            const btmData = sCtxSample.getImageData(0, 60, 64, 4).data;
+            sumR = 0; sumG = 0; sumB = 0;
+            for (let i = 0; i < btmData.length; i += 4) {
+              sumR += btmData[i]; sumG += btmData[i+1]; sumB += btmData[i+2];
+            }
+            br = Math.round(sumR / count); bg = Math.round(sumG / count); bb = Math.round(sumB / count);
+
+            const leftData = sCtxSample.getImageData(0, 16, 4, 32).data;
+            sumR = 0; sumG = 0; sumB = 0; count = leftData.length / 4;
+            for (let i = 0; i < leftData.length; i += 4) {
+              sumR += leftData[i]; sumG += leftData[i+1]; sumB += leftData[i+2];
+            }
+            lr = Math.round(sumR / count); lg = Math.round(sumG / count); lb = Math.round(sumB / count);
+
+            const rightData = sCtxSample.getImageData(60, 16, 4, 32).data;
+            sumR = 0; sumG = 0; sumB = 0; count = rightData.length / 4;
+            for (let i = 0; i < rightData.length; i += 4) {
+              sumR += rightData[i]; sumG += rightData[i+1]; sumB += rightData[i+2];
+            }
+            rr = Math.round(sumR / count); rg = Math.round(sumG / count); rb = Math.round(sumB / count);
+          } catch(e) {}
+
+          // 1. Render Realistic Multi-Band Ceiling Ambient Gradient
+          const topGrad = ctx.createLinearGradient(0, 0, 0, panoY + 8);
+          topGrad.addColorStop(0, `rgb(${Math.round(tr * 0.9)}, ${Math.round(tg * 0.9)}, ${Math.round(tb * 0.9)})`);
+          topGrad.addColorStop(0.7, `rgb(${tr}, ${tg}, ${tb})`);
+          topGrad.addColorStop(1, `rgb(${tr}, ${tg}, ${tb})`);
+          ctx.fillStyle = topGrad;
+          ctx.fillRect(0, 0, canvasW, panoY + 8);
+
+          // 2. Render Realistic Floor Ambient Gradient
+          const btmGrad = ctx.createLinearGradient(0, panoY + panoH - 8, 0, canvasH);
+          btmGrad.addColorStop(0, `rgb(${br}, ${bg}, ${bb})`);
+          btmGrad.addColorStop(0.5, `rgb(${Math.round(br * 0.85)}, ${Math.round(bg * 0.85)}, ${Math.round(bb * 0.85)})`);
+          btmGrad.addColorStop(1, `rgb(${Math.round(br * 0.7)}, ${Math.round(bg * 0.7)}, ${Math.round(bb * 0.7)})`);
+          ctx.fillStyle = btmGrad;
+          ctx.fillRect(0, panoY + panoH - 8, canvasW, canvasH - (panoY + panoH - 8));
+
+          if (isArcMode) {
+            // ==============================================================
+            // ✨ MATTERPORT PRO ARC PROJECTION (0% SEAM · ZERO COLLISION)
+            // ==============================================================
+            // Map the panorama to its natural physical horizontal span
+            const naturalPanoW = Math.min(Math.round(canvasW * 0.85), Math.max(Math.round(canvasW * 0.45), Math.round((panoH * ar) * hSpan)));
+            const arcSpanDeg = Math.round((naturalPanoW / canvasW) * 360);
+            curScene.arcSpanDeg = arcSpanDeg;
+
+            const panoX = Math.round((canvasW - naturalPanoW) / 2);
+
+            // Fill left and right ambient wall extensions
+            const lWallGrad = ctx.createLinearGradient(0, panoY, panoX + 30, panoY);
+            lWallGrad.addColorStop(0, `rgb(${lr}, ${lg}, ${lb})`);
+            lWallGrad.addColorStop(1, `rgb(${lr}, ${lg}, ${lb})`);
+            ctx.fillStyle = lWallGrad;
+            ctx.fillRect(0, panoY, panoX + 30, panoH);
+
+            const rWallGrad = ctx.createLinearGradient(panoX + naturalPanoW - 30, panoY, canvasW, panoY);
+            rWallGrad.addColorStop(0, `rgb(${rr}, ${rg}, ${rb})`);
+            rWallGrad.addColorStop(1, `rgb(${rr}, ${rg}, ${rb})`);
+            ctx.fillStyle = rWallGrad;
+            ctx.fillRect(panoX + naturalPanoW - 30, panoY, canvasW - (panoX + naturalPanoW - 30), panoH);
+
+            // Draw undistorted panorama in center of arc
+            ctx.drawImage(img, 0, 0, nw, nh, panoX, panoY, naturalPanoW, panoH);
+
+            // Soft Horizontal Side Edge Feathering (eliminates any harsh side lines)
+            const sideFeatherW = 36;
+            const lFeather = ctx.createLinearGradient(panoX, panoY, panoX + sideFeatherW, panoY);
+            lFeather.addColorStop(0, `rgba(${lr}, ${lg}, ${lb}, 0.9)`);
+            lFeather.addColorStop(1, `rgba(${lr}, ${lg}, ${lb}, 0)`);
+            ctx.fillStyle = lFeather;
+            ctx.fillRect(panoX, panoY, sideFeatherW, panoH);
+
+            const rFeather = ctx.createLinearGradient(panoX + naturalPanoW - sideFeatherW, panoY, panoX + naturalPanoW, panoY);
+            rFeather.addColorStop(0, `rgba(${rr}, ${rg}, ${rb}, 0)`);
+            rFeather.addColorStop(1, `rgba(${rr}, ${rg}, ${rb}, 0.9)`);
+            ctx.fillStyle = rFeather;
+            ctx.fillRect(panoX + naturalPanoW - sideFeatherW, panoY, sideFeatherW, panoH);
+
+          } else {
+            // ==============================================================
+            // 🔄 360° CONTINUOUS LOOP PROJECTION (Overlap Trim & Seam Feathering)
+            // ==============================================================
+            const stripCanvas = document.createElement('canvas');
+            stripCanvas.width = canvasW;
+            stripCanvas.height = panoH;
+            const sCtx = stripCanvas.getContext('2d', { willReadFrequently: true });
+            sCtx.imageSmoothingEnabled = true;
+            sCtx.imageSmoothingQuality = 'high';
+
+            const srcW = Math.min(nw, Math.max(100, Math.round(nw * hSpan)));
+            const srcH = nh;
+
+            // Handle vertical tilt/drift alignment across sweep
+            if (Math.abs(seamVOffset) > 0.5) {
+              const slices = 64;
+              const sliceW = canvasW / slices;
+              const srcSliceW = srcW / slices;
+              for (let s = 0; s < slices; s++) {
+                const t = s / (slices - 1);
+                const dy = Math.round(t * seamVOffset);
+                sCtx.drawImage(
+                  img,
+                  s * srcSliceW, 0, srcSliceW, srcH,
+                  s * sliceW, Math.max(0, dy), sliceW, panoH - Math.abs(seamVOffset)
+                );
+              }
+            } else {
+              sCtx.drawImage(img, 0, 0, srcW, srcH, 0, 0, canvasW, panoH);
+            }
+
+            // Handle Seam Rotation (hShift: 0° to 360°)
+            let processedStrip = stripCanvas;
+            const normShift = ((hShift % 360) + 360) % 360;
+            if (normShift > 0.5) {
+              const shiftPx = Math.round((normShift / 360) * canvasW);
+              const shiftedCanvas = document.createElement('canvas');
+              shiftedCanvas.width = canvasW;
+              shiftedCanvas.height = panoH;
+              const shCtx = shiftedCanvas.getContext('2d');
+              shCtx.imageSmoothingEnabled = true;
+              shCtx.imageSmoothingQuality = 'high';
+
+              shCtx.drawImage(stripCanvas, shiftPx, 0, canvasW - shiftPx, panoH, 0, 0, canvasW - shiftPx, panoH);
+              shCtx.drawImage(stripCanvas, 0, 0, shiftPx, panoH, canvasW - shiftPx, 0, shiftPx, panoH);
+              processedStrip = shiftedCanvas;
+            }
+
+            // Intelligent Seamless Edge Feathering / Cross-Dissolve
+            if (seamBlend > 0.005) {
+              const blendPx = Math.max(24, Math.min(Math.floor(canvasW * 0.18), Math.round(canvasW * seamBlend)));
+              const blendedCanvas = document.createElement('canvas');
+              blendedCanvas.width = canvasW;
+              blendedCanvas.height = panoH;
+              const bCtx = blendedCanvas.getContext('2d', { willReadFrequently: true });
+              bCtx.drawImage(processedStrip, 0, 0);
+
+              // Extract rightmost edge strip
+              const rightStrip = document.createElement('canvas');
+              rightStrip.width = blendPx;
+              rightStrip.height = panoH;
+              const rCtx = rightStrip.getContext('2d');
+              rCtx.drawImage(processedStrip, canvasW - blendPx, 0, blendPx, panoH, 0, 0, blendPx, panoH);
+
+              // Create smooth cosine gradient mask
+              const maskC = document.createElement('canvas');
+              maskC.width = blendPx;
+              maskC.height = panoH;
+              const mCtx = maskC.getContext('2d');
+              const mGrad = mCtx.createLinearGradient(0, 0, blendPx, 0);
+              mGrad.addColorStop(0, 'rgba(255,255,255,0.95)');
+              mGrad.addColorStop(0.5, 'rgba(255,255,255,0.5)');
+              mGrad.addColorStop(1, 'rgba(255,255,255,0)');
+              mCtx.fillStyle = mGrad;
+              mCtx.fillRect(0, 0, blendPx, panoH);
+
+              rCtx.globalCompositeOperation = 'destination-in';
+              rCtx.drawImage(maskC, 0, 0);
+
+              bCtx.globalCompositeOperation = 'source-over';
+              bCtx.drawImage(rightStrip, 0, 0);
+
+              processedStrip = blendedCanvas;
+            }
+
+            ctx.drawImage(processedStrip, 0, panoY);
+          }
+
+          // 4. Soft Edge Feathering (Seam Blend)
+          const featherH = Math.min(28, Math.max(8, Math.floor(panoH * 0.04)));
+          // Top Seam Feather
+          const fTop = ctx.createLinearGradient(0, panoY, 0, panoY + featherH);
+          fTop.addColorStop(0, `rgba(${tr}, ${tg}, ${tb}, 0.85)`);
+          fTop.addColorStop(1, `rgba(${tr}, ${tg}, ${tb}, 0)`);
+          ctx.fillStyle = fTop;
+          ctx.fillRect(0, panoY, canvasW, featherH);
+
+          // Bottom Seam Feather
+          const fBtm = ctx.createLinearGradient(0, panoY + panoH - featherH, 0, panoY + panoH);
+          fBtm.addColorStop(0, `rgba(${br}, ${bg}, ${bb}, 0)`);
+          fBtm.addColorStop(1, `rgba(${br}, ${bg}, ${bb}, 0.85)`);
+          ctx.fillStyle = fBtm;
+          ctx.fillRect(0, panoY + panoH - featherH, canvasW, featherH);
+
+          finalTexture = new THREE.CanvasTexture(canvas);
+        } else {
+          finalTexture = new THREE.Texture(img);
+          finalTexture.needsUpdate = true;
+        }
+
+        // Ultra-HD Crisp Texture Filtering Setup
+        finalTexture.generateMipmaps = true;
+        finalTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        finalTexture.magFilter = THREE.LinearFilter;
+        if (threeRenderer) {
+          finalTexture.anisotropy = Math.min(16, threeRenderer.capabilities.getMaxAnisotropy() || 1);
+        }
+
+        if (currentTexture) currentTexture.dispose();
+        currentTexture = finalTexture;
+        threeSphere.material.map = finalTexture;
+        threeSphere.material.needsUpdate = true;
+
+        if (loader) loader.classList.add('hidden');
+      };
+
+      img.onerror = (err) => {
+        console.warn('[SpotLIGHT 360] Image load fallback:', err);
+        const fallbackCanvas = getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-fallback');
+        const texture = new THREE.CanvasTexture(fallbackCanvas);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        if (currentTexture) currentTexture.dispose();
+        currentTexture = texture;
+        threeSphere.material.map = texture;
+        threeSphere.material.needsUpdate = true;
+        if (loader) loader.classList.add('hidden');
+      };
+
+      img.src = urlOrCanvas;
     } else {
       const srcCanvas = (urlOrCanvas instanceof HTMLCanvasElement) ? urlOrCanvas : getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-main');
       const texture = new THREE.CanvasTexture(srcCanvas);
@@ -738,35 +1011,22 @@
       /* Editor Tool Bar Overlay */
       .tour-editor-bar {
         position: absolute;
-        top: 68px;
+        top: 64px;
         left: 10px;
         right: 10px;
         max-width: calc(100vw - 20px);
-        z-index: 25;
-        background: rgba(14, 12, 19, 0.95);
+        z-index: 35;
+        background: rgba(14, 12, 19, 0.96);
         border: 1.5px solid #06D6A0;
-        border-radius: 10px;
+        border-radius: 12px;
         padding: 6px 10px;
         display: none;
-        align-items: center;
-        gap: 8px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+        flex-direction: column;
+        gap: 6px;
+        box-shadow: 0 10px 32px rgba(0,0,0,0.75);
         animation: slideInBar 0.2s ease-out;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: thin;
-        scrollbar-color: rgba(6, 214, 160, 0.5) rgba(255, 255, 255, 0.05);
-      }
-      .tour-editor-bar::-webkit-scrollbar {
-        height: 5px;
-      }
-      .tour-editor-bar::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 4px;
-      }
-      .tour-editor-bar::-webkit-scrollbar-thumb {
-        background: rgba(6, 214, 160, 0.6);
-        border-radius: 4px;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
       }
       @keyframes slideInBar {
         from { opacity: 0; transform: translateY(-10px); }
@@ -774,8 +1034,20 @@
       }
       .tour-editor-bar.active {
         display: flex;
+      }
+      .tour-editor-bar-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+      }
+      .tour-editor-header-left {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         flex-wrap: nowrap;
-        white-space: nowrap;
+        overflow-x: hidden;
       }
       .tour-editor-pill {
         background: rgba(6, 214, 160, 0.2);
@@ -786,15 +1058,55 @@
         font-size: 10px;
         font-weight: 800;
         font-family: monospace;
-        flex-shrink: 0;
         white-space: nowrap;
+      }
+      .tour-editor-header-right {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+      .tour-tools-menu-btn {
+        background: rgba(255, 210, 63, 0.2);
+        border: 1.5px solid #FFD23F;
+        color: #FFD23F;
+        font-weight: 900;
+        padding: 4px 9px;
+        font-size: 11px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+      }
+      .tour-tools-menu-btn:hover {
+        background: #FFD23F;
+        color: #14121A;
+      }
+      .tour-editor-actions-scroll-wrap {
+        position: relative;
+        width: 100%;
+        display: flex;
+        align-items: center;
       }
       .tour-editor-actions {
         display: flex;
         align-items: center;
         gap: 6px;
-        flex-shrink: 0;
-        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(6, 214, 160, 0.4) transparent;
+        padding: 2px 2px 4px 2px;
+        width: 100%;
+      }
+      .tour-editor-actions::-webkit-scrollbar {
+        height: 4px;
+      }
+      .tour-editor-actions::-webkit-scrollbar-thumb {
+        background: rgba(6, 214, 160, 0.4);
+        border-radius: 4px;
       }
       .tour-ed-btn {
         background: #06D6A0;
@@ -839,6 +1151,243 @@
       .tour-ed-btn.tour-ed-save:hover {
         transform: translateY(-1px) scale(1.03);
         box-shadow: 0 4px 14px rgba(255, 77, 109, 0.4);
+      }
+
+      /* Mobile Full Dropdown Menu */
+      .tour-tools-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        margin-top: 6px;
+        background: #14121A;
+        border: 2px solid #FFD23F;
+        border-radius: 12px;
+        padding: 12px;
+        z-index: 50;
+        box-shadow: 0 16px 40px rgba(0,0,0,0.85);
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .tour-tools-dropdown-menu.show {
+        display: flex;
+      }
+      .tour-tools-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 8px;
+      }
+      .tour-tool-grid-item {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 8px 10px;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        text-align: left;
+        transition: all 0.15s;
+      }
+      .tour-tool-grid-item:hover {
+        border-color: #FFD23F;
+        background: rgba(255, 210, 63, 0.15);
+      }
+      .tour-tool-grid-item.primary {
+        border-color: #06D6A0;
+        background: rgba(6, 214, 160, 0.15);
+        color: #06D6A0;
+      }
+      .tour-tool-grid-item.highlight {
+        border-color: #FFD23F;
+        background: rgba(255, 210, 63, 0.2);
+        color: #FFD23F;
+      }
+      .tour-tool-grid-item.danger {
+        border-color: #FF4D6D;
+        background: rgba(255, 77, 109, 0.15);
+        color: #FF4D6D;
+      }
+      .tour-tool-grid-item-desc {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.6);
+        font-weight: 500;
+      }
+
+      /* Proportions & Seam Alignment Popover */
+      .tour-proportions-popover {
+        position: absolute;
+        top: 110px;
+        left: 10px;
+        right: 10px;
+        z-index: 40;
+        background: rgba(20, 18, 26, 0.98);
+        border: 2px solid #FFD23F;
+        border-radius: 12px;
+        width: 380px;
+        max-width: calc(100vw - 20px);
+        max-height: calc(100vh - 130px);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.88), 0 0 25px rgba(255, 210, 63, 0.25);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        animation: fadeInDialog 0.15s ease-out;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        display: flex;
+        flex-direction: column;
+      }
+      .prop-popover-header {
+        padding: 10px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255, 210, 63, 0.08);
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+      .prop-popover-close {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 14px;
+        cursor: pointer;
+        padding: 2px 6px;
+      }
+      .prop-popover-close:hover {
+        color: #FF4D6D;
+      }
+      .prop-popover-body {
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .prop-section-label {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.65);
+      }
+      .prop-mode-btns {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+      .prop-mode-btn {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
+        color: #F5F1E8;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.15s;
+      }
+      .prop-mode-btn:hover {
+        background: rgba(255, 210, 63, 0.15);
+        border-color: #FFD23F;
+      }
+      .prop-mode-btn.active {
+        background: rgba(6, 214, 160, 0.18);
+        border-color: #06D6A0;
+        color: #06D6A0;
+      }
+      .prop-scale-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .prop-adj-btn {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #fff;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .prop-adj-btn:hover {
+        background: #FFD23F;
+        color: #14121A;
+      }
+      .prop-range-slider {
+        flex: 1;
+        accent-color: #06D6A0;
+        cursor: pointer;
+      }
+      .prop-reset-btn {
+        background: none;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.7);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 9px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .prop-reset-btn:hover {
+        color: #fff;
+        border-color: #fff;
+      }
+      .prop-sharp-btn {
+        background: rgba(6, 214, 160, 0.1);
+        border: 1.5px solid #06D6A0;
+        color: #F5F1E8;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .prop-save-room-btn {
+        background: linear-gradient(135deg, #06D6A0 0%, #05b386 100%);
+        color: #0d1b1e;
+        border: none;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 900;
+        cursor: pointer;
+        margin-top: 4px;
+        transition: all 0.15s;
+        text-align: center;
+        letter-spacing: 0.03em;
+        box-shadow: 0 4px 12px rgba(6, 214, 160, 0.3);
+      }
+      .prop-save-room-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(6, 214, 160, 0.45);
+      }
+      .prop-tool-box {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }
 
       /* Modal Dialog Overlays & Cards */
@@ -1386,44 +1935,6 @@
         background: #FF4D6D;
         color: #fff;
       }
-      .scan-pro-guide-banner {
-        background: rgba(20, 18, 26, 0.96);
-        border-bottom: 1.5px solid rgba(255, 210, 63, 0.3);
-        padding: 10px 16px;
-        z-index: 18;
-      }
-      .scan-guide-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 8px;
-      }
-      .scan-guide-card {
-        display: flex;
-        align-items: flex-start;
-        gap: 8px;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 8px;
-        padding: 8px 10px;
-      }
-      .scan-guide-card-icon {
-        font-size: 16px;
-        flex-shrink: 0;
-        line-height: 1;
-      }
-      .scan-guide-card strong {
-        display: block;
-        font-size: 11px;
-        font-weight: 800;
-        color: #FFD23F;
-        margin-bottom: 2px;
-      }
-      .scan-guide-card p {
-        margin: 0;
-        font-size: 10px;
-        color: rgba(255, 255, 255, 0.75);
-        line-height: 1.35;
-      }
       .scan-viewfinder-area {
         flex: 1;
         position: relative;
@@ -1563,9 +2074,65 @@
         0%, 100% { box-shadow: 0 0 0 4px rgba(59, 158, 255, 0.3), 0 0 16px rgba(59, 158, 255, 0.55); }
         50% { box-shadow: 0 0 0 10px rgba(59, 158, 255, 0.2), 0 0 28px rgba(59, 158, 255, 0.8); }
       }
-      .scan-center-ring {
-        width: 120px;
-        height: 120px;
+      .scan-mode-tabs {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        padding: 2px;
+        gap: 2px;
+      }
+      .scan-mode-tab {
+        background: transparent;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 10px;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: all 0.15s;
+        white-space: nowrap;
+      }
+      .scan-mode-tab:hover {
+        color: #fff;
+      }
+      .scan-mode-tab.active {
+        background: #FFD23F;
+        color: #14121A;
+        font-weight: 900;
+        box-shadow: 0 2px 8px rgba(255, 210, 63, 0.4);
+      }
+      .scan-sweep-compass-wrap {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 180px;
+        height: 180px;
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .scan-sweep-dial-svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .scan-sweep-center-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(14, 12, 19, 0.85);
+        border: 1.5px solid rgba(255, 210, 63, 0.4);
+        border-radius: 50%;
+        width: 116px;
+        height: 116px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7);
       }
       .scan-guide-arrow {
         position: absolute;
@@ -1829,30 +2396,224 @@
         </div>
       </div>
 
+      <!-- Floating Proportions & Seam Alignment Popover (Editor Only) -->
+      <div class="tour-proportions-popover" id="tourProportionsPopover" style="display:none;">
+        <div class="prop-popover-header">
+          <span style="font-weight:800;font-size:12px;color:#FFD23F;">📐 Room Proportions & Matterport Alignment</span>
+          <button type="button" class="prop-popover-close" onclick="window.toggleTourProportionsMenu(false)">✕</button>
+        </div>
+        <div class="prop-popover-body">
+          <div style="background:rgba(6,214,160,0.12);border:1px solid rgba(6,214,160,0.35);border-radius:8px;padding:8px 10px;font-size:10.5px;color:#06D6A0;line-height:1.4;margin-bottom:8px;">
+            <strong style="color:#FFD23F;">💡 Why phone panoramas don't line up in 360°:</strong><br>
+            A phone panorama is a wide sweep (~180°–220°) from the left wall (door) to the right wall (window). Because they are two different sides of the room, they cannot loop into each other in a circle.
+            <br><span style="font-weight:800;color:#fff;">👉 Tap "✨ Matterport Pro Arc" below to eliminate the seam split and view your room in real-world 1:1 perspective!</span>
+          </div>
+
+          <div class="prop-section-label">1. PROJECTION FORMAT</div>
+          <div class="prop-mode-btns" style="display:flex;flex-direction:column;gap:5px;">
+            <button type="button" class="prop-mode-btn active" id="propModeMatterport" onclick="window.setTourAspectMode('matterport-arc')">
+              <span style="font-weight:800;">✨ Matterport Pro Arc (0% Seam · No Split)</span>
+              <span style="color:#06D6A0;font-size:10px;font-weight:800;">RECOMMENDED FOR PHONE PANOS</span>
+            </button>
+            <button type="button" class="prop-mode-btn" id="propMode360Loop" onclick="window.setTourAspectMode('360-loop')">
+              <span>🔄 360° Continuous Loop (Full 360° Sweep Required)</span>
+            </button>
+            <button type="button" class="prop-mode-btn" id="propModeFull" onclick="window.setTourAspectMode('full-360')">
+              <span>🌐 Full 360° Photosphere (2:1 Spherical)</span>
+            </button>
+          </div>
+
+          <div style="margin-top:4px;">
+            <button type="button" class="tour-dialog-btn" style="width:100%;background:linear-gradient(135deg, rgba(6,214,160,0.25) 0%, rgba(255,210,63,0.2) 100%);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;padding:8px 10px;font-size:11px;border-radius:8px;" onclick="window.applyMatterportPreset()">
+              🪄 1-CLICK FIX: APPLY MATTERPORT PRO PRESET
+            </button>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>VERTICAL ROOM HEIGHT (HUMAN PERSPECTIVE)</span>
+              <span id="propVScaleVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">100%</span>
+            </div>
+            <div class="prop-scale-controls">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourVScale(-0.05)">−</button>
+              <input type="range" id="propVScaleSlider" min="50" max="180" value="100" class="prop-range-slider" oninput="window.setTourVScale(this.value / 100)">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourVScale(0.05)">+</button>
+              <button type="button" class="prop-reset-btn" onclick="window.resetTourVScale()">RESET</button>
+            </div>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>2. OVERLAP CROP TRIM (ELIMINATE DUPLICATE OBJECTS)</span>
+              <span id="propHSpanVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">100%</span>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
+              Trims duplicate furniture/vest if camera rotated past 360°:
+            </div>
+            <div class="prop-scale-controls">
+              <input type="range" id="propHSpanSlider" min="70" max="105" value="100" step="1" class="prop-range-slider" oninput="window.setTourHSpan(this.value / 100)">
+              <button type="button" class="prop-reset-btn" onclick="window.setTourHSpan(1.0)">100%</button>
+            </div>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>3. ROTATE 360° SEAM POSITION</span>
+              <span id="propHShiftVal" style="color:#FFD23F;font-family:monospace;font-weight:800;">0°</span>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
+              Move the seam off chairs/objects onto an empty wall or corner:
+            </div>
+            <div class="prop-scale-controls">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourHShift(-15)" title="Rotate seam -15°">◀</button>
+              <input type="range" id="propHShiftSlider" min="0" max="360" value="0" step="2" class="prop-range-slider" style="accent-color:#FFD23F;" oninput="window.setTourHShift(this.value)">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourHShift(15)" title="Rotate seam +15°">▶</button>
+              <button type="button" class="prop-reset-btn" onclick="window.setTourHShift(0)">0°</button>
+            </div>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>4. SEAMLESS EDGE FEATHER / BLEND</span>
+              <span id="propSeamBlendVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">8%</span>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
+              Smooth cross-dissolve to eliminate visible hard cut lines:
+            </div>
+            <div class="prop-scale-controls">
+              <input type="range" id="propSeamBlendSlider" min="0" max="20" value="8" step="1" class="prop-range-slider" oninput="window.setTourSeamBlend(this.value / 100)">
+              <button type="button" class="prop-reset-btn" onclick="window.setTourSeamBlend(0.08)">8%</button>
+            </div>
+          </div>
+
+          <div class="prop-tool-box">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>5. VERTICAL TILT TRIM (CAMERA DRIFT)</span>
+              <span id="propSeamVOffsetVal" style="color:#06D6A0;font-family:monospace;font-weight:800;">0 px</span>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);line-height:1.3;">
+              Fix camera height step where the sweep starts & ends:
+            </div>
+            <div class="prop-scale-controls">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourSeamVOffset(-2)">−</button>
+              <input type="range" id="propSeamVOffsetSlider" min="-40" max="40" value="0" step="1" class="prop-range-slider" oninput="window.setTourSeamVOffset(parseInt(this.value, 10))">
+              <button type="button" class="prop-adj-btn" onclick="window.adjustTourSeamVOffset(2)">+</button>
+              <button type="button" class="prop-reset-btn" onclick="window.setTourSeamVOffset(0)">RESET</button>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="tour-dialog-btn" style="flex:1;background:rgba(255,210,63,0.15);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:800;padding:8px 10px;font-size:11px;" onclick="window.autoAlignRoomSeam()">
+              🪄 AUTO-ALIGN & FEATHER
+            </button>
+            <button type="button" class="prop-sharp-btn" id="propSharpBtn" style="flex:1;padding:8px 10px;" onclick="window.toggleHdSharpness()">
+              <span>✨ 16x HD Filter</span>
+              <span id="propSharpBadge" style="color:#06D6A0;font-weight:800;font-size:10px;">ON</span>
+            </button>
+          </div>
+
+          <div style="margin-top:2px;">
+            <button type="button" class="tour-dialog-btn" style="width:100%;background:rgba(255,210,63,0.2);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;padding:8px 10px;font-size:11px;border-radius:8px;" onclick="window.setTourStartingView()">
+              📍 LOCK CURRENT CAMERA AS STARTING VIEW
+            </button>
+          </div>
+
+          <button type="button" class="prop-save-room-btn" onclick="window.saveCurrentRoomProportions()">
+            💾 SAVE ALL SETTINGS FOR EVERYONE
+          </button>
+        </div>
+      </div>
+
       <!-- Live Editor Action Bar (When in Tour Builder Mode) -->
       <div class="tour-editor-bar" id="tourEditorBar">
-        <span class="tour-editor-pill">🛠️ TOUR BUILDER</span>
-        <span id="tourCamAnglePill" class="tour-editor-pill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
-        <div class="tour-editor-actions">
-          <button type="button" class="tour-ed-btn" onclick="window.openPlaceHotspotDialog()" title="Place interactive door hotspot at camera angle">
-            📍 PLACE DOOR PIN
-          </button>
-          <button type="button" class="tour-ed-btn" style="background:#FFD23F;color:#14121A;font-weight:900;" onclick="window.open360CameraScanner('new_room')" title="Scan room with your device camera and stitch into 360 photo">
-            📸 360 CAMERA SCAN
-          </button>
-          <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openAddRoomDialog()" title="Add another 360 space">
-            + NEW ROOM
-          </button>
-          <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openEditRoomDialog()" title="Edit current room name, 360 photo, or blurb">
-            ✏️ EDIT THIS ROOM
-          </button>
-          <button type="button" class="tour-ed-btn tour-ed-danger" onclick="window.confirmDeleteCurrentRoom()" title="Delete this room from tour">
-            🗑️ DELETE THIS ROOM
-          </button>
-          <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openManageRoomsDialog()" title="View and organize all rooms">
-            📑 ALL ROOMS
-          </button>
-          <button type="button" class="tour-ed-btn tour-ed-save" id="tourSaveEveryoneBtn" onclick="window.saveTourChangesToMagazine()" title="Save tour live to cloud for all visitors">
+        <div class="tour-editor-bar-header">
+          <div class="tour-editor-header-left">
+            <span class="tour-editor-pill">🛠️ BUILDER</span>
+            <span id="tourCamAnglePill" class="tour-editor-pill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
+          </div>
+          <div class="tour-editor-header-right">
+            <button type="button" class="tour-tools-menu-btn" id="tourToolsMenuToggleBtn" onclick="window.toggleTourToolsDropdown()" title="Open full tools menu">
+              <span>📋 ALL TOOLS ▾</span>
+            </button>
+            <button type="button" class="tour-ed-btn tour-ed-save" id="tourSaveEveryoneHeaderBtn" onclick="window.saveTourChangesToMagazine()" title="Save tour live to cloud for all visitors" style="padding:4px 9px;font-size:11px;">
+              💾 SAVE
+            </button>
+          </div>
+        </div>
+
+        <div class="tour-editor-actions-scroll-wrap">
+          <div class="tour-editor-actions" id="tourEditorActionsTrack">
+            <button type="button" class="tour-ed-btn" id="tourEditorProportionsBtn" onclick="window.toggleTourProportionsMenu()" title="Adjust Photo Proportions & Seam Stitching Alignment" style="background:rgba(255,210,63,0.18);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;">
+              📐 PROPORTIONS & SEAM
+            </button>
+            <button type="button" class="tour-ed-btn" onclick="window.setTourStartingView()" title="Lock current camera angle as the starting view when entering this room" style="background:rgba(6,214,160,0.18);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;">
+              📍 SET STARTING VIEW
+            </button>
+            <button type="button" class="tour-ed-btn" onclick="window.openPlaceHotspotDialog()" title="Place interactive door hotspot at camera angle">
+              🚪 PLACE DOOR PIN
+            </button>
+            <button type="button" class="tour-ed-btn" style="background:#FFD23F;color:#14121A;font-weight:900;" onclick="window.open360CameraScanner('new_room')" title="Scan room with your device camera and stitch into 360 photo">
+              📸 360 CAMERA SCAN
+            </button>
+            <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openAddRoomDialog()" title="Add another 360 space">
+              + NEW ROOM
+            </button>
+            <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openEditRoomDialog()" title="Edit current room name, 360 photo, or blurb">
+              ✏️ EDIT THIS ROOM
+            </button>
+            <button type="button" class="tour-ed-btn tour-ed-danger" onclick="window.confirmDeleteCurrentRoom()" title="Delete this room from tour">
+              🗑️ DELETE THIS ROOM
+            </button>
+            <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openManageRoomsDialog()" title="View and organize all rooms">
+              📑 ALL ROOMS
+            </button>
+            <button type="button" class="tour-ed-btn tour-ed-save" id="tourSaveEveryoneBtn" onclick="window.saveTourChangesToMagazine()" title="Save tour live to cloud for all visitors">
+              💾 SAVE TOUR FOR EVERYONE
+            </button>
+          </div>
+        </div>
+
+        <!-- Full Mobile Tools Dropdown Menu -->
+        <div class="tour-tools-dropdown-menu" id="tourToolsDropdownMenu">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:6px;">
+            <span style="font-size:12px;font-weight:900;color:#FFD23F;">🛠️ ALL TOUR BUILDER TOOLS</span>
+            <button type="button" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer;" onclick="window.toggleTourToolsDropdown(false)">✕</button>
+          </div>
+          <div class="tour-tools-grid">
+            <div class="tour-tool-grid-item highlight" onclick="window.toggleTourProportionsMenu(); window.toggleTourToolsDropdown(false);">
+              <span>📐 Proportions & Seam</span>
+              <span class="tour-tool-grid-item-desc">Adjust height & blend 360 seam</span>
+            </div>
+            <div class="tour-tool-grid-item primary" onclick="window.setTourStartingView(); window.toggleTourToolsDropdown(false);">
+              <span>📍 Set Starting View</span>
+              <span class="tour-tool-grid-item-desc">Lock current angle as default</span>
+            </div>
+            <div class="tour-tool-grid-item" onclick="window.openPlaceHotspotDialog(); window.toggleTourToolsDropdown(false);">
+              <span>🚪 Place Door Pin</span>
+              <span class="tour-tool-grid-item-desc">Drop portal to another room</span>
+            </div>
+            <div class="tour-tool-grid-item highlight" onclick="window.open360CameraScanner('new_room'); window.toggleTourToolsDropdown(false);">
+              <span>📸 360 Camera Scan</span>
+              <span class="tour-tool-grid-item-desc">Matterport-style room scan</span>
+            </div>
+            <div class="tour-tool-grid-item" onclick="window.openAddRoomDialog(); window.toggleTourToolsDropdown(false);">
+              <span>➕ Add New Room</span>
+              <span class="tour-tool-grid-item-desc">Upload or preset 360 space</span>
+            </div>
+            <div class="tour-tool-grid-item" onclick="window.openEditRoomDialog(); window.toggleTourToolsDropdown(false);">
+              <span>✏️ Edit This Room</span>
+              <span class="tour-tool-grid-item-desc">Rename, swap photo, or blurb</span>
+            </div>
+            <div class="tour-tool-grid-item" onclick="window.openManageRoomsDialog(); window.toggleTourToolsDropdown(false);">
+              <span>📑 Manage All Rooms</span>
+              <span class="tour-tool-grid-item-desc">List, reorder, and review rooms</span>
+            </div>
+            <div class="tour-tool-grid-item danger" onclick="window.confirmDeleteCurrentRoom(); window.toggleTourToolsDropdown(false);">
+              <span>🗑️ Delete This Room</span>
+              <span class="tour-tool-grid-item-desc">Remove current space</span>
+            </div>
+          </div>
+          <button type="button" class="prop-save-room-btn" style="margin-top:4px;" onclick="window.saveTourChangesToMagazine(); window.toggleTourToolsDropdown(false);">
             💾 SAVE TOUR FOR EVERYONE
           </button>
         </div>
@@ -2050,6 +2811,26 @@
                 <textarea class="tour-dialog-input" id="editRoomBlurbInput" rows="2" placeholder="Brief blurb about this 360° space..."></textarea>
               </div>
 
+              <!-- Photo Proportions & Distortion settings for this space -->
+              <div class="tour-field-group">
+                <label class="tour-field-label">📐 Photo Proportions & Clarity</label>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                  <button type="button" class="tour-dialog-btn" id="editRoomModeIphone" style="flex:1;font-size:10px;padding:6px 10px;background:rgba(6,214,160,0.2);color:#06D6A0;border:1.5px solid #06D6A0;font-weight:800;" onclick="window.setEditRoomAspectMode('iphone-pano')">
+                    📱 iPhone Pano (Zero-Distortion)
+                  </button>
+                  <button type="button" class="tour-dialog-btn" id="editRoomModeFull" style="flex:1;font-size:10px;padding:6px 10px;background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);font-weight:800;" onclick="window.setEditRoomAspectMode('full-360')">
+                    🌐 360° Photosphere (2:1)
+                  </button>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:4px;">
+                  <span>Vertical Height Stretch:</span>
+                  <span id="editRoomVScaleLabel" style="font-family:monospace;color:#06D6A0;font-weight:800;">100%</span>
+                </div>
+                <input type="range" id="editRoomVScaleSlider" min="50" max="180" value="100" class="prop-range-slider" style="width:100%;" oninput="window.setEditRoomVScaleSlider(this.value)">
+                <input type="hidden" id="editRoomAspectModeInput" value="iphone-pano">
+                <input type="hidden" id="editRoomVScaleInput" value="1.0">
+              </div>
+
               <!-- Hotspots in this room -->
               <div class="tour-field-group">
                 <label class="tour-field-label" style="display:flex;justify-content:space-between;align-items:center;">
@@ -2150,64 +2931,35 @@
         </div>
 
         <!-- 7. IN-ROOM 360 CAMERA SCANNER & EQUIRECTANGULAR STITCHER MODAL -->
-        <div class="tour-dialog-overlay" id="tourCameraScanModal" style="display:none; z-index:100; padding:0; background:rgba(0,0,0,0.95);">
+        <div class="tour-dialog-overlay" id="tourCameraScanModal" style="display:none; z-index:100; padding:0; background:rgba(0,0,0,0.96);">
           <div class="tour-camera-scanner-container">
             <!-- Scanner Header -->
             <div class="scan-header">
               <div class="scan-header-left">
-                <span class="scan-title">📸 360° SPATIAL SCANNER & STITCHER</span>
-                <span class="scan-pill" id="scanSensorModePill">📳 GYRO SENSOR ACTIVE</span>
-                <span class="scan-pill" id="scanAnglePill" style="color:#FFD23F;border-color:#FFD23F;">YAW: 0° · PITCH: 0°</span>
-                <button type="button" class="scan-pill-btn" onclick="window.toggleScanGuideHelp()" style="background:rgba(255,210,63,0.15);border:1px solid #FFD23F;color:#FFD23F;border-radius:999px;font-size:10px;font-weight:800;padding:2px 8px;cursor:pointer;">
-                  💡 PRO SCAN TIPS
-                </button>
+                <span class="scan-title">📸 360° MATTERPORT SCANNER</span>
+                <!-- Mode Switcher Tabs -->
+                <div class="scan-mode-tabs">
+                  <button type="button" class="scan-mode-tab active" id="scanTabSweep" onclick="window.switchScanCaptureMode('sweep')" title="Turn in a continuous 360° circle (Fast & Seamless)">
+                    ⚡ 1-SWEEP 360°
+                  </button>
+                  <button type="button" class="scan-mode-tab" id="scanTabRadar" onclick="window.switchScanCaptureMode('radar')" title="Matterport-style guided radar stops">
+                    🎯 12-STOP RADAR
+                  </button>
+                </div>
+                <span class="scan-pill" id="scanSensorModePill">📳 GYRO READY</span>
+                <span class="scan-pill" id="scanAnglePill" style="color:#FFD23F;border-color:#FFD23F;">0° / 360°</span>
               </div>
               <div class="scan-header-right">
+                <button type="button" class="scan-btn-small" onclick="window.simulateDemo360Scan()" title="Simulate / Test full 360 scan" style="background:#06D6A0;color:#0d1b1e;font-weight:900;">
+                  🧪 DEMO SCAN
+                </button>
+                <button type="button" class="scan-btn-small" onclick="window.recenterScannerGyro()" title="Recenter current heading to 0°">
+                  🎯 RECENTER
+                </button>
                 <button type="button" class="scan-btn-small" onclick="window.toggleCameraFacingMode()" title="Switch Front/Rear Camera">
-                  🔄 SWITCH CAMERA
+                  🔄 CAMERA
                 </button>
                 <button type="button" class="scan-btn-close" onclick="window.close360CameraScanner()">✕</button>
-              </div>
-            </div>
-
-            <!-- Matterport-style Best Practices Pro Guide Banner (Collapsible) -->
-            <div class="scan-pro-guide-banner" id="scanProGuideBanner" style="display:none;">
-              <div class="scan-guide-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
-                <div class="scan-guide-card">
-                  <span class="scan-guide-card-icon">🔄</span>
-                  <div>
-                    <strong>Pivot Around Lens</strong>
-                    <p>Rotate your body around the phone (keep camera as fixed tripod pivot).</p>
-                  </div>
-                </div>
-                <div class="scan-guide-card">
-                  <span class="scan-guide-card-icon">📏</span>
-                  <div>
-                    <strong>Stay 24" From Walls</strong>
-                    <p>Keep camera 24 in (60 cm) from walls and objects to avoid warps and slices.</p>
-                  </div>
-                </div>
-                <div class="scan-guide-card">
-                  <span class="scan-guide-card-icon">🚶</span>
-                  <div>
-                    <strong>5–8 ft Scan Spacing</strong>
-                    <p>Space scans 5–8 ft apart so the system has enough overlap to align correctly.</p>
-                  </div>
-                </div>
-                <div class="scan-guide-card">
-                  <span class="scan-guide-card-icon">✨</span>
-                  <div>
-                    <strong>Hold Steady & De-Clutter</strong>
-                    <p>Remove close clutter and hold camera steady to prevent motion blur.</p>
-                  </div>
-                </div>
-                <div class="scan-guide-card">
-                  <span class="scan-guide-card-icon">🪟</span>
-                  <div>
-                    <strong>Mark Windows & Mirrors</strong>
-                    <p>Mark high-contrast windows and mirrors to prevent reflection & exposure errors.</p>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -2224,54 +2976,50 @@
                   <div class="scan-crosshair-h"></div>
                   <div class="scan-crosshair-v"></div>
                   <div class="scan-center-dot"></div>
-                  <span class="scan-ring-status" id="scanRingStatus">ROTATE PHONE TO DOT</span>
+                  <span class="scan-ring-status" id="scanRingStatus">HOLD LEVEL & ROTATE</span>
                 </div>
 
-                <!-- 360 Target Node Dots Layer -->
+                <!-- 360 Target Node Dots Layer (for 12-stop radar) -->
                 <div class="scan-nodes-layer" id="scanNodesLayer"></div>
+
+                <!-- Continuous Sweep Compass Dial Overlay -->
+                <div class="scan-sweep-compass-wrap" id="scanSweepCompassWrap">
+                  <svg class="scan-sweep-dial-svg" viewBox="0 0 200 200">
+                    <circle cx="100" cy="100" r="85" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="8" />
+                    <circle id="scanSweepProgressCircle" cx="100" cy="100" r="85" fill="none" stroke="#06D6A0" stroke-width="9" stroke-linecap="round" stroke-dasharray="534" stroke-dashoffset="534" transform="rotate(-90 100 100)" />
+                    <circle id="scanSweepIndicatorDot" cx="100" cy="15" r="7" fill="#FFD23F" stroke="#fff" stroke-width="2" />
+                  </svg>
+                  <div class="scan-sweep-center-info">
+                    <span id="scanSweepDegLabel" style="font-size:24px;font-weight:900;color:#FFD23F;font-family:monospace;">0°</span>
+                    <span id="scanSweepSubLabel" style="font-size:10px;font-weight:800;color:rgba(255,255,255,0.85);letter-spacing:0.04em;">TURN SLOWLY</span>
+                  </div>
+                </div>
 
                 <!-- Guidance Arrow -->
                 <div class="scan-guide-arrow" id="scanGuideArrow">
                   <span class="guide-arrow-icon" id="scanGuideIcon">➔</span>
-                  <span class="guide-arrow-text" id="scanGuideText">Aim the reticle at the glowing blue-white dot · turn phone · auto-snaps when locked</span>
+                  <span class="guide-arrow-text" id="scanGuideText">Rotate your body slowly in a circle to capture the room</span>
                 </div>
 
                 <!-- Flash Animation -->
                 <div class="scan-flash-fx" id="scanFlashFx"></div>
               </div>
 
-              <!-- Live Floating Stats & Capture Mode Presets -->
+              <!-- Live Floating Stats -->
               <div class="scan-floating-hud">
                 <div class="scan-progress-box">
-                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 12 CAPTURED (0%)</span>
+                  <span style="font-size:11px;font-weight:800;color:#06D6A0;" id="scanProgressLabel">0 / 12 ANGLES (0%)</span>
                   <div class="scan-progress-bar-bg">
                     <div class="scan-progress-bar-fill" id="scanProgressBarFill" style="width:0%;"></div>
                   </div>
                 </div>
                 <button type="button" id="scanEnableGyroBtn" onclick="window.enableScannerGyroAim()"
                   style="background:#FFD23F;color:#14121A;border:none;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:900;cursor:pointer;box-shadow:0 2px 12px rgba(255,210,63,0.45);">
-                  🧭 ENABLE GYRO AIM
+                  🧭 ENABLE MOTION GYRO
                 </button>
                 <div class="scan-auto-snap-toggle" onclick="window.toggleAutoCaptureOnAlign()">
                   <input type="checkbox" id="scanAutoSnapCheck" checked>
                   <label for="scanAutoSnapCheck" style="cursor:pointer;font-size:11px;font-weight:700;">⚡ Auto-Snap</label>
-                </div>
-                <div class="scan-preset-group" style="display:flex;gap:4px;background:rgba(14,12,19,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:3px;">
-                  <button type="button" id="scanPresetBtn_quick" onclick="window.setScanPreset('quick')"
-                    style="background:#06D6A0;color:#0d1b1e;border:1px solid #06D6A0;border-radius:6px;padding:5px 8px;font-size:10px;font-weight:900;cursor:pointer;"
-                    title="12 angles at horizon. Fast 15s scan with AI ceiling/floor fill">
-                    ⚡ QUICK (12)
-                  </button>
-                  <button type="button" id="scanPresetBtn_standard" onclick="window.setScanPreset('standard')"
-                    style="background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:5px 8px;font-size:10px;font-weight:900;cursor:pointer;"
-                    title="24 angles in 3 rings: Upper + Horizon + Lower">
-                    🌐 FULL (24)
-                  </button>
-                  <button type="button" id="scanPresetBtn_pro" onclick="window.setScanPreset('pro')"
-                    style="background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);border-radius:6px;padding:5px 8px;font-size:10px;font-weight:900;cursor:pointer;"
-                    title="32 angles with straight Up and Down">
-                    🚀 PRO (32)
-                  </button>
                 </div>
               </div>
             </div>
@@ -2279,8 +3027,8 @@
             <!-- Live Panoramic Stitched Strip Preview -->
             <div class="scan-ribbon-section">
               <div class="scan-ribbon-header">
-                <span style="font-size:11px;font-weight:800;color:#FFD23F;">🖼️ LIVE 360° EQUIRECTANGULAR PANORAMA PREVIEW</span>
-                <span style="font-size:10px;color:rgba(255,255,255,0.6);" id="scanRibbonHint">Watch your room seamlessly stitch together in real-time</span>
+                <span style="font-size:11px;font-weight:800;color:#FFD23F;">🖼️ LIVE 360° PANORAMA STRIP</span>
+                <span style="font-size:10px;color:rgba(255,255,255,0.7);" id="scanRibbonHint">Rotates seamlessly as you turn</span>
               </div>
               <div class="scan-strip-container">
                 <canvas id="panoStitchPreviewCanvas" width="1024" height="200"></canvas>
@@ -2292,27 +3040,24 @@
             <!-- Bottom Action Controls -->
             <div class="scan-bottom-bar">
               <div class="scan-bottom-left">
-                <button type="button" class="scan-ctrl-btn scan-btn-danger" id="scanResetBtn" onclick="window.resetCurrent360Scan()">
-                  🗑️ RESET SCAN
+                <button type="button" class="scan-ctrl-btn scan-btn-danger" onclick="window.resetCurrent360Scan()">
+                  🗑️ RESET
                 </button>
-                <button type="button" class="scan-ctrl-btn" onclick="window.manualStepAngle(-30)">
-                  ◀ PREV ANGLE
-                </button>
-                <button type="button" class="scan-ctrl-btn" onclick="window.manualStepAngle(30)">
-                  NEXT ANGLE ▶
+                <button type="button" class="scan-ctrl-btn" id="scanSweepStartBtn" onclick="window.toggleContinuousSweep()" style="background:#06D6A0;color:#0d1b1e;font-weight:900;">
+                  ▶ START SWEEP
                 </button>
               </div>
 
               <div class="scan-bottom-center">
                 <button type="button" class="scan-shutter-btn" id="scanShutterBtn" onclick="window.captureCurrentScanAngle()">
                   <span class="shutter-inner">📸</span>
-                  <span class="shutter-text">SNAP ANGLE</span>
+                  <span class="shutter-text">SNAP</span>
                 </button>
               </div>
 
               <div class="scan-bottom-right">
                 <button type="button" class="scan-ctrl-btn scan-btn-success" id="scanFinishUseBtn" onclick="window.finishAndUse360Stitch()">
-                  ✨ STITCH & USE 360° ROOM (SAVE)
+                  ✨ STITCH & SAVE 360°
                 </button>
               </div>
             </div>
@@ -2400,9 +3145,10 @@
 
     if (resetBtn) {
       resetBtn.onclick = () => {
-        targetYaw = 0;
-        targetPitch = 0;
-        targetFov = 75;
+        const curSc = activeSceneList[activeSceneIndex];
+        targetYaw = (curSc && typeof curSc.startYaw === 'number') ? curSc.startYaw : 0;
+        targetPitch = (curSc && typeof curSc.startPitch === 'number') ? curSc.startPitch : 0;
+        targetFov = (curSc && typeof curSc.startFov === 'number') ? curSc.startFov : 65;
         if (typeof showToast === 'function') showToast('🎯 View Angle Centered');
       };
     }
@@ -2614,18 +3360,50 @@
       initThreeEngine();
     }
 
-    // Smooth Camera Inertia
-    yaw += (targetYaw - yaw) * 0.15;
-    pitch += (targetPitch - pitch) * 0.15;
-    fov += (targetFov - fov) * 0.15;
+    // Smooth Camera Inertia & Matterport Perspective
+    const curScene = activeSceneList[activeSceneIndex] || {};
+    const aspectMode = curScene.aspectMode || 'matterport-arc';
+    const isMatterportArc = (aspectMode === 'matterport-arc');
+
+    // Camera inertia
+    yaw += (targetYaw - yaw) * 0.14;
+    pitch += (targetPitch - pitch) * 0.14;
+    fov += (targetFov - fov) * 0.14;
 
     if (isAutoRotating && !isDragging && !gyroEnabled) {
+      if (isMatterportArc) {
+        const spanDeg = curScene.arcSpanDeg || 220;
+        const halfSpan = (spanDeg / 2) - 15;
+        const center = curScene.startYaw || 0;
+        if (targetYaw >= center + halfSpan) {
+          autoRotateSpeed = -Math.abs(autoRotateSpeed || 0.12);
+        } else if (targetYaw <= center - halfSpan) {
+          autoRotateSpeed = Math.abs(autoRotateSpeed || 0.12);
+        }
+      }
       targetYaw += autoRotateSpeed;
       yaw += autoRotateSpeed;
     }
 
-    while (yaw > 180) { yaw -= 360; targetYaw -= 360; }
-    while (yaw < -180) { yaw += 360; targetYaw += 360; }
+    if (isMatterportArc) {
+      // Natural room boundary containment: 0% Seam, No Split Furniture, No Repetition!
+      const spanDeg = curScene.arcSpanDeg || 220;
+      const halfLimit = Math.max(20, (spanDeg / 2) - 25);
+      const center = curScene.startYaw || 0;
+      const minYaw = center - halfLimit;
+      const maxYaw = center + halfLimit;
+
+      if (targetYaw < minYaw) {
+        targetYaw += (minYaw - targetYaw) * 0.18;
+      } else if (targetYaw > maxYaw) {
+        targetYaw += (maxYaw - targetYaw) * 0.18;
+      }
+      targetPitch = Math.max(-50, Math.min(50, targetPitch));
+      pitch = Math.max(-52, Math.min(52, pitch));
+    } else {
+      while (yaw > 180) { yaw -= 360; targetYaw -= 360; }
+      while (yaw < -180) { yaw += 360; targetYaw += 360; }
+    }
 
     const compassDial = document.getElementById('compassDial');
     if (compassDial) {
@@ -2642,8 +3420,9 @@
       threeCamera.updateProjectionMatrix();
 
       // Convert spherical yaw & pitch to 3D Cartesian look-at vector
+      // Offset by 180° so yaw=0 faces the center of the panorama image
       const phi = THREE.MathUtils.degToRad(90 - pitch);
-      const theta = THREE.MathUtils.degToRad(yaw);
+      const theta = THREE.MathUtils.degToRad(yaw + 180);
 
       const target = new THREE.Vector3(
         500 * Math.sin(phi) * Math.cos(theta),
@@ -2735,7 +3514,7 @@
       if (!pin) return;
 
       const phi = THREE.MathUtils.degToRad(90 - hs.pitch);
-      const theta = THREE.MathUtils.degToRad(hs.yaw);
+      const theta = THREE.MathUtils.degToRad(hs.yaw + 180);
 
       const v = new THREE.Vector3(
         500 * Math.sin(phi) * Math.cos(theta),
@@ -2859,6 +3638,29 @@
 
     initThreeEngine();
     resizeThreeViewport();
+
+    // Set Initial Human Perspective / Room Starting View
+    if (typeof scene.startYaw === 'number') {
+      yaw = scene.startYaw;
+      targetYaw = scene.startYaw;
+    } else {
+      yaw = 0;
+      targetYaw = 0;
+    }
+    if (typeof scene.startPitch === 'number') {
+      pitch = scene.startPitch;
+      targetPitch = scene.startPitch;
+    } else {
+      pitch = 0;
+      targetPitch = 0;
+    }
+    if (typeof scene.startFov === 'number') {
+      fov = scene.startFov;
+      targetFov = scene.startFov;
+    } else {
+      fov = 65;
+      targetFov = 65;
+    }
 
     const targetUrl = norm.isImage ? norm.url : (scene.panoUrl || currentTourData?.panoUrl);
     if (targetUrl && (targetUrl.startsWith('http') || targetUrl.startsWith('data:') || targetUrl.startsWith('blob:') || targetUrl.startsWith('/'))) {
@@ -3205,6 +4007,21 @@
     if (blurbInp) blurbInp.value = scene.blurb || '';
     if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
 
+    // Populate Proportions settings
+    const curMode = scene.aspectMode || 'iphone-pano';
+    const curVScale = typeof scene.vScale === 'number' ? scene.vScale : 1.0;
+    const modeInp = document.getElementById('editRoomAspectModeInput');
+    const vScaleInp = document.getElementById('editRoomVScaleInput');
+    const vScaleSlider = document.getElementById('editRoomVScaleSlider');
+    const vScaleLbl = document.getElementById('editRoomVScaleLabel');
+    if (modeInp) modeInp.value = curMode;
+    if (vScaleInp) vScaleInp.value = curVScale;
+    if (vScaleSlider) vScaleSlider.value = Math.round(curVScale * 100);
+    if (vScaleLbl) vScaleLbl.textContent = `${Math.round(curVScale * 100)}%`;
+    if (typeof window.setEditRoomAspectMode === 'function') {
+      window.setEditRoomAspectMode(curMode);
+    }
+
     // Delete button logic (cannot delete if it's the only room)
     if (delBtn) {
       if (activeSceneList.length <= 1) {
@@ -3387,6 +4204,16 @@
       scene.tourUrl = '';
     }
 
+    // Save Proportions settings
+    const modeInp = document.getElementById('editRoomAspectModeInput');
+    const vScaleInp = document.getElementById('editRoomVScaleInput');
+    if (modeInp && modeInp.value) {
+      scene.aspectMode = modeInp.value;
+    }
+    if (vScaleInp && vScaleInp.value) {
+      scene.vScale = parseFloat(vScaleInp.value) || 1.0;
+    }
+
     window.closeEditRoomDialog();
     renderSceneSelector();
 
@@ -3403,6 +4230,316 @@
   };
 
   // ==========================================
+  // TOUR BUILDER MOBILE TOOLS DROPDOWN
+  // ==========================================
+  window.toggleTourToolsDropdown = function (forceState) {
+    const menu = document.getElementById('tourToolsDropdownMenu');
+    if (!menu) return;
+    const isShowing = menu.classList.contains('show');
+    const newState = (typeof forceState === 'boolean') ? forceState : !isShowing;
+    menu.classList.toggle('show', newState);
+  };
+
+  // ==========================================
+  // PROPORTIONS & MATTERPORT ALIGNMENT CONTROLS
+  // ==========================================
+  window.toggleTourProportionsMenu = function (forceState) {
+    const pop = document.getElementById('tourProportionsPopover');
+    if (!pop) return;
+    const isVisible = (pop.style.display !== 'none');
+    const newState = (typeof forceState === 'boolean') ? forceState : !isVisible;
+    pop.style.display = newState ? 'flex' : 'none';
+
+    if (newState) {
+      // Sync current scene values to popover controls
+      const curScene = activeSceneList[activeSceneIndex] || {};
+      const mode = curScene.aspectMode || 'matterport-arc';
+      const scale = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
+      const hShift = typeof curScene.hShift === 'number' ? curScene.hShift : 0;
+      const seamBlend = typeof curScene.seamBlend === 'number' ? curScene.seamBlend : 0.08;
+      const seamVOffset = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0;
+      const hSpan = typeof curScene.hSpan === 'number' ? curScene.hSpan : 1.0;
+
+      const btnMat = document.getElementById('propModeMatterport');
+      const btnLoop = document.getElementById('propMode360Loop');
+      const btnFull = document.getElementById('propModeFull');
+      if (btnMat) btnMat.classList.toggle('active', mode === 'matterport-arc' || (!mode && mode !== '360-loop' && mode !== 'full-360'));
+      if (btnLoop) btnLoop.classList.toggle('active', mode === '360-loop' || mode === 'iphone-pano');
+      if (btnFull) btnFull.classList.toggle('active', mode === 'full-360');
+
+      const vScaleSlider = document.getElementById('propVScaleSlider');
+      const vScaleLabel = document.getElementById('propVScaleVal');
+      if (vScaleSlider) vScaleSlider.value = Math.round(scale * 100);
+      if (vScaleLabel) vScaleLabel.textContent = `${Math.round(scale * 100)}%`;
+
+      const hShiftSlider = document.getElementById('propHShiftSlider');
+      const hShiftLabel = document.getElementById('propHShiftVal');
+      if (hShiftSlider) hShiftSlider.value = Math.round(hShift);
+      if (hShiftLabel) hShiftLabel.textContent = `${Math.round(hShift)}°`;
+
+      const seamBlendSlider = document.getElementById('propSeamBlendSlider');
+      const seamBlendLabel = document.getElementById('propSeamBlendVal');
+      if (seamBlendSlider) seamBlendSlider.value = Math.round(seamBlend * 100);
+      if (seamBlendLabel) seamBlendLabel.textContent = `${Math.round(seamBlend * 100)}%`;
+
+      const seamVOffsetSlider = document.getElementById('propSeamVOffsetSlider');
+      const seamVOffsetLabel = document.getElementById('propSeamVOffsetVal');
+      if (seamVOffsetSlider) seamVOffsetSlider.value = Math.round(seamVOffset);
+      if (seamVOffsetLabel) seamVOffsetLabel.textContent = `${Math.round(seamVOffset)} px`;
+
+      const hSpanSlider = document.getElementById('propHSpanSlider');
+      const hSpanLabel = document.getElementById('propHSpanVal');
+      if (hSpanSlider) hSpanSlider.value = Math.round(hSpan * 100);
+      if (hSpanLabel) hSpanLabel.textContent = `${Math.round(hSpan * 100)}%`;
+    }
+  };
+
+  window.setTourAspectMode = function (mode) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.aspectMode = mode;
+
+    const btnMat = document.getElementById('propModeMatterport');
+    const btnLoop = document.getElementById('propMode360Loop');
+    const btnFull = document.getElementById('propModeFull');
+    if (btnMat) btnMat.classList.toggle('active', mode === 'matterport-arc');
+    if (btnLoop) btnLoop.classList.toggle('active', mode === '360-loop' || mode === 'iphone-pano');
+    if (btnFull) btnFull.classList.toggle('active', mode === 'full-360');
+
+    // Reload texture with new mode immediately
+    loadThreePanoTexture(currentPanoUrl, curScene);
+
+    if (typeof showToast === 'function') {
+      if (mode === 'matterport-arc') {
+        showToast('✨ Matterport Pro Arc Active: 0% Seam, Real-World Perspective!');
+      } else if (mode === '360-loop') {
+        showToast('🔄 360° Continuous Walkthrough Active (Overlap Trim Enabled)');
+      } else {
+        showToast('🌐 Full 360° Photosphere Active');
+      }
+    }
+  };
+
+  window.applyMatterportPreset = function () {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.aspectMode = 'matterport-arc';
+    curScene.vScale = 1.0;
+    curScene.seamBlend = 0.08;
+    curScene.seamVOffset = 0;
+    curScene.hSpan = 1.0;
+    curScene.startYaw = Math.round(yaw);
+    curScene.startPitch = Math.round(pitch);
+    curScene.startFov = 65;
+    targetFov = 65;
+    fov = 65;
+
+    const btnMat = document.getElementById('propModeMatterport');
+    const btnLoop = document.getElementById('propMode360Loop');
+    const btnFull = document.getElementById('propModeFull');
+    if (btnMat) btnMat.classList.add('active');
+    if (btnLoop) btnLoop.classList.remove('active');
+    if (btnFull) btnFull.classList.remove('active');
+
+    const vScaleSlider = document.getElementById('propVScaleSlider');
+    const vScaleLabel = document.getElementById('propVScaleVal');
+    if (vScaleSlider) vScaleSlider.value = 100;
+    if (vScaleLabel) vScaleLabel.textContent = '100%';
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast('🪄 1-Click Matterport Pro Applied: 0% Seam, 65° Human View, 100% Height!');
+    }
+  };
+
+  window.setTourStartingView = function () {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.startYaw = Math.round(yaw);
+    curScene.startPitch = Math.round(pitch);
+    curScene.startFov = Math.round(fov);
+
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast(`📍 Starting View Locked: Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°, FOV ${Math.round(fov)}°!`);
+    }
+  };
+
+  window.setTourVScale = function (scaleVal) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const clamped = Math.max(0.5, Math.min(1.8, parseFloat(scaleVal) || 1.0));
+    curScene.vScale = clamped;
+
+    const slider = document.getElementById('propVScaleSlider');
+    const valLabel = document.getElementById('propVScaleVal');
+    if (slider) slider.value = Math.round(clamped * 100);
+    if (valLabel) valLabel.textContent = `${Math.round(clamped * 100)}%`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.adjustTourVScale = function (delta) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const cur = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
+    window.setTourVScale(cur + delta);
+  };
+
+  window.resetTourVScale = function () {
+    window.setTourVScale(1.0);
+  };
+
+  window.setTourHShift = function (degVal) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const deg = ((parseFloat(degVal) || 0) % 360 + 360) % 360;
+    curScene.hShift = deg;
+
+    const slider = document.getElementById('propHShiftSlider');
+    const valLabel = document.getElementById('propHShiftVal');
+    if (slider) slider.value = Math.round(deg);
+    if (valLabel) valLabel.textContent = `${Math.round(deg)}°`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.adjustTourHShift = function (deltaDeg) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const cur = typeof curScene.hShift === 'number' ? curScene.hShift : 0;
+    window.setTourHShift(cur + deltaDeg);
+  };
+
+  window.setTourSeamBlend = function (blendVal) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const clamped = Math.max(0, Math.min(0.2, parseFloat(blendVal) || 0));
+    curScene.seamBlend = clamped;
+
+    const slider = document.getElementById('propSeamBlendSlider');
+    const valLabel = document.getElementById('propSeamBlendVal');
+    if (slider) slider.value = Math.round(clamped * 100);
+    if (valLabel) valLabel.textContent = `${Math.round(clamped * 100)}%`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.setTourSeamVOffset = function (offsetPx) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const clamped = Math.max(-50, Math.min(50, parseInt(offsetPx, 10) || 0));
+    curScene.seamVOffset = clamped;
+
+    const slider = document.getElementById('propSeamVOffsetSlider');
+    const valLabel = document.getElementById('propSeamVOffsetVal');
+    if (slider) slider.value = clamped;
+    if (valLabel) valLabel.textContent = `${clamped} px`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.adjustTourSeamVOffset = function (delta) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const cur = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0;
+    window.setTourSeamVOffset(cur + delta);
+  };
+
+  window.setTourHSpan = function (spanVal) {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    const clamped = Math.max(0.8, Math.min(1.1, parseFloat(spanVal) || 1.0));
+    curScene.hSpan = clamped;
+
+    const slider = document.getElementById('propHSpanSlider');
+    const valLabel = document.getElementById('propHSpanVal');
+    if (slider) slider.value = Math.round(clamped * 100);
+    if (valLabel) valLabel.textContent = `${Math.round(clamped * 100)}%`;
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+  };
+
+  window.autoAlignRoomSeam = function () {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.seamBlend = 0.08; // 8% cosine feather
+    curScene.seamVOffset = 0;
+    curScene.hSpan = 1.0;
+
+    const blendSlider = document.getElementById('propSeamBlendSlider');
+    const blendVal = document.getElementById('propSeamBlendVal');
+    if (blendSlider) blendSlider.value = 8;
+    if (blendVal) blendVal.textContent = '8%';
+
+    const seamVOffsetSlider = document.getElementById('propSeamVOffsetSlider');
+    const seamVOffsetLabel = document.getElementById('propSeamVOffsetVal');
+    if (seamVOffsetSlider) seamVOffsetSlider.value = 0;
+    if (seamVOffsetLabel) seamVOffsetLabel.textContent = '0 px';
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+
+    if (typeof showToast === 'function') {
+      showToast('🪄 Seamless edge blend applied! Fine-tune rotation or tilt if needed.');
+    }
+  };
+
+  window.toggleHdSharpness = function () {
+    if (!threeRenderer || !currentTexture) return;
+    const maxAniso = threeRenderer.capabilities.getMaxAnisotropy() || 1;
+    const isCurrentlyMax = (currentTexture.anisotropy >= maxAniso);
+    currentTexture.anisotropy = isCurrentlyMax ? 1 : maxAniso;
+    currentTexture.needsUpdate = true;
+
+    const badge = document.getElementById('propSharpBadge');
+    if (badge) {
+      badge.textContent = isCurrentlyMax ? 'OFF' : 'ON';
+      badge.style.color = isCurrentlyMax ? '#FF4D6D' : '#06D6A0';
+    }
+
+    if (typeof showToast === 'function') {
+      showToast(isCurrentlyMax ? 'Texture filtering: Standard' : '✨ 16x Ultra-HD WebGL Anisotropic Filtering Enabled');
+    }
+  };
+
+  window.saveCurrentRoomProportions = function () {
+    window.toggleTourProportionsMenu(false);
+    window.saveTourChangesToMagazine();
+    if (typeof showToast === 'function') {
+      showToast('💾 Saved room proportions & seam alignment for everyone!');
+    }
+  };
+
+  window.setEditRoomAspectMode = function (mode) {
+    const inp = document.getElementById('editRoomAspectModeInput');
+    if (inp) inp.value = mode;
+
+    const btnIphone = document.getElementById('editRoomModeIphone');
+    const btnFull = document.getElementById('editRoomModeFull');
+    if (btnIphone) {
+      btnIphone.style.background = (mode === 'iphone-pano') ? 'rgba(6,214,160,0.2)' : 'rgba(255,255,255,0.08)';
+      btnIphone.style.color = (mode === 'iphone-pano') ? '#06D6A0' : '#fff';
+      btnIphone.style.borderColor = (mode === 'iphone-pano') ? '#06D6A0' : 'rgba(255,255,255,0.2)';
+    }
+    if (btnFull) {
+      btnFull.style.background = (mode === 'full-360') ? 'rgba(255,210,63,0.2)' : 'rgba(255,255,255,0.08)';
+      btnFull.style.color = (mode === 'full-360') ? '#FFD23F' : '#fff';
+      btnFull.style.borderColor = (mode === 'full-360') ? '#FFD23F' : 'rgba(255,255,255,0.2)';
+    }
+  };
+
+  window.setEditRoomVScaleSlider = function (val) {
+    const scale = (parseInt(val, 10) || 100) / 100;
+    const inp = document.getElementById('editRoomVScaleInput');
+    const lbl = document.getElementById('editRoomVScaleLabel');
+    if (inp) inp.value = scale;
+    if (lbl) lbl.textContent = `${Math.round(scale * 100)}%`;
+  };
+
+  // ==========================================
   // 4. DELETE ROOM / SPACE
   // ==========================================
 
@@ -3411,11 +4548,30 @@
       idx = activeSceneIndex;
     }
 
+    // If only 1 room remains, reset and clean the room to a fresh default state
     if (activeSceneList.length <= 1) {
+      const oldRoom = activeSceneList[0] || {};
+      const oldName = oldRoom.name || 'Room 1';
+      activeSceneList = [{
+        id: 'room_' + Date.now().toString(36),
+        name: 'Main Space',
+        location: (currentTourData && currentTourData.location) || 'Wasatch Front, UT',
+        tag: '360° Walkthrough',
+        panoUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2500&q=80',
+        tourUrl: '',
+        aspectMode: 'full-360',
+        vScale: 1.0,
+        blurb: 'Explore this space in 360°',
+        hotspots: []
+      }];
+      activeSceneIndex = 0;
+      window.closeEditRoomDialog();
+      window.closeManageRoomsDialog();
+      loadScene(0);
+      renderSceneSelector();
+      window.saveTourChangesToMagazine();
       if (typeof showToast === 'function') {
-        showToast('⚠️ A tour must have at least 1 room. Create another room first before deleting this one!');
-      } else {
-        alert('A tour must have at least 1 room. Create another room first before deleting this one!');
+        showToast(`🗑️ "${oldName}" reset to clean 360° space!`);
       }
       return;
     }
@@ -3423,10 +4579,6 @@
     const roomToDelete = activeSceneList[idx];
     const roomName = roomToDelete ? roomToDelete.name : `Room ${idx + 1}`;
     const deletedId = roomToDelete?.id;
-
-    if (!confirm(`Are you sure you want to delete "${roomName}"? This will permanently remove this room and any door pins pointing to it.`)) {
-      return;
-    }
 
     // 1. Remove room from list
     activeSceneList.splice(idx, 1);
@@ -3447,7 +4599,7 @@
       activeSceneIndex = Math.max(0, activeSceneIndex - 1);
     }
     if (activeSceneIndex >= activeSceneList.length) {
-      activeSceneIndex = activeSceneList.length - 1;
+      activeSceneIndex = Math.max(0, activeSceneList.length - 1);
     }
 
     window.closeEditRoomDialog();
@@ -3835,39 +4987,19 @@
   };
 
   // =========================================================================
-  // 360° CAMERA CAPTURE & REAL-TIME EQUIRECTANGULAR STITCHER ENGINE
-  // (In-browser spatial panorama scanner inspired by Teleport & HDReye)
+  // 360° MATTERPORT-GRADE CAMERA SCANNER & EQUIRECTANGULAR STITCHER ENGINE
   // =========================================================================
 
-  // HDReye / Street View style multi-row spherical capture grid
-  // Upper row + lower row + horizon = full up/down coverage
-  // Multi-tier spherical capture grids:
-  // - QUICK (12 shots): 1 horizontal ring (0° pitch). Perfect for fast 15-second room capture with smart inpainting.
-  // - FULL (24 shots): 3 rings (+30°, 0°, -30°). Wall-to-wall, ceiling, and floor.
-  // - PRO (32 shots): 5 rings (+70° zenith, +35°, 0°, -35°, -70° nadir). Real-estate grade complete photosphere.
-  const SCAN_PRESETS = {
-    quick: [
-      { pitch: 0, count: 12 }
-    ],
-    standard: [
-      { pitch:  28, count: 12 },
-      { pitch:   0, count: 12 },
-      { pitch: -28, count: 12 }
-    ],
-    pro: [
-      { pitch:  60, count: 6 },
-      { pitch:  28, count: 12 },
-      { pitch:   0, count: 12 },
-      { pitch: -28, count: 12 },
-      { pitch: -60, count: 6 }
-    ]
-  };
-  let scanCapturePreset = 'quick'; // 'quick', 'standard', 'pro'
-  let SCAN_TOTAL_NODES = 0;
+  // Stable 16-stop horizon orbit (every 22.5°) with generous optical overlap
+  const SCAN_ROWS = [
+    { pitch: 0, count: 16 } // Primary level horizon orbit (360° room walkthrough)
+  ];
+  let SCAN_TOTAL_NODES = 16;
 
+  let scanCaptureMode = 'sweep'; // 'sweep' (Matterport 1-Sweep) or 'radar' (12-Stop Guided)
   let scanMode = 'new_room'; // 'new_room' or 'replace_room'
   let scanStream = null;
-  let scanCameraFacing = 'environment'; // rear camera by default
+  let scanCameraFacing = 'environment';
   let scanSlots = [];
   let scanCurrentYaw = 0;
   let scanCurrentPitch = 0;
@@ -3884,13 +5016,19 @@
   let scanLoopAnimId = null;
   let scanSmoothYaw = 0;
   let scanSmoothPitch = 0;
-  let scanNodeEls = [];          // persistent DOM nodes — never recreate
+  let scanNodeEls = [];
   let scanNodesInitialized = false;
+
+  // Continuous sweep state
+  let scanIsSweeping = false;
+  let scanSweepStartYaw = 0;
+  let scanSweepCoveredDeg = 0;
+  let scanSweepLastSampleYaw = -999;
+  let scanSweepSamples = [];
 
   function initScanSlots() {
     scanSlots = [];
-    const rows = SCAN_PRESETS[scanCapturePreset] || SCAN_PRESETS.quick;
-    rows.forEach(row => {
+    SCAN_ROWS.forEach(row => {
       const step = 360 / row.count;
       for (let i = 0; i < row.count; i++) {
         scanSlots.push({
@@ -3898,63 +5036,18 @@
           pitch: row.pitch,
           captured: false,
           imgCanvas: null,
-          timestamp: 0
+          timestamp: 0,
+          captureYaw: i * step,
+          capturePitch: row.pitch
         });
       }
     });
-    SCAN_TOTAL_NODES = scanSlots.length;
+    SCAN_TOTAL_NODES = scanSlots.length; // 12
+    scanSweepSamples = [];
+    scanSweepCoveredDeg = 0;
+    scanSweepLastSampleYaw = -999;
+    scanIsSweeping = false;
   }
-
-  window.setScanPreset = function (preset) {
-    if (!SCAN_PRESETS[preset]) preset = 'quick';
-    scanCapturePreset = preset;
-    initScanSlots();
-    scanNodesInitialized = false;
-    scanNodeEls = [];
-    const nodesLayer = document.getElementById('scanNodesLayer');
-    if (nodesLayer) nodesLayer.innerHTML = '';
-    clearStitchPreviewCanvas();
-    renderScanSlotsRibbon();
-    updateScanProgressBar();
-    updateScanPresetButtons();
-
-    // Ensure camera video stays playing and loop is active
-    const video = document.getElementById('scanVideoFeed');
-    if (video) {
-      if (video.paused) {
-        video.play().catch(e => console.warn('Resuming video on preset change:', e));
-      }
-      if (!scanStream || !scanStream.active) {
-        startScannerCameraFeed();
-      }
-    }
-    if (!scanLoopAnimId) {
-      runScannerLoop();
-    }
-
-    if (typeof showToast === 'function') {
-      const name = preset === 'quick' ? '⚡ Quick 360 (12 shots)' : (preset === 'standard' ? '🌐 Full Sphere (24 shots)' : '🚀 Pro Photosphere (32 shots)');
-      showToast(`Switched mode to: ${name}`);
-    }
-  };
-
-  function updateScanPresetButtons() {
-    ['quick', 'standard', 'pro'].forEach(p => {
-      const btn = document.getElementById('scanPresetBtn_' + p);
-      if (btn) {
-        const isActive = scanCapturePreset === p;
-        btn.style.background = isActive ? '#06D6A0' : 'rgba(255,255,255,0.1)';
-        btn.style.color = isActive ? '#0d1b1e' : '#fff';
-        btn.style.borderColor = isActive ? '#06D6A0' : 'rgba(255,255,255,0.2)';
-      }
-    });
-  }
-
-  // Backward compatible toggle
-  window.toggleWideScanMode = function () {
-    const next = scanCapturePreset === 'quick' ? 'standard' : (scanCapturePreset === 'standard' ? 'pro' : 'quick');
-    window.setScanPreset(next);
-  };
 
   function normalizeAngle360(deg) {
     let d = deg % 360;
@@ -3966,6 +5059,46 @@
     let diff = (target - current + 180) % 360 - 180;
     return diff < -180 ? diff + 360 : diff;
   }
+
+  window.switchScanCaptureMode = function (mode) {
+    scanCaptureMode = mode;
+    const tabSweep = document.getElementById('scanTabSweep');
+    const tabRadar = document.getElementById('scanTabRadar');
+    const compassWrap = document.getElementById('scanSweepCompassWrap');
+    const nodesLayer = document.getElementById('scanNodesLayer');
+    const sweepBtn = document.getElementById('scanSweepStartBtn');
+    const shutterBtn = document.getElementById('scanShutterBtn');
+
+    if (tabSweep) tabSweep.classList.toggle('active', mode === 'sweep');
+    if (tabRadar) tabRadar.classList.toggle('active', mode === 'radar');
+
+    if (compassWrap) compassWrap.style.display = (mode === 'sweep') ? 'flex' : 'none';
+    if (nodesLayer) nodesLayer.style.display = (mode === 'radar') ? 'block' : 'none';
+    if (sweepBtn) sweepBtn.style.display = (mode === 'sweep') ? 'inline-block' : 'none';
+    if (shutterBtn) shutterBtn.style.display = (mode === 'radar') ? 'flex' : 'none';
+
+    const ringStatus = document.getElementById('scanRingStatus');
+    if (ringStatus) {
+      ringStatus.textContent = (mode === 'sweep') ? 'TURN SLOWLY 360°' : 'ROTATE TO GLOWING DOT';
+    }
+
+    if (typeof showToast === 'function') {
+      showToast(mode === 'sweep'
+        ? '⚡ Matterport 1-Sweep Mode: Tap "START SWEEP" and turn in a smooth 360° circle.'
+        : '🎯 Matterport Guided Radar: Rotate to each dot; auto-snaps when locked.');
+    }
+  };
+
+  window.recenterScannerGyro = function () {
+    scanBaseYawOffset = scanSmoothYaw + scanBaseYawOffset;
+    scanCurrentYaw = 0;
+    scanSmoothYaw = 0;
+    scanCurrentPitch = 0;
+    scanSmoothPitch = 0;
+    if (typeof showToast === 'function') {
+      showToast('🎯 Heading calibrated! Current view set to 0° forward.');
+    }
+  };
 
   window.open360CameraScanner = async function (mode = 'new_room') {
     const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
@@ -3993,6 +5126,7 @@
     if (!modal) return;
     modal.style.display = 'flex';
 
+    window.switchScanCaptureMode(scanCaptureMode || 'sweep');
     renderScanSlotsRibbon();
     updateScanProgressBar();
     clearStitchPreviewCanvas();
@@ -4006,10 +5140,6 @@
     // Start UI Animation Loop
     if (scanLoopAnimId) cancelAnimationFrame(scanLoopAnimId);
     runScannerLoop();
-
-    if (typeof showToast === 'function') {
-      showToast('📸 HDReye mode: hold phone upright and TURN your body — circles stay on the walls. Center a circle → auto-snap.');
-    }
   };
 
   async function startScannerCameraFeed() {
@@ -4034,32 +5164,18 @@
       scanStream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = scanStream;
       await video.play().catch(e => console.warn('Video play deferred:', e));
-
-      if (!video._hasResumeGuard) {
-        video._hasResumeGuard = true;
-        // If the browser suspends video (e.g. tab switch or focus shift), resume playback immediately
-        video.addEventListener('pause', () => {
-          const modal = document.getElementById('tourCameraScanModal');
-          if (modal && modal.style.display !== 'none' && video.srcObject && scanStream && scanStream.active) {
-            video.play().catch(() => {});
-          }
-        });
-      }
     } catch (err) {
-      console.warn('[SpotLIGHT 360 Scanner] Camera stream error with high-res, fallback to standard video:', err);
+      console.warn('[Matterport 360 Scanner] Camera fallback:', err);
       try {
         scanStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         video.srcObject = scanStream;
         await video.play().catch(e => console.warn('Video play deferred fallback:', e));
       } catch (err2) {
-        console.error('[SpotLIGHT 360 Scanner] Camera access failed:', err2);
+        console.error('[Matterport 360 Scanner] Camera access failed:', err2);
         const ringStatus = document.getElementById('scanRingStatus');
         if (ringStatus) {
-          ringStatus.textContent = 'CAMERA BLOCKED · ALLOW PERMISSIONS';
+          ringStatus.textContent = 'CAMERA BLOCKED · ALLOW PERMISSION';
           ringStatus.style.color = '#FF4D6D';
-        }
-        if (typeof showToast === 'function') {
-          showToast('⚠️ Camera permission needed to scan. Please allow camera in browser settings.');
         }
       }
     }
@@ -4069,26 +5185,21 @@
     scanCameraFacing = (scanCameraFacing === 'environment') ? 'user' : 'environment';
     await startScannerCameraFeed();
     if (typeof showToast === 'function') {
-      showToast(`🔄 Camera switched to: ${scanCameraFacing === 'environment' ? 'Rear / World' : 'Front / Self'}`);
+      showToast(`🔄 Camera switched to: ${scanCameraFacing === 'environment' ? 'Rear / Room' : 'Front / Self'}`);
     }
   };
 
-  // ===== GYRO AIM (HDReye-style world-locked targets) =====
+  // ===== ROCK-SOLID MATTERPORT GYRO ORIENTATION (ZERO JUMPING) =====
   let _scanOrientHandler = null;
-  let _scanOrientAbsHandler = null;
   let _scanRelSensor = null;
   let _scanGyroPrimed = false;
+  let _lastRawYaw = null;
 
   function stopScannerGyroListeners() {
     if (_scanOrientHandler) {
       window.removeEventListener('deviceorientation', _scanOrientHandler, true);
       window.removeEventListener('deviceorientation', _scanOrientHandler, false);
       _scanOrientHandler = null;
-    }
-    if (_scanOrientAbsHandler) {
-      window.removeEventListener('deviceorientationabsolute', _scanOrientAbsHandler, true);
-      window.removeEventListener('deviceorientationabsolute', _scanOrientAbsHandler, false);
-      _scanOrientAbsHandler = null;
     }
     if (_scanRelSensor) {
       try { _scanRelSensor.stop(); } catch (e) {}
@@ -4108,7 +5219,6 @@
     if (scanIsDragging) return;
 
     if (!_scanGyroPrimed) {
-      // First reading = "forward" — all targets relative to this facing (like HDReye)
       scanBaseYawOffset = yawDeg;
       scanSmoothYaw = 0;
       scanSmoothPitch = pitchDeg;
@@ -4116,7 +5226,7 @@
       scanCurrentPitch = pitchDeg;
       _scanGyroPrimed = true;
       scanHasGyro = true;
-      setSensorPill('📳 GYRO AIM ON · TURN PHONE', '#06D6A0');
+      setSensorPill('📳 GYRO ACTIVE · READY', '#06D6A0');
       var btn = document.getElementById('scanEnableGyroBtn');
       if (btn) {
         btn.textContent = '✅ GYRO ACTIVE';
@@ -4128,14 +5238,19 @@
 
     scanHasGyro = true;
     var targetYaw = normalizeAngle360(yawDeg - scanBaseYawOffset);
-    var targetPitch = Math.max(-85, Math.min(85, pitchDeg));
+    var targetPitch = Math.max(-45, Math.min(45, pitchDeg));
 
-    // Responsive follow so dots stay on walls while you turn
+    // Low-pass exponential moving average with unwrapped angle delta to eliminate jitter
     var dy = angleDiffSigned(targetYaw, scanSmoothYaw);
-    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.5);
-    scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.5;
+    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.35);
+    scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.35;
     scanCurrentYaw = scanSmoothYaw;
     scanCurrentPitch = scanSmoothPitch;
+
+    // In continuous sweep mode, sample keyframes automatically
+    if (scanIsSweeping) {
+      handleContinuousSweepProgress();
+    }
   }
 
   function onDeviceOrientationEvent(e) {
@@ -4143,34 +5258,19 @@
     if (e.beta === null || e.beta === undefined) return;
 
     var rawYaw;
-    // iOS compass heading is most stable when present
     if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
       rawYaw = e.webkitCompassHeading;
     } else if (e.absolute === true) {
       rawYaw = e.alpha;
     } else {
-      // Browser relative alpha (0–360). Invert so turning right increases yaw consistently
       rawYaw = (360 - e.alpha);
     }
 
-    // Map beta/gamma → pitch depending on screen orientation
-    var rawPitch;
-    var orient = 0;
-    try {
-      if (screen.orientation && typeof screen.orientation.angle === 'number') {
-        orient = screen.orientation.angle;
-      } else if (typeof window.orientation === 'number') {
-        orient = window.orientation;
-      }
-    } catch (err) {}
-
-    if (orient === 90 || orient === -270) {
-      rawPitch = -(e.gamma != null ? e.gamma : 0);
-    } else if (orient === -90 || orient === 270) {
-      rawPitch = (e.gamma != null ? e.gamma : 0);
-    } else {
-      // Portrait: beta ~90 when upright → pitch 0
-      rawPitch = (e.beta != null ? e.beta : 90) - 90;
+    // Stabilized pitch from beta (upright phone: beta ~ 85-95 -> pitch 0)
+    var rawPitch = (e.beta != null ? e.beta : 90) - 90;
+    if (e.gamma != null && Math.abs(e.gamma) > 45) {
+      // Phone is held horizontally/landscape
+      rawPitch = e.gamma > 0 ? (90 - e.gamma) : (-90 - e.gamma);
     }
 
     applyGyroLook(rawYaw, rawPitch);
@@ -4181,86 +5281,50 @@
     _scanGyroPrimed = false;
     scanHasGyro = false;
 
-    // Modern Generic Sensor API (Chrome Android) — best when available
+    // Chrome RelativeOrientationSensor if available
     try {
       if (typeof RelativeOrientationSensor === 'function') {
         var sensor = new RelativeOrientationSensor({ frequency: 60, referenceFrame: 'screen' });
         sensor.onreading = function () {
-          // quaternion [x,y,z,w] → yaw/pitch
           var q = sensor.quaternion;
           if (!q) return;
           var x = q[0], y = q[1], z = q[2], w = q[3];
-          // yaw (heading around Y)
           var siny = 2 * (w * y + z * x);
           var cosy = 1 - 2 * (y * y + x * x);
           var yaw = Math.atan2(siny, cosy) * (180 / Math.PI);
-          // pitch
           var sinp = 2 * (w * x - y * z);
-          var pitch;
-          if (Math.abs(sinp) >= 1) pitch = (sinp > 0 ? 1 : -1) * 90;
-          else pitch = Math.asin(sinp) * (180 / Math.PI);
+          var pitch = Math.asin(Math.max(-1, Math.min(1, sinp))) * (180 / Math.PI);
           applyGyroLook(normalizeAngle360(yaw), -pitch);
-        };
-        sensor.onerror = function () {
-          // fall through — deviceorientation still attached below
         };
         sensor.start();
         _scanRelSensor = sensor;
       }
-    } catch (err) {
-      // ignore — use deviceorientation
-    }
+    } catch (err) {}
 
     _scanOrientHandler = onDeviceOrientationEvent;
-    _scanOrientAbsHandler = onDeviceOrientationEvent;
     window.addEventListener('deviceorientation', _scanOrientHandler, true);
-    window.addEventListener('deviceorientationabsolute', _scanOrientAbsHandler, true);
-
-    setSensorPill('📳 MOVE PHONE — calibrating…', '#FFD23F');
-
-    setTimeout(function () {
-      if (!scanHasGyro) {
-        setSensorPill('👆 DRAG TO AIM (gyro not available)', '#FFD23F');
-        var btn = document.getElementById('scanEnableGyroBtn');
-        if (btn) {
-          btn.textContent = '🧭 TAP TO RETRY GYRO';
-          btn.style.background = '#FFD23F';
-        }
-      }
-    }, 3000);
+    setSensorPill('📳 MOTION READY', '#06D6A0');
   }
 
-  // MUST be called from a tap (iOS requirement)
   window.enableScannerGyroAim = async function () {
     var btn = document.getElementById('scanEnableGyroBtn');
     if (btn) {
       btn.textContent = '⏳ REQUESTING…';
       btn.disabled = true;
     }
-    setSensorPill('🔐 Allow Motion when prompted', '#FFD23F');
 
     try {
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
         var resp = await DeviceOrientationEvent.requestPermission();
         if (resp !== 'granted') {
-          setSensorPill('👆 DRAG TO AIM (motion denied)', '#FF4D6D');
+          setSensorPill('👆 DRAG TO ROTATE', '#FF4D6D');
           if (btn) {
-            btn.textContent = '🧭 GYRO BLOCKED — USE DRAG';
+            btn.textContent = '🧭 MOTION DENIED (DRAG TO ROTATE)';
             btn.disabled = false;
-            btn.style.background = '#FF4D6D';
-            btn.style.color = '#fff';
-          }
-          if (typeof showToast === 'function') {
-            showToast('Motion denied. Enable in Settings → Safari → Motion & Orientation Access');
           }
           return;
         }
-      }
-      // Also try DeviceMotion permission on some iOS versions
-      if (typeof DeviceMotionEvent !== 'undefined' &&
-          typeof DeviceMotionEvent.requestPermission === 'function') {
-        try { await DeviceMotionEvent.requestPermission(); } catch (e) {}
       }
     } catch (err) {
       console.warn('[Scanner gyro permission]', err);
@@ -4269,10 +5333,9 @@
     startOrientationListeners();
     if (btn) {
       btn.disabled = false;
-      btn.textContent = '🧭 CALIBRATING… TURN PHONE';
-    }
-    if (typeof showToast === 'function') {
-      showToast('Hold phone upright and slowly turn in a circle — targets lock to the room');
+      btn.textContent = '✅ MOTION ACTIVE';
+      btn.style.background = '#06D6A0';
+      btn.style.color = '#0d1b1e';
     }
   };
 
@@ -4280,24 +5343,14 @@
     var viewfinder = document.getElementById('scanViewfinderArea');
     _scanGyroPrimed = false;
     scanHasGyro = false;
-    setSensorPill('👉 TAP “ENABLE GYRO AIM”', '#FFD23F');
 
-    var btn = document.getElementById('scanEnableGyroBtn');
-    if (btn) {
-      btn.textContent = '🧭 ENABLE GYRO AIM';
-      btn.style.background = '#FFD23F';
-      btn.style.color = '#14121A';
-      btn.disabled = false;
-    }
-
-    // Auto-try on Android / desktop (no permission API). iOS still needs the button.
     var needsTap = (typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function');
     if (!needsTap) {
       startOrientationListeners();
     }
 
-    // Finger drag always available as backup
+    // Touch & mouse drag support
     if (viewfinder && !viewfinder._hasDragListeners) {
       viewfinder._hasDragListeners = true;
 
@@ -4312,10 +5365,11 @@
         if (!scanIsDragging) return;
         var dx = cx - scanDragStartX;
         var dy = cy - scanDragStartY;
-        scanCurrentYaw = normalizeAngle360(scanDragStartYaw - dx * 0.42);
-        scanCurrentPitch = Math.max(-85, Math.min(85, scanDragStartPitch + dy * 0.42));
+        scanCurrentYaw = normalizeAngle360(scanDragStartYaw - dx * 0.45);
+        scanCurrentPitch = Math.max(-45, Math.min(45, scanDragStartPitch + dy * 0.45));
         scanSmoothYaw = scanCurrentYaw;
         scanSmoothPitch = scanCurrentPitch;
+        if (scanIsSweeping) handleContinuousSweepProgress();
       };
       var onEnd = function () { scanIsDragging = false; };
 
@@ -4337,17 +5391,131 @@
     }
   }
 
-  var scanPrevYaw = 0;
-  var scanPrevPitch = 0;
-  var scanMotionSpeed = 0;
+  // ===== MATTERPORT 1-SWEEP CONTINUOUS ROTATION ENGINE =====
+  window.toggleContinuousSweep = function () {
+    if (scanIsSweeping) {
+      // Stop sweep
+      scanIsSweeping = false;
+      var btn = document.getElementById('scanSweepStartBtn');
+      if (btn) {
+        btn.textContent = '▶ START SWEEP';
+        btn.style.background = '#06D6A0';
+        btn.style.color = '#0d1b1e';
+      }
+      return;
+    }
 
-  window.toggleScanGuideHelp = function () {
-    var b = document.getElementById('scanProGuideBanner');
-    if (b) {
-      var isHidden = b.style.display === 'none';
-      b.style.display = isHidden ? 'block' : 'none';
+    // Start sweep
+    scanIsSweeping = true;
+    scanSweepStartYaw = scanCurrentYaw;
+    scanSweepCoveredDeg = 0;
+    scanSweepLastSampleYaw = scanCurrentYaw;
+    scanSweepSamples = [];
+    initScanSlots();
+
+    var btn = document.getElementById('scanSweepStartBtn');
+    if (btn) {
+      btn.textContent = '⏹ STOP SWEEP';
+      btn.style.background = '#FF4D6D';
+      btn.style.color = '#fff';
+    }
+
+    // Take initial 0° sample
+    grabSweepFrame(0);
+
+    if (typeof showToast === 'function') {
+      showToast('⚡ Sweep active! Slowly turn your body in a full circle.');
     }
   };
+
+  function grabSweepFrame(targetSlotIdx) {
+    const video = document.getElementById('scanVideoFeed');
+    const workCanvas = document.getElementById('scanWorkCanvas');
+    const flashFx = document.getElementById('scanFlashFx');
+    if (!video || !workCanvas) return;
+
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+    if (vw === 0 || vh === 0) return;
+
+    workCanvas.width = vw;
+    workCanvas.height = vh;
+    const ctx = workCanvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, vw, vh);
+
+    const sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = vw;
+    sliceCanvas.height = vh;
+    sliceCanvas.getContext('2d').drawImage(workCanvas, 0, 0);
+
+    const slotIdx = (typeof targetSlotIdx === 'number' && targetSlotIdx >= 0 && targetSlotIdx < scanSlots.length)
+      ? targetSlotIdx
+      : Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
+
+    scanSlots[slotIdx].captured = true;
+    scanSlots[slotIdx].imgCanvas = sliceCanvas;
+    scanSlots[slotIdx].timestamp = Date.now();
+    scanSlots[slotIdx].captureYaw = scanCurrentYaw;
+    scanSlots[slotIdx].capturePitch = scanCurrentPitch;
+
+    if (flashFx) {
+      flashFx.classList.add('flash');
+      setTimeout(() => flashFx.classList.remove('flash'), 120);
+    }
+    if (navigator.vibrate) navigator.vibrate([25]);
+
+    updateStitchPreviewRibbon();
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
+  }
+
+  function handleContinuousSweepProgress() {
+    const dYaw = angleDiffSigned(scanCurrentYaw, scanSweepLastSampleYaw);
+    if (Math.abs(dYaw) >= 18) {
+      // Capture frame at this angle step
+      scanSweepLastSampleYaw = scanCurrentYaw;
+      const targetSlot = Math.floor((scanCurrentYaw / 360) * SCAN_TOTAL_NODES) % SCAN_TOTAL_NODES;
+      grabSweepFrame(targetSlot);
+    }
+
+    // Compute total progress towards 360°
+    const capturedCount = scanSlots.filter(s => s.captured).length;
+    const progressDeg = Math.min(360, Math.round((capturedCount / SCAN_TOTAL_NODES) * 360));
+    scanSweepCoveredDeg = progressDeg;
+
+    // Update Sweep SVG Ring
+    const progressCircle = document.getElementById('scanSweepProgressCircle');
+    const degLabel = document.getElementById('scanSweepDegLabel');
+    const subLabel = document.getElementById('scanSweepSubLabel');
+
+    if (progressCircle) {
+      const maxOffset = 534;
+      const offset = maxOffset * (1 - (progressDeg / 360));
+      progressCircle.style.strokeDashoffset = String(offset);
+    }
+    if (degLabel) degLabel.textContent = `${progressDeg}°`;
+
+    if (capturedCount >= SCAN_TOTAL_NODES) {
+      scanIsSweeping = false;
+      if (subLabel) {
+        subLabel.textContent = '✓ COMPLETE!';
+        subLabel.style.color = '#06D6A0';
+      }
+      var btn = document.getElementById('scanSweepStartBtn');
+      if (btn) {
+        btn.textContent = '✨ 360° CAPTURED';
+        btn.style.background = '#FFD23F';
+        btn.style.color = '#14121A';
+      }
+      if (typeof showToast === 'function') {
+        showToast('🎉 360° sweep complete! Stitching photosphere…');
+      }
+      // Auto-trigger stitch after brief delay
+      setTimeout(() => {
+        window.finishAndUse360Stitch();
+      }, 600);
+    }
+  }
 
   function runScannerLoop() {
     const anglePill = document.getElementById('scanAnglePill');
@@ -4359,175 +5527,138 @@
     const guideText = document.getElementById('scanGuideText');
     const viewfinder = document.getElementById('scanViewfinderArea');
 
-    // Compute angular motion velocity to ensure camera is held steady before auto-snap
-    const dYawFrame = Math.abs(angleDiffSigned(scanCurrentYaw, scanPrevYaw));
-    const dPitchFrame = Math.abs(scanCurrentPitch - scanPrevPitch);
-    scanMotionSpeed = scanMotionSpeed * 0.7 + Math.hypot(dYawFrame, dPitchFrame) * 0.3;
-    scanPrevYaw = scanCurrentYaw;
-    scanPrevPitch = scanCurrentPitch;
-    const isCameraSteady = scanMotionSpeed < 1.8;
-
     if (anglePill) {
-      anglePill.textContent = `YAW: ${Math.round(scanCurrentYaw)}° · PITCH: ${Math.round(scanCurrentPitch)}°`;
+      anglePill.textContent = `${Math.round(scanCurrentYaw)}° / 360°`;
     }
 
-    if (viewfinder && nodesLayer) {
+    if (viewfinder) {
       const vw = viewfinder.clientWidth || window.innerWidth;
       const vh = viewfinder.clientHeight || (window.innerHeight * 0.6);
       const centerX = vw / 2;
       const centerY = vh / 2;
-      // Approximate horizontal & vertical FOV of phone camera on screen
-      // Wider virtual FOV = more guide circles visible at once (HDReye-like density)
-      const hFov = 78;
-      const vFov = Math.max(50, hFov * (vh / Math.max(vw, 1)));
+      const hFov = 75;
+      const vFov = 50;
 
-      // Create nodes ONCE
-      if (!scanNodesInitialized) {
-        nodesLayer.innerHTML = '';
-        scanNodeEls = scanSlots.map((slot, idx) => {
-          const el = document.createElement('div');
-          el.className = 'scan-node-marker pending';
-          el.dataset.idx = String(idx);
-          el.innerHTML = '<span></span>';
-          el.style.pointerEvents = 'auto';
-          el.onclick = () => window.captureSpecificScanAngle(idx);
-          nodesLayer.appendChild(el);
-          return el;
-        });
-        scanNodesInitialized = true;
-      }
-
-      let closestUncapturedIdx = -1;
-      let minAngularDistance = 999;
-      let alignedTargetIdx = -1;
-
-      // First pass: find nearest uncaptured target (HDReye "next blue dot")
-      for (let idx = 0; idx < scanSlots.length; idx++) {
-        const slot = scanSlots[idx];
-        if (slot.captured) continue;
-        const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
-        const diffPitch = slot.pitch - scanCurrentPitch;
-        const angularDist = Math.hypot(diffYaw, diffPitch);
-        if (angularDist < minAngularDistance) {
-          minAngularDistance = angularDist;
-          closestUncapturedIdx = idx;
-        }
-      }
-
-      // Update every node — next target is BIG/bright, others faint (HDReye style)
-      for (let idx = 0; idx < scanSlots.length; idx++) {
-        const slot = scanSlots[idx];
-        const el = scanNodeEls[idx];
-        if (!el) continue;
-
-        const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
-        const diffPitch = slot.pitch - scanCurrentPitch;
-        const angularDist = Math.hypot(diffYaw, diffPitch);
-
-        // Project relative to current look direction (world-locked targets)
-        const screenX = centerX + (diffYaw / hFov) * vw;
-        const screenY = centerY - (diffPitch / vFov) * vh;
-        const isVisible = Math.abs(diffYaw) < hFov * 1.25 && Math.abs(diffPitch) < vFov * 1.25;
-
-        if (!slot.captured && angularDist < 9) {
-          alignedTargetIdx = idx;
+      // Update Matterport 12-Stop Radar nodes if in radar mode
+      if (scanCaptureMode === 'radar' && nodesLayer) {
+        if (!scanNodesInitialized) {
+          nodesLayer.innerHTML = '';
+          scanNodeEls = scanSlots.map((slot, idx) => {
+            const el = document.createElement('div');
+            el.className = 'scan-node-marker pending';
+            el.dataset.idx = String(idx);
+            el.innerHTML = '<span></span>';
+            el.style.pointerEvents = 'auto';
+            el.onclick = () => window.captureSpecificScanAngle(idx);
+            nodesLayer.appendChild(el);
+            return el;
+          });
+          scanNodesInitialized = true;
         }
 
-        el.style.transform = 'translate3d(' + screenX + 'px, ' + screenY + 'px, 0) translate(-50%, -50%)';
-        el.style.visibility = isVisible ? 'visible' : 'hidden';
-        el.style.pointerEvents = isVisible ? 'auto' : 'none';
+        let closestUncapturedIdx = -1;
+        let minAngularDistance = 999;
+        let alignedTargetIdx = -1;
 
-        const span = el.querySelector('span');
-        el.classList.remove('pending', 'aligned', 'captured', 'next-target');
-        if (slot.captured) {
-          el.classList.add('captured');
-          el.style.opacity = isVisible ? '0.85' : '0';
-          if (span) span.textContent = '✓';
-        } else if (angularDist < 9) {
-          el.classList.add('aligned');
-          el.style.opacity = '1';
-          if (span) span.textContent = '●';
-        } else if (idx === closestUncapturedIdx) {
-          // THE active HDReye-style target — large & bright
-          el.classList.add('pending', 'next-target');
-          el.style.opacity = isVisible ? '1' : '0';
-          if (span) span.textContent = '';
-        } else {
-          // Other remaining targets — small faint dots
-          el.classList.add('pending');
-          el.style.opacity = isVisible ? '0.35' : '0';
-          if (span) span.textContent = '';
+        for (let idx = 0; idx < scanSlots.length; idx++) {
+          const slot = scanSlots[idx];
+          if (slot.captured) continue;
+          const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+          const diffPitch = slot.pitch - scanCurrentPitch;
+          const angularDist = Math.hypot(diffYaw, diffPitch);
+          if (angularDist < minAngularDistance) {
+            minAngularDistance = angularDist;
+            closestUncapturedIdx = idx;
+          }
         }
-      }
 
-      // Center reticle
-      if (alignedTargetIdx !== -1) {
-        const slot = scanSlots[alignedTargetIdx];
-        if (centerRing) {
-          centerRing.classList.add('aligned');
-          centerRing.classList.toggle('captured', !!slot.captured);
-        }
-        if (ringStatus) {
-          const rowLabel = slot.pitch > 15 ? 'UP' : (slot.pitch < -15 ? 'DOWN' : 'LEVEL');
+        for (let idx = 0; idx < scanSlots.length; idx++) {
+          const slot = scanSlots[idx];
+          const el = scanNodeEls[idx];
+          if (!el) continue;
+
+          const diffYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
+          const diffPitch = slot.pitch - scanCurrentPitch;
+          const angularDist = Math.hypot(diffYaw, diffPitch);
+
+          const screenX = centerX + (diffYaw / hFov) * vw;
+          const screenY = centerY - (diffPitch / vFov) * vh;
+          const isVisible = Math.abs(diffYaw) < hFov * 1.1 && Math.abs(diffPitch) < vFov * 1.1;
+
+          if (!slot.captured && angularDist < 8.5) {
+            alignedTargetIdx = idx;
+          }
+
+          el.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
+          el.style.visibility = isVisible ? 'visible' : 'hidden';
+
+          const span = el.querySelector('span');
+          el.classList.remove('pending', 'aligned', 'captured', 'next-target');
+
           if (slot.captured) {
-            ringStatus.textContent = `✓ CAPTURED (${rowLabel})`;
-            ringStatus.style.color = '#06D6A0';
-          } else if (!isCameraSteady) {
-            ringStatus.textContent = `HOLD STEADY (${rowLabel})`;
-            ringStatus.style.color = '#FFD23F';
+            el.classList.add('captured');
+            el.style.opacity = isVisible ? '0.75' : '0';
+            if (span) span.textContent = '✓';
+          } else if (angularDist < 8.5) {
+            el.classList.add('aligned');
+            el.style.opacity = '1';
+            if (span) span.textContent = '●';
+          } else if (idx === closestUncapturedIdx) {
+            el.classList.add('pending', 'next-target');
+            el.style.opacity = isVisible ? '1' : '0';
+            if (span) span.textContent = '';
           } else {
-            ringStatus.textContent = `LOCKED · SNAPPING (${rowLabel})`;
-            ringStatus.style.color = '#06D6A0';
+            el.classList.add('pending');
+            el.style.opacity = isVisible ? '0.25' : '0';
+            if (span) span.textContent = '';
           }
         }
 
-        if (scanAutoSnap && !slot.captured && isCameraSteady) {
-          if (scanAlignedAngleIdx !== alignedTargetIdx) {
-            scanAlignedAngleIdx = alignedTargetIdx;
-            clearTimeout(scanAlignTimer);
-            scanAlignTimer = setTimeout(function () {
-              if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
-                window.captureCurrentScanAngle();
-              }
-            }, 320);
+        // Center reticle feedback
+        if (alignedTargetIdx !== -1) {
+          const slot = scanSlots[alignedTargetIdx];
+          if (centerRing) {
+            centerRing.classList.add('aligned');
+            centerRing.classList.toggle('captured', !!slot.captured);
           }
-        }
-      } else {
-        scanAlignedAngleIdx = -1;
-        clearTimeout(scanAlignTimer);
-        if (centerRing) {
-          centerRing.classList.remove('aligned', 'captured');
-        }
-        if (ringStatus) {
-          ringStatus.textContent = 'AIM AT A CIRCLE';
-          ringStatus.style.color = 'rgba(255,255,255,0.75)';
-        }
-      }
-
-      // Guidance
-      if (closestUncapturedIdx !== -1 && guideArrow && guideText && guideIcon) {
-        const t = scanSlots[closestUncapturedIdx];
-        const dYaw = angleDiffSigned(t.yaw, scanCurrentYaw);
-        const dPitch = t.pitch - scanCurrentPitch;
-        const absYaw = Math.abs(dYaw);
-        const absPitch = Math.abs(dPitch);
-
-        if (absYaw > 10 || absPitch > 10) {
-          guideArrow.style.display = 'flex';
-          let dir = '';
-          if (absPitch > absYaw) {
-            dir = dPitch > 0 ? 'TILT UP ↑' : 'TILT DOWN ↓';
-            guideIcon.textContent = dPitch > 0 ? '↑' : '↓';
-          } else {
-            dir = dYaw > 0 ? 'TURN RIGHT ➔' : '⬅ TURN LEFT';
-            guideIcon.textContent = dYaw > 0 ? '➔' : '⬅';
+          if (ringStatus) {
+            ringStatus.textContent = slot.captured ? `✓ CAPTURED (${Math.round(slot.yaw)}°)` : `LOCK · HOLD STEADY`;
+            ringStatus.style.color = slot.captured ? '#06D6A0' : '#FFD23F';
           }
-          guideText.textContent = `${dir}  ·  next target`;
+
+          if (scanAutoSnap && !slot.captured) {
+            if (scanAlignedAngleIdx !== alignedTargetIdx) {
+              scanAlignedAngleIdx = alignedTargetIdx;
+              clearTimeout(scanAlignTimer);
+              scanAlignTimer = setTimeout(function () {
+                if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
+                  window.captureSpecificScanAngle(alignedTargetIdx);
+                }
+              }, 340);
+            }
+          }
         } else {
-          guideArrow.style.display = 'none';
+          scanAlignedAngleIdx = -1;
+          clearTimeout(scanAlignTimer);
+          if (centerRing) centerRing.classList.remove('aligned', 'captured');
+          if (ringStatus) {
+            ringStatus.textContent = 'ROTATE TO TARGET DOT';
+            ringStatus.style.color = 'rgba(255,255,255,0.75)';
+          }
         }
-      } else if (guideArrow) {
-        guideArrow.style.display = 'none';
+
+        // Guidance arrow
+        if (closestUncapturedIdx !== -1 && guideArrow && guideText && guideIcon) {
+          const t = scanSlots[closestUncapturedIdx];
+          const dYaw = angleDiffSigned(t.yaw, scanCurrentYaw);
+          if (Math.abs(dYaw) > 8) {
+            guideArrow.style.display = 'flex';
+            guideIcon.textContent = dYaw > 0 ? '➔' : '⬅';
+            guideText.textContent = `${dYaw > 0 ? 'TURN RIGHT ➔' : '⬅ TURN LEFT'} to ${Math.round(t.yaw)}°`;
+          } else {
+            guideArrow.style.display = 'none';
+          }
+        }
       }
     }
 
@@ -4542,76 +5673,24 @@
     scanAutoSnap = chk ? chk.checked : !scanAutoSnap;
   };
 
-  window.manualStepAngle = function (delta) {
-    scanCurrentYaw = normalizeAngle360(scanCurrentYaw + delta);
-    scanSmoothYaw = scanCurrentYaw;
-  };
-
   window.captureCurrentScanAngle = function () {
     let closestIdx = 0;
     let minDiff = 999;
-
     scanSlots.forEach((slot, idx) => {
-      const dYaw = angleDiffSigned(slot.yaw, scanCurrentYaw);
-      const dPitch = slot.pitch - scanCurrentPitch;
-      const diff = Math.hypot(dYaw, dPitch);
-      if (diff < minDiff) {
-        minDiff = diff;
+      const dYaw = Math.abs(angleDiffSigned(slot.yaw, scanCurrentYaw));
+      if (dYaw < minDiff) {
+        minDiff = dYaw;
         closestIdx = idx;
       }
     });
-
     window.captureSpecificScanAngle(closestIdx);
   };
 
   window.captureSpecificScanAngle = function (slotIdx) {
-    const video = document.getElementById('scanVideoFeed');
-    const workCanvas = document.getElementById('scanWorkCanvas');
-    const flashFx = document.getElementById('scanFlashFx');
-    if (!video || !workCanvas || slotIdx < 0 || slotIdx >= scanSlots.length) return;
-
-    const vw = video.videoWidth || 1280;
-    const vh = video.videoHeight || 720;
-    if (vw === 0 || vh === 0) return;
-
-    workCanvas.width = vw;
-    workCanvas.height = vh;
-    const ctx = workCanvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, vw, vh);
-
-    // Save frame in memory canvas
-    const sliceCanvas = document.createElement('canvas');
-    sliceCanvas.width = vw;
-    sliceCanvas.height = vh;
-    const sliceCtx = sliceCanvas.getContext('2d');
-    sliceCtx.drawImage(workCanvas, 0, 0);
-
-    scanSlots[slotIdx].captured = true;
-    scanSlots[slotIdx].imgCanvas = sliceCanvas;
-    scanSlots[slotIdx].timestamp = Date.now();
-    // Record real aim at snap time (more accurate than ideal slot angle)
-    scanSlots[slotIdx].captureYaw = scanCurrentYaw;
-    scanSlots[slotIdx].capturePitch = scanCurrentPitch;
-
-    // Trigger Visual Flash & Haptics
-    if (flashFx) {
-      flashFx.classList.add('flash');
-      setTimeout(() => flashFx.classList.remove('flash'), 220);
-    }
-
-    if (navigator.vibrate) {
-      navigator.vibrate([40]);
-    }
-
-    // Update real-time panorama preview ribbon
-    updateStitchPreviewRibbon();
-    renderScanSlotsRibbon();
-    updateScanProgressBar();
-
+    grabSweepFrame(slotIdx);
     if (typeof showToast === 'function') {
       const capturedCount = scanSlots.filter(s => s.captured).length;
-      const s = scanSlots[slotIdx]; const row = s.pitch > 15 ? 'UP' : (s.pitch < -15 ? 'DOWN' : 'LEVEL');
-      showToast(`📸 ${row} ${Math.round(s.yaw)}° captured! (${capturedCount}/${SCAN_TOTAL_NODES})`);
+      showToast(`📸 Angle ${Math.round(scanSlots[slotIdx].yaw)}° captured! (${capturedCount}/${SCAN_TOTAL_NODES})`);
     }
   };
 
@@ -4623,19 +5702,19 @@
     const barFill = document.getElementById('scanProgressBarFill');
     const finishBtn = document.getElementById('scanFinishUseBtn');
 
-    if (label) label.textContent = `${capturedCount} / ${SCAN_TOTAL_NODES} ANGLES CAPTURED (${percent}%)`;
+    if (label) label.textContent = `${capturedCount} / ${SCAN_TOTAL_NODES} ANGLES (${percent}%)`;
     if (barFill) barFill.style.width = `${percent}%`;
 
     if (finishBtn) {
-      if (capturedCount >= 8) {
+      if (capturedCount >= 6) {
         finishBtn.style.opacity = '1';
         finishBtn.style.pointerEvents = 'auto';
         finishBtn.disabled = false;
-        finishBtn.textContent = `✨ STITCH & USE 360° ROOM (${capturedCount}/${SCAN_TOTAL_NODES})`;
+        finishBtn.textContent = `✨ STITCH & SAVE 360° (${capturedCount}/${SCAN_TOTAL_NODES})`;
       } else {
         finishBtn.style.opacity = '0.6';
         finishBtn.disabled = false;
-        finishBtn.textContent = `✨ STITCH (need ${8 - capturedCount} more · aim for all 28)`;
+        finishBtn.textContent = `✨ STITCH (need ${6 - capturedCount} more)`;
       }
     }
   }
@@ -4646,10 +5725,9 @@
 
     track.innerHTML = scanSlots.map((slot, idx) => {
       const isCaptured = slot.captured;
-      const row = slot.pitch > 15 ? '↑' : (slot.pitch < -15 ? '↓' : '•');
       return `
         <div class="scan-slot-chip ${isCaptured ? 'captured' : ''}" onclick="window.manualJumpToSlot(${idx})">
-          <span style="font-size:10px;font-weight:800;">${row}${Math.round(slot.yaw)}°</span>
+          <span style="font-size:10px;font-weight:800;">${Math.round(slot.yaw)}°</span>
           <span style="font-size:9px;">${isCaptured ? '✓' : '○'}</span>
         </div>
       `;
@@ -4661,21 +5739,19 @@
     if (!slot) return;
     scanCurrentYaw = slot.yaw;
     scanSmoothYaw = slot.yaw;
-    scanCurrentPitch = slot.pitch;
-    scanSmoothPitch = slot.pitch;
   };
 
   function clearStitchPreviewCanvas() {
     const canvas = document.getElementById('panoStitchPreviewCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#1A1822';
+    ctx.fillStyle = '#14121A';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.font = '12px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Live 360° Equirectangular Preview · Snap angles to build room panorama', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('Live 360° Panorama Strip · Rotate phone to stitch room', canvas.width / 2, canvas.height / 2);
   }
 
   function updateStitchPreviewRibbon() {
@@ -4689,25 +5765,18 @@
     ctx.fillRect(0, 0, pw, ph);
 
     const sliceWidth = pw / SCAN_TOTAL_NODES;
-    const blendOverlap = sliceWidth * 0.28;
+    const blendOverlap = sliceWidth * 0.3;
 
     scanSlots.forEach((slot, idx) => {
       if (slot.captured && slot.imgCanvas) {
         const destX = idx * sliceWidth;
-
-        // Draw with smooth horizontal overlap
         ctx.save();
         ctx.drawImage(slot.imgCanvas, 0, 0, slot.imgCanvas.width, slot.imgCanvas.height, destX - blendOverlap / 2, 0, sliceWidth + blendOverlap, ph);
         ctx.restore();
       } else {
-        // Empty angle placeholder
-        ctx.fillStyle = 'rgba(255, 210, 63, 0.04)';
+        ctx.fillStyle = 'rgba(255, 210, 63, 0.05)';
         ctx.fillRect(idx * sliceWidth + 1, 0, sliceWidth - 2, ph);
-
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.strokeRect(idx * sliceWidth + 1, 0, sliceWidth - 2, ph);
-
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
         ctx.font = '10px monospace';
         ctx.textAlign = 'center';
         ctx.fillText(`${Math.round(slot.yaw)}°`, idx * sliceWidth + sliceWidth / 2, ph / 2);
@@ -4715,71 +5784,95 @@
     });
   }
 
-  let _scanResetConfirmTimer = null;
   window.resetCurrent360Scan = function () {
-    const resetBtn = document.getElementById('scanResetBtn');
-    const hasCaptured = scanSlots && scanSlots.some(s => s.captured);
-
-    // 2-step soft inline confirm so we never trigger a blocking browser modal that pauses/freezes video feeds
-    if (hasCaptured && !_scanResetConfirmTimer) {
-      if (resetBtn) {
-        resetBtn.textContent = '⚠️ SURE? TAP TO CLEAR';
-        resetBtn.style.background = '#FF4D6D';
-        resetBtn.style.color = '#fff';
-      }
-      if (typeof showToast === 'function') {
-        showToast('Tap "SURE? TAP TO CLEAR" to wipe current room angles');
-      }
-      _scanResetConfirmTimer = setTimeout(() => {
-        _scanResetConfirmTimer = null;
-        if (resetBtn) {
-          resetBtn.textContent = '🗑️ RESET SCAN';
-          resetBtn.style.background = 'rgba(255, 77, 109, 0.15)';
-          resetBtn.style.color = '#FF4D6D';
-        }
-      }, 3500);
-      return;
-    }
-
-    if (_scanResetConfirmTimer) {
-      clearTimeout(_scanResetConfirmTimer);
-      _scanResetConfirmTimer = null;
-    }
-    if (resetBtn) {
-      resetBtn.textContent = '🗑️ RESET SCAN';
-      resetBtn.style.background = 'rgba(255, 77, 109, 0.15)';
-      resetBtn.style.color = '#FF4D6D';
-    }
-
     initScanSlots();
-    scanNodesInitialized = false;
-    scanNodeEls = [];
-    const nodesLayer = document.getElementById('scanNodesLayer');
-    if (nodesLayer) nodesLayer.innerHTML = '';
     renderScanSlotsRibbon();
     updateScanProgressBar();
     clearStitchPreviewCanvas();
+    if (typeof showToast === 'function') showToast('🗑️ Scanner reset to 0°.');
+  };
 
-    // Ensure camera video is playing and not frozen by any browser pause
-    const video = document.getElementById('scanVideoFeed');
-    if (video) {
-      if (video.paused) {
-        video.play().catch(e => console.warn('Could not resume video play:', e));
-      }
-      if (!scanStream || !scanStream.active) {
-        startScannerCameraFeed();
-      }
-    }
+  /**
+   * Generates a 360° architectural room scan for instant testing and verification
+   */
+  window.simulateDemo360Scan = function () {
+    initScanSlots();
+    const work = document.createElement('canvas');
+    work.width = 960;
+    work.height = 720;
+    const wctx = work.getContext('2d');
 
-    // Ensure UI animation loop is active
-    if (scanLoopAnimId) {
-      cancelAnimationFrame(scanLoopAnimId);
-      scanLoopAnimId = null;
-    }
-    runScannerLoop();
+    const roomThemes = [
+      { name: 'North Living Room', sky: '#1f2430', wall: '#2d3345', floor: '#634b35', accent: '#FFD23F' },
+      { name: 'NE Fireplace & Art', sky: '#242a38', wall: '#343c50', floor: '#5a4330', accent: '#06D6A0' },
+      { name: 'East Grand Windows', sky: '#89a8c4', wall: '#e8edf2', floor: '#73573e', accent: '#4ea8de' },
+      { name: 'SE Mountain View Patio', sky: '#688ca8', wall: '#cfd8dc', floor: '#4a3828', accent: '#ffb703' },
+      { name: 'South Dining Suite', sky: '#2b2938', wall: '#3d394e', floor: '#614833', accent: '#fb8500' },
+      { name: 'SW Designer Kitchen', sky: '#20222a', wall: '#2e303b', floor: '#503b2b', accent: '#06D6A0' },
+      { name: 'West Marble Bar', sky: '#181a20', wall: '#232730', floor: '#423124', accent: '#FFD23F' },
+      { name: 'NW Modern Lounge', sky: '#1c1f28', wall: '#282d3a', floor: '#543f2e', accent: '#e63946' },
+      { name: 'North Corridor', sky: '#212530', wall: '#303646', floor: '#5e4632', accent: '#a8dadc' },
+      { name: 'NW Gallery Alcove', sky: '#1a1d26', wall: '#262a36', floor: '#4d3929', accent: '#f1faee' },
+      { name: 'North Entry Portal', sky: '#1d202b', wall: '#292f3d', floor: '#56402f', accent: '#FFD23F' },
+      { name: 'NNE Foyer & Lighting', sky: '#222632', wall: '#32394a', floor: '#604834', accent: '#06D6A0' }
+    ];
+
+    scanSlots.forEach((slot, idx) => {
+      const theme = roomThemes[idx % roomThemes.length];
+      wctx.fillStyle = theme.sky;
+      wctx.fillRect(0, 0, work.width, work.height * 0.35);
+
+      wctx.fillStyle = theme.wall;
+      wctx.fillRect(0, work.height * 0.35, work.width, work.height * 0.35);
+
+      wctx.fillStyle = theme.floor;
+      wctx.fillRect(0, work.height * 0.7, work.width, work.height * 0.3);
+
+      // Architectural pillar & window perspective lines
+      wctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      wctx.lineWidth = 4;
+      wctx.beginPath();
+      wctx.moveTo(work.width * 0.15, 0); wctx.lineTo(work.width * 0.25, work.height);
+      wctx.moveTo(work.width * 0.85, 0); wctx.lineTo(work.width * 0.75, work.height);
+      wctx.moveTo(0, work.height * 0.35); wctx.lineTo(work.width, work.height * 0.35);
+      wctx.moveTo(0, work.height * 0.7); wctx.lineTo(work.width, work.height * 0.7);
+      wctx.stroke();
+
+      // Feature glowing badge
+      wctx.fillStyle = theme.accent;
+      wctx.beginPath();
+      wctx.arc(work.width * 0.5, work.height * 0.5, 45, 0, Math.PI * 2);
+      wctx.fill();
+
+      wctx.fillStyle = '#14121A';
+      wctx.font = 'bold 20px sans-serif';
+      wctx.textAlign = 'center';
+      wctx.fillText(`${Math.round(slot.yaw)}°`, work.width * 0.5, work.height * 0.5 + 7);
+
+      wctx.fillStyle = 'rgba(255,255,255,0.92)';
+      wctx.font = 'bold 22px sans-serif';
+      wctx.fillText(theme.name, work.width * 0.5, work.height * 0.25);
+
+      const sliceCanvas = document.createElement('canvas');
+      sliceCanvas.width = work.width;
+      sliceCanvas.height = work.height;
+      sliceCanvas.getContext('2d').drawImage(work, 0, 0);
+
+      slot.captured = true;
+      slot.imgCanvas = sliceCanvas;
+      slot.timestamp = Date.now();
+      slot.captureYaw = slot.yaw;
+      slot.capturePitch = slot.pitch;
+    });
+
+    scanCurrentYaw = 360;
+    scanSmoothYaw = 360;
+    updateStitchPreviewRibbon();
+    renderScanSlotsRibbon();
+    updateScanProgressBar();
 
     if (typeof showToast === 'function') {
-      showToast('🗑️ 360° Scanner reset. You can start capturing from 0° again.');
+      showToast('🧪 Demo 360° Scan ready! Tap "STITCH & SAVE 360°" to stitch room.');
     }
   };
 
@@ -4787,11 +5880,11 @@
     const modal = document.getElementById('tourCameraScanModal');
     if (modal) modal.style.display = 'none';
 
+    scanIsSweeping = false;
     if (scanStream) {
       scanStream.getTracks().forEach(t => t.stop());
       scanStream = null;
     }
-
     if (scanLoopAnimId) {
       cancelAnimationFrame(scanLoopAnimId);
       scanLoopAnimId = null;
@@ -4799,9 +5892,9 @@
   };
 
   /**
-   * Stitches all captured slices into a seamless 2:1 High-Resolution Equirectangular Photosphere
-   * with True 3D Spherical Ray-Casting, Float32 Accumulators (zero halo / white blowouts),
-   * and Smooth Polar Ambient Inpainting.
+   * Matterport-Grade Equirectangular Photosphere Stitching Engine
+   * Mathematically re-projects rectilinear camera sensor frames onto a seamless 2:1 equirectangular sphere
+   * with zero-fog multi-frame normalization, high-order feathering, and natural polar diffusion.
    */
   window.finishAndUse360Stitch = async function () {
     var shots = [];
@@ -4810,9 +5903,7 @@
     }
     if (shots.length < 3) {
       if (typeof showToast === 'function') {
-        showToast('⚠️ Please capture at least 3 angles first.');
-      } else {
-        alert('Please capture at least 3 angles first.');
+        showToast('⚠️ Please capture at least 3 angles or tap "DEMO SCAN" to test.');
       }
       return;
     }
@@ -4822,26 +5913,34 @@
       finishBtn.textContent = '⏳ STITCHING 360° PHOTOSPHERE…';
       finishBtn.disabled = true;
     }
-    await new Promise(function (r) {
-      requestAnimationFrame(function () { requestAnimationFrame(r); });
-    });
+    await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
 
     try {
-      var W = 2560;
-      var H = 1280;
+      var W = 2048;
+      var H = 1024;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
       var ctx = canvas.getContext('2d');
 
-      // 1. Sample ambient ceiling and floor colors from frame edges for polar fill
-      var topR = 238, topG = 238, topB = 240;
-      var botR = 175, botG = 160, botB = 145;
+      // Separate clean Float32 accumulators (zero color bleed, zero fog)
+      var accumR = new Float32Array(W * H);
+      var accumG = new Float32Array(W * H);
+      var accumB = new Float32Array(W * H);
+      var accumWeight = new Float32Array(W * H);
+      var topCoverageRow = new Int32Array(W);
+      var botCoverageRow = new Int32Array(W);
+      topCoverageRow.fill(H);
+      botCoverageRow.fill(-1);
+
+      // 1. Compute ambient ceiling and floor colors from frame edges
+      var topR = 240, topG = 240, topB = 242;
+      var botR = 190, botG = 175, botB = 160;
       try {
         var topTotR = 0, topTotG = 0, topTotB = 0, topN = 0;
         var botTotR = 0, botTotG = 0, botTotB = 0, botN = 0;
 
-        shots.forEach(function (s) {
+        shots.forEach(s => {
           if (s.imgCanvas) {
             var sc = s.imgCanvas.getContext('2d').getImageData(0, 0, s.imgCanvas.width, s.imgCanvas.height).data;
             var w = s.imgCanvas.width;
@@ -4850,14 +5949,14 @@
             var botRows = Math.min(24, Math.floor(h * 0.08));
 
             for (var ty = 0; ty < topRows; ty++) {
-              for (var tx = 0; tx < w; tx += 8) {
+              for (var tx = 0; tx < w; tx += 6) {
                 var p = (ty * w + tx) * 4;
                 topTotR += sc[p]; topTotG += sc[p + 1]; topTotB += sc[p + 2];
                 topN++;
               }
             }
             for (var by = h - botRows; by < h; by++) {
-              for (var bx = 0; bx < w; bx += 8) {
+              for (var bx = 0; bx < w; bx += 6) {
                 var p2 = (by * w + bx) * 4;
                 botTotR += sc[p2]; botTotG += sc[p2 + 1]; botTotB += sc[p2 + 2];
                 botN++;
@@ -4878,41 +5977,18 @@
         }
       } catch (e) {}
 
-      // 2-pass Voronoi Winner-Take-All with Multi-Band Seam Feathering
-      // Eliminates double-vision ghosting, curtains, blurred monitors/furniture, and warping
-      var topCoverageRow = new Int32Array(W);
-      var botCoverageRow = new Int32Array(W);
-      topCoverageRow.fill(H);
-      botCoverageRow.fill(-1);
-
-      // Best shot assignment and distance metric per pixel
-      var bestShotId = new Int16Array(W * H);
-      bestShotId.fill(-1);
-      var bestDistSq = new Float32Array(W * H);
-      bestDistSq.fill(999.0);
-
-      var secondDistSq = new Float32Array(W * H);
-      secondDistSq.fill(999.0);
-
-      var pixelR = new Uint8Array(W * H);
-      var pixelG = new Uint8Array(W * H);
-      var pixelB = new Uint8Array(W * H);
-
-      // Secondary shot pixel colors for micro-seam feathering
-      var secR = new Uint8Array(W * H);
-      var secG = new Uint8Array(W * H);
-      var secB = new Uint8Array(W * H);
-
-      // Pre-process and scale all shots
-      var shotDatas = [];
+      // 2. Project each rectilinear frame into the equirectangular sphere
       for (var fi = 0; fi < shots.length; fi++) {
+        if (finishBtn) finishBtn.textContent = `⏳ BLENDING FRAME ${fi + 1}/${shots.length}…`;
+        await new Promise(r => setTimeout(r, 0));
+
         var slot = shots[fi];
         var src = slot.imgCanvas;
         if (!src || src.width < 2) continue;
 
         var ww = src.width;
         var wh = src.height;
-        var maxDim = 1536;
+        var maxDim = 1024;
         var work = src;
         if (ww > maxDim || wh > maxDim) {
           var scale = maxDim / Math.max(ww, wh);
@@ -4925,294 +6001,29 @@
         }
         var srcPx = work.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ww, wh).data;
 
-        // Optical FOV mathematically derived from standard 26mm full-frame equivalent smartphone main sensor
-        // Diagonal FOV = 78.5°
-        var diagFovDeg = 78.5;
-        var diagFovRad = (diagFovDeg * Math.PI) / 180;
-        var tanDiag = Math.tan(diagFovRad * 0.5);
+        // Optical FOV calculation based on frame aspect ratio
         var aspect = ww / wh;
-        var tanHalfH = tanDiag * (aspect / Math.sqrt(aspect * aspect + 1));
-        var tanHalfV = tanDiag * (1 / Math.sqrt(aspect * aspect + 1));
+        var diagFovRad = (76 * Math.PI) / 180;
+        var tanHalfDiag = Math.tan(diagFovRad * 0.5);
+        var tanHalfH = tanHalfDiag * (aspect / Math.sqrt(aspect * aspect + 1));
+        var tanHalfV = tanHalfDiag * (1 / Math.sqrt(aspect * aspect + 1));
         var fovHDeg = 2 * Math.atan(tanHalfH) * (180 / Math.PI);
         var fovVDeg = 2 * Math.atan(tanHalfV) * (180 / Math.PI);
 
-        var idealYaw = typeof slot.yaw === 'number' ? slot.yaw : 0;
-        var capYaw = (typeof slot.captureYaw === 'number') ? slot.captureYaw : idealYaw;
-        var capPitch = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
+        var yawDeg = normalizeAngle360((typeof slot.captureYaw === 'number') ? slot.captureYaw : slot.yaw);
+        var pitchDeg = (typeof slot.capturePitch === 'number') ? slot.capturePitch : slot.pitch;
 
-        shotDatas.push({
-          id: fi,
-          slot: slot,
-          srcCanvas: work,
-          srcPx: srcPx,
-          ww: ww,
-          wh: wh,
-          tanHalfH: tanHalfH,
-          tanHalfV: tanHalfV,
-          fovHDeg: fovHDeg,
-          fovVDeg: fovVDeg,
-          idealYaw: idealYaw,
-          capYaw: capYaw,
-          capPitch: capPitch,
-          yawDeg: capYaw,
-          pitchDeg: capPitch
-        });
-      }
-
-      // =========================================================================
-      // OPTICAL FEATURE ALIGNMENT & GLOBAL LOOP CLOSURE BUNDLE ADJUSTMENT
-      // =========================================================================
-      // 1. Group shots by pitch ring level (e.g. horizon, upper, lower)
-      var rings = {};
-      for (var rIdx = 0; rIdx < shotDatas.length; rIdx++) {
-        var s = shotDatas[rIdx];
-        var ringKey = Math.round(s.capPitch / 18) * 18;
-        if (!rings[ringKey]) rings[ringKey] = [];
-        rings[ringKey].push(s);
-      }
-
-      // Feature strip extraction helper with Normalized Cross-Correlation (NCC)
-      function extractFeatureThumb(cvs, isLeft, tW, tH) {
-        var w = cvs.width;
-        var h = cvs.height;
-        var cropW = Math.round(w * 0.38);
-        var sx = isLeft ? 0 : Math.max(0, w - cropW);
-        var tmp = document.createElement('canvas');
-        tmp.width = tW;
-        tmp.height = tH;
-        var tCtx = tmp.getContext('2d');
-        tCtx.drawImage(cvs, sx, 0, cropW, h, 0, 0, tW, tH);
-        var idata = tCtx.getImageData(0, 0, tW, tH).data;
-        var lum = new Float32Array(tW * tH);
-        var sum = 0, sumSq = 0;
-        for (var i = 0; i < tW * tH; i++) {
-          var p = i * 4;
-          var val = idata[p] * 0.299 + idata[p + 1] * 0.587 + idata[p + 2] * 0.114;
-          lum[i] = val;
-          sum += val;
-          sumSq += val * val;
-        }
-        var mean = sum / (tW * tH);
-        var variance = (sumSq / (tW * tH)) - (mean * mean);
-        var std = Math.sqrt(Math.max(0.1, variance));
-        var norm = new Float32Array(tW * tH);
-        for (var j = 0; j < tW * tH; j++) {
-          norm[j] = (lum[j] - mean) / std;
-        }
-        return { norm: norm, w: tW, h: tH };
-      }
-
-      function computePairwiseShift(thumbRight, thumbLeft) {
-        var tw = thumbRight.w;
-        var th = thumbRight.h;
-        var a = thumbRight.norm;
-        var b = thumbLeft.norm;
-        var maxShiftX = 16;
-        var maxShiftY = 6;
-        var bestScore = -999;
-        var bestDx = 0;
-        var bestDy = 0;
-
-        for (var dy = -maxShiftY; dy <= maxShiftY; dy++) {
-          for (var dx = -maxShiftX; dx <= maxShiftX; dx++) {
-            var dot = 0;
-            var count = 0;
-            for (var y = Math.max(0, -dy); y < Math.min(th, th - dy); y++) {
-              for (var x = Math.max(0, -dx); x < Math.min(tw, tw - dx); x++) {
-                var idxA = y * tw + x;
-                var idxB = (y + dy) * tw + (x + dx);
-                dot += a[idxA] * b[idxB];
-                count++;
-              }
-            }
-            if (count > 0) {
-              var score = dot / count;
-              if (score > bestScore) {
-                bestScore = score;
-                bestDx = dx;
-                bestDy = dy;
-              }
-            }
-          }
-        }
-        return { dx: bestDx, dy: bestDy, score: bestScore };
-      }
-
-      // Run feature correlation & loop closure per ring
-      for (var rk in rings) {
-        var ringShots = rings[rk];
-        if (ringShots.length < 3) continue;
-
-        // Sort cyclically by ideal/target yaw
-        ringShots.sort(function (a, b) { return a.idealYaw - b.idealYaw; });
-
-        var N = ringShots.length;
-        var stepDeltasYaw = new Float32Array(N);
-        var stepDeltasPitch = new Float32Array(N);
-
-        for (var i = 0; i < N; i++) {
-          var sA = ringShots[i];
-          var sB = ringShots[(i + 1) % N];
-
-          // Compute nominal step from gyro capture yaw if valid, otherwise ideal ring step
-          var gyroDelta = (i === N - 1)
-            ? (360.0 - sA.capYaw + sB.capYaw)
-            : (sB.capYaw - sA.capYaw);
-          if (gyroDelta < 0) gyroDelta += 360;
-
-          var idealDelta = (i === N - 1)
-            ? (360.0 - sA.idealYaw + sB.idealYaw)
-            : (sB.idealYaw - sA.idealYaw);
-          if (idealDelta < 0) idealDelta += 360;
-
-          var nominalDeltaYaw = (gyroDelta >= 15 && gyroDelta <= 55) ? (gyroDelta * 0.7 + idealDelta * 0.3) : idealDelta;
-          var nominalDeltaPitch = sB.capPitch - sA.capPitch;
-
-          // Compute optical feature alignment on overlap strip
-          try {
-            var thumbA = extractFeatureThumb(sA.srcCanvas, false, 64, 64); // right edge of A
-            var thumbB = extractFeatureThumb(sB.srcCanvas, true, 64, 64);  // left edge of B
-            var shift = computePairwiseShift(thumbA, thumbB);
-
-            if (shift.score > 0.28) {
-              // Convert pixel shift to degrees
-              var overlapDeg = sA.fovHDeg * 0.38;
-              var degShiftX = (shift.dx / 64) * overlapDeg;
-              var degShiftY = (shift.dy / 64) * (sA.fovVDeg * 0.38);
-              stepDeltasYaw[i] = nominalDeltaYaw - degShiftX * 0.75;
-              stepDeltasPitch[i] = nominalDeltaPitch - degShiftY * 0.55;
-            } else {
-              stepDeltasYaw[i] = nominalDeltaYaw;
-              stepDeltasPitch[i] = nominalDeltaPitch;
-            }
-          } catch (e) {
-            stepDeltasYaw[i] = nominalDeltaYaw;
-            stepDeltasPitch[i] = nominalDeltaPitch;
-          }
-        }
-
-        // Global Loop Closure: distribute residual sum error across all N shots
-        var totalYawSum = 0;
-        var totalPitchSum = 0;
-        for (var k = 0; k < N; k++) {
-          totalYawSum += stepDeltasYaw[k];
-          totalPitchSum += stepDeltasPitch[k];
-        }
-
-        var loopErrorYaw = totalYawSum - 360.0;
-        var loopErrorPitch = totalPitchSum;
-
-        var correctedYaw = ringShots[0].idealYaw;
-        for (var m = 0; m < N; m++) {
-          ringShots[m].yawDeg = normalizeAngle360(correctedYaw);
-          var refinedStepYaw = stepDeltasYaw[m] - (loopErrorYaw / N);
-          var refinedStepPitch = stepDeltasPitch[m] - (loopErrorPitch / N);
-          correctedYaw += refinedStepYaw;
-          ringShots[m].pitchDeg = Math.max(-85, Math.min(85, ringShots[m].capPitch - refinedStepPitch * 0.5));
-        }
-      }
-
-      // Update trigonometric projection variables with refined angles
-      for (var fIdx = 0; fIdx < shotDatas.length; fIdx++) {
-        var sd = shotDatas[fIdx];
-        var yRad = (sd.yawDeg * Math.PI) / 180;
-        var pRad = (sd.pitchDeg * Math.PI) / 180;
-        sd.cosYaw = Math.cos(yRad);
-        sd.sinYaw = Math.sin(yRad);
-        sd.cosPitch = Math.cos(pRad);
-        sd.sinPitch = Math.sin(pRad);
-      }
-
-      // =========================================================================
-      // RGB CHANNEL GAIN EQUALIZATION (Harmonizes White Balance & Exposure)
-      // =========================================================================
-      var shotAvgR = new Float32Array(shotDatas.length);
-      var shotAvgG = new Float32Array(shotDatas.length);
-      var shotAvgB = new Float32Array(shotDatas.length);
-      var totalSumR = 0, totalSumG = 0, totalSumB = 0;
-
-      for (var li = 0; li < shotDatas.length; li++) {
-        var sLi = shotDatas[li];
-        var sPxArr = sLi.srcPx;
-        var sW = sLi.ww, sH = sLi.wh;
-        var rSum = 0, gSum = 0, bSum = 0, lCount = 0;
-        var cx0 = Math.floor(sW * 0.22), cx1 = Math.floor(sW * 0.78);
-        var cy0 = Math.floor(sH * 0.22), cy1 = Math.floor(sH * 0.78);
-        var step = Math.max(2, Math.floor(sW / 40));
-        for (var sy = cy0; sy < cy1; sy += step) {
-          for (var sx = cx0; sx < cx1; sx += step) {
-            var pOff = (sy * sW + sx) * 4;
-            rSum += sPxArr[pOff];
-            gSum += sPxArr[pOff + 1];
-            bSum += sPxArr[pOff + 2];
-            lCount++;
-          }
-        }
-        var ar = lCount > 0 ? (rSum / lCount) : 128;
-        var ag = lCount > 0 ? (gSum / lCount) : 128;
-        var ab = lCount > 0 ? (bSum / lCount) : 128;
-        shotAvgR[li] = Math.max(20, ar);
-        shotAvgG[li] = Math.max(20, ag);
-        shotAvgB[li] = Math.max(20, ab);
-        totalSumR += shotAvgR[li];
-        totalSumG += shotAvgG[li];
-        totalSumB += shotAvgB[li];
-      }
-
-      var sceneAvgR = totalSumR / shotDatas.length;
-      var sceneAvgG = totalSumG / shotDatas.length;
-      var sceneAvgB = totalSumB / shotDatas.length;
-
-      var gainR = new Float32Array(shotDatas.length);
-      var gainG = new Float32Array(shotDatas.length);
-      var gainB = new Float32Array(shotDatas.length);
-      for (var gi = 0; gi < shotDatas.length; gi++) {
-        gainR[gi] = Math.max(0.72, Math.min(1.38, Math.pow(sceneAvgR / shotAvgR[gi], 0.55)));
-        gainG[gi] = Math.max(0.72, Math.min(1.38, Math.pow(sceneAvgG / shotAvgG[gi], 0.55)));
-        gainB[gi] = Math.max(0.72, Math.min(1.38, Math.pow(sceneAvgB / shotAvgB[gi], 0.55)));
-      }
-
-      // Continuous Multi-Band Buffers: Seamless Base Illumination + Crisp Sharp Texture
-      var smoothBaseR = new Float32Array(W * H);
-      var smoothBaseG = new Float32Array(W * H);
-      var smoothBaseB = new Float32Array(W * H);
-      var smoothBaseW = new Float32Array(W * H);
-
-      var bestWeight = new Float32Array(W * H);
-      var bestShotId = new Int16Array(W * H);
-      bestShotId.fill(-1);
-
-      var pixelR = new Float32Array(W * H);
-      var pixelG = new Float32Array(W * H);
-      var pixelB = new Float32Array(W * H);
-
-      // PASS 1: Project spherical rays with Multi-Band Illumination & anti-vignette compensation
-      for (var si = 0; si < shotDatas.length; si++) {
-        if (finishBtn) finishBtn.textContent = '⏳ EQUALIZING & BLENDING ' + (si + 1) + '/' + shotDatas.length + '…';
-        await new Promise(function (r) { setTimeout(r, 0); });
-
-        var sData = shotDatas[si];
-        var sGainR = gainR[si];
-        var sGainG = gainG[si];
-        var sGainB = gainB[si];
-        var sPx = sData.srcPx;
-        var sWw = sData.ww;
-        var sWh = sData.wh;
-        var sTanH = sData.tanHalfH;
-        var sTanV = sData.tanHalfV;
-        var sCosY = sData.cosYaw, sSinY = sData.sinYaw;
-        var sCosP = sData.cosPitch, sSinP = sData.sinPitch;
-
-        var padH = sData.fovHDeg * 0.58 + 3.0;
-        var padV = sData.fovVDeg * 0.58 + 3.0;
-        var minLat = Math.max(-89.5, sData.pitchDeg - padV);
-        var maxLat = Math.min(89.5, sData.pitchDeg + padV);
+        // Bounding box in equirectangular coordinates
+        var padH = fovHDeg * 0.58 + 4;
+        var padV = fovVDeg * 0.58 + 4;
+        var minLat = Math.max(-88, pitchDeg - padV);
+        var maxLat = Math.min(88, pitchDeg + padV);
         var row0 = Math.max(0, Math.floor(((90 - maxLat) / 180) * H));
         var row1 = Math.min(H - 1, Math.ceil(((90 - minLat) / 180) * H));
 
         var lonRanges = [];
-        var lonA = sData.yawDeg - padH;
-        var lonB = sData.yawDeg + padH;
+        var lonA = yawDeg - padH;
+        var lonB = yawDeg + padH;
         if (lonA < 0) {
           lonRanges.push([lonA + 360, 360]);
           lonRanges.push([0, lonB]);
@@ -5225,9 +6036,7 @@
 
         for (var row = row0; row <= row1; row++) {
           var lat = 90 - (row / H) * 180;
-          var latRad = (lat * Math.PI) / 180;
-          var cosLat = Math.cos(latRad);
-          var sinLat = Math.sin(latRad);
+          var dPitchRad = ((lat - pitchDeg) * Math.PI) / 180;
 
           for (var ri = 0; ri < lonRanges.length; ri++) {
             var c0 = Math.max(0, Math.floor((lonRanges[ri][0] / 360) * W));
@@ -5235,38 +6044,27 @@
 
             for (var col = c0; col <= c1; col++) {
               var lon = (col / W) * 360;
-              var lonRad = (lon * Math.PI) / 180;
+              var dYaw = lon - yawDeg;
+              if (dYaw > 180) dYaw -= 360;
+              if (dYaw < -180) dYaw += 360;
+              var dYawRad = (dYaw * Math.PI) / 180;
 
-              // Unit world vector on sphere
-              var wx = cosLat * Math.sin(lonRad);
-              var wy = sinLat;
-              var wz = cosLat * Math.cos(lonRad);
+              // Unit ray in camera space
+              var rX = Math.cos(dPitchRad) * Math.sin(dYawRad);
+              var rY = Math.sin(dPitchRad);
+              var rZ = Math.cos(dPitchRad) * Math.cos(dYawRad);
+              if (rZ <= 0.05) continue;
 
-              // 1. Rotate around Y by yaw
-              var rx = wx * sCosY - wz * sSinY;
-              var rz_horiz = wx * sSinY + wz * sCosY;
-              var ry = wy;
+              // Project onto flat camera sensor plane
+              var uCam = (rX / rZ) / tanHalfH;
+              var vCam = (rY / rZ) / tanHalfV;
+              var absU = Math.abs(uCam);
+              var absV = Math.abs(vCam);
+              if (absU >= 0.98 || absV >= 0.98) continue;
 
-              // 2. Rotate around X by pitch
-              var camX = rx;
-              var camY = ry * sCosP - rz_horiz * sSinP;
-              var camZ = ry * sSinP + rz_horiz * sCosP;
-
-              if (camZ <= 0.02) continue; // Behind camera plane
-
-              // Project to sensor UV [-1, 1]
-              var u = (camX / camZ) / sTanH;
-              var v = (camY / camZ) / sTanV;
-              var uSq = u * u;
-              var vSq = v * v;
-              if (uSq >= 0.98 || vSq >= 0.98) continue; // Outside camera sensor
-
-              var fx = (0.5 + u * 0.5) * (sWw - 1);
-              var fy = (0.5 - v * 0.5) * (sWh - 1);
-              if (fx < 0 || fy < 0 || fx >= sWw - 1 || fy >= sWh - 1) continue;
-
-              // Radial anti-vignette gain: brightens darker lens corners
-              var vignetteComp = 1.0 + 0.16 * (uSq + vSq);
+              var fx = (uCam * 0.5 + 0.5) * (ww - 1);
+              var fy = (0.5 - vCam * 0.5) * (wh - 1);
+              if (fx < 0 || fy < 0 || fx >= ww - 1 || fy >= wh - 1) continue;
 
               // Bilinear interpolation
               var x0 = fx | 0;
@@ -5275,171 +6073,107 @@
               var ty = fy - y0;
               var x1 = x0 + 1;
               var y1 = y0 + 1;
-              var i00 = (y0 * sWw + x0) * 4;
-              var i10 = (y0 * sWw + x1) * 4;
-              var i01 = (y1 * sWw + x0) * 4;
-              var i11 = (y1 * sWw + x1) * 4;
+              var i00 = (y0 * ww + x0) * 4;
+              var i10 = (y0 * ww + x1) * 4;
+              var i01 = (y1 * ww + x0) * 4;
+              var i11 = (y1 * ww + x1) * 4;
 
-              var r = (sPx[i00] * (1 - tx) + sPx[i10] * tx) * (1 - ty) + (sPx[i01] * (1 - tx) + sPx[i11] * tx) * ty;
-              var g = (sPx[i00 + 1] * (1 - tx) + sPx[i10 + 1] * tx) * (1 - ty) + (sPx[i01 + 1] * (1 - tx) + sPx[i11 + 1] * tx) * ty;
-              var b = (sPx[i00 + 2] * (1 - tx) + sPx[i10 + 2] * tx) * (1 - ty) + (sPx[i01 + 2] * (1 - tx) + sPx[i11 + 2] * tx) * ty;
+              var r = (srcPx[i00] * (1 - tx) + srcPx[i10] * tx) * (1 - ty) + (srcPx[i01] * (1 - tx) + srcPx[i11] * tx) * ty;
+              var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
+              var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              // Apply color temperature & vignette correction
-              r = Math.min(255, r * sGainR * vignetteComp);
-              g = Math.min(255, g * sGainG * vignetteComp);
-              b = Math.min(255, b * sGainB * vignetteComp);
+              // Smooth cosine-squared edge feathering (clean overlap, zero fog)
+              var edgeW = (1.0 - absU * absU) * (1.0 - absV * absV);
+              var wt = Math.max(0.01, edgeW * edgeW);
 
               var pIdx = row * W + col;
+              accumR[pIdx] += r * wt;
+              accumG[pIdx] += g * wt;
+              accumB[pIdx] += b * wt;
+              accumWeight[pIdx] += wt;
 
-              // 1. Continuous wide-angle Illumination Base weight (dissolves vertical bands)
-              var baseW = Math.max(0, 1.0 - uSq) * Math.max(0, 1.0 - vSq);
-              if (baseW > 0.0001) {
-                smoothBaseR[pIdx] += r * baseW;
-                smoothBaseG[pIdx] += g * baseW;
-                smoothBaseB[pIdx] += b * baseW;
-                smoothBaseW[pIdx] += baseW;
-              }
-
-              // 2. Optical ray weight for dominant sharp detail selection
-              var optWeight = baseW * baseW;
-              if (optWeight > bestWeight[pIdx]) {
-                bestWeight[pIdx] = optWeight;
-                bestShotId[pIdx] = si;
-                pixelR[pIdx] = r;
-                pixelG[pIdx] = g;
-                pixelB[pIdx] = b;
-              }
+              if (row < topCoverageRow[col]) topCoverageRow[col] = row;
+              if (row > botCoverageRow[col]) botCoverageRow[col] = row;
             }
           }
         }
       }
 
-      // =========================================================================
-      // CONTINUOUS POLAR AMBIENT INPAINTING WITH SMOOTH HORIZONTAL CURVES
-      // =========================================================================
+      // 3. Composite final image: 100% crisp camera pixels + seamless polar inpainting
       var outImg = ctx.createImageData(W, H);
       var outData = outImg.data;
 
-      // Extract raw top and bottom coverage envelope rows where best shot exists
-      var rawTopRow = new Int32Array(W);
-      var rawBotRow = new Int32Array(W);
-      for (var c = 0; c < W; c++) {
-        var firstValid = H;
-        var lastValid = -1;
-        for (var r = 0; r < H; r++) {
-          if (bestShotId[r * W + c] >= 0) {
-            if (firstValid === H) firstValid = r;
-            lastValid = r;
+      // Extract boundary colors per column for natural seamless ceiling & floor fill
+      var colTopR = new Uint8Array(W);
+      var colTopG = new Uint8Array(W);
+      var colTopB = new Uint8Array(W);
+      var colBotR = new Uint8Array(W);
+      var colBotG = new Uint8Array(W);
+      var colBotB = new Uint8Array(W);
+
+      for (var col = 0; col < W; col++) {
+        var topR_c = topR, topG_c = topG, topB_c = topB;
+        var botR_c = botR, botG_c = botG, botB_c = botB;
+
+        var tRow = topCoverageRow[col];
+        if (tRow < H) {
+          var tIdx = tRow * W + col;
+          if (accumWeight[tIdx] > 0) {
+            topR_c = Math.round(accumR[tIdx] / accumWeight[tIdx]);
+            topG_c = Math.round(accumG[tIdx] / accumWeight[tIdx]);
+            topB_c = Math.round(accumB[tIdx] / accumWeight[tIdx]);
           }
         }
-        rawTopRow[c] = firstValid;
-        rawBotRow[c] = lastValid;
-      }
 
-      // Apply wide box filter (window 48) on top/bottom coverage boundaries to eliminate triangular/sawtooth teeth
-      var smoothTopLimit = new Float32Array(W);
-      var smoothBotLimit = new Float32Array(W);
-      var winR = 48;
-      for (var c = 0; c < W; c++) {
-        var tSum = 0, bSum = 0, tCnt = 0, bCnt = 0;
-        for (var wo = -winR; wo <= winR; wo++) {
-          var wc = (c + wo + W) % W;
-          if (rawTopRow[wc] < H) { tSum += rawTopRow[wc]; tCnt++; }
-          if (rawBotRow[wc] >= 0) { bSum += rawBotRow[wc]; bCnt++; }
+        var bRow = botCoverageRow[col];
+        if (bRow >= 0) {
+          var bIdx = bRow * W + col;
+          if (accumWeight[bIdx] > 0) {
+            botR_c = Math.round(accumR[bIdx] / accumWeight[bIdx]);
+            botG_c = Math.round(accumG[bIdx] / accumWeight[bIdx]);
+            botB_c = Math.round(accumB[bIdx] / accumWeight[bIdx]);
+          }
         }
-        smoothTopLimit[c] = tCnt > 0 ? (tSum / tCnt) : (H * 0.25);
-        smoothBotLimit[c] = bCnt > 0 ? (bSum / bCnt) : (H * 0.75);
+
+        colTopR[col] = topR_c; colTopG[col] = topG_c; colTopB[col] = topB_c;
+        colBotR[col] = botR_c; colBotG[col] = botG_c; colBotB[col] = botB_c;
       }
 
-      // Extract smoothed wall edge boundary colors per column
-      var colTopR = new Float32Array(W);
-      var colTopG = new Float32Array(W);
-      var colTopB = new Float32Array(W);
-      var colBotR = new Float32Array(W);
-      var colBotG = new Float32Array(W);
-      var colBotB = new Float32Array(W);
-
-      var sumTopR = 0, sumTopG = 0, sumTopB = 0, cntTop = 0;
-      var sumBotR = 0, sumBotG = 0, sumBotB = 0, cntBot = 0;
-
-      for (var c = 0; c < W; c++) {
-        var tRow = Math.min(H - 1, Math.max(0, Math.round(smoothTopLimit[c])));
-        var tIdx = tRow * W + c;
-        var tr = (bestShotId[tIdx] >= 0) ? pixelR[tIdx] : topR;
-        var tg = (bestShotId[tIdx] >= 0) ? pixelG[tIdx] : topG;
-        var tb = (bestShotId[tIdx] >= 0) ? pixelB[tIdx] : topB;
-        colTopR[c] = tr; colTopG[c] = tg; colTopB[c] = tb;
-        sumTopR += tr; sumTopG += tg; sumTopB += tb; cntTop++;
-
-        var bRow = Math.min(H - 1, Math.max(0, Math.round(smoothBotLimit[c])));
-        var bIdx = bRow * W + c;
-        var br = (bestShotId[bIdx] >= 0) ? pixelR[bIdx] : botR;
-        var bg = (bestShotId[bIdx] >= 0) ? pixelG[bIdx] : botG;
-        var bb = (bestShotId[bIdx] >= 0) ? pixelB[bIdx] : botB;
-        colBotR[c] = br; colBotG[c] = bg; colBotB[c] = bb;
-        sumBotR += br; sumBotG += bg; sumBotB += bb; cntBot++;
-      }
-
-      // Global ambient ceiling and floor tones
-      var ambCeilR = cntTop > 0 ? (sumTopR / cntTop) : topR;
-      var ambCeilG = cntTop > 0 ? (sumTopG / cntTop) : topG;
-      var ambCeilB = cntTop > 0 ? (sumTopB / cntTop) : topB;
-      var ambFlrR  = cntBot > 0 ? (sumBotR / cntBot) : botR;
-      var ambFlrG  = cntBot > 0 ? (sumBotG / cntBot) : botG;
-      var ambFlrB  = cntBot > 0 ? (sumBotB / cntBot) : botB;
-
-      // Populate full panorama buffer (Multi-Band Illumination Harmonization + Crisp Sharp Textures)
+      // Render all pixels
       for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
           var pIdx2 = y * W + x;
           var di = pIdx2 * 4;
+          var w = accumWeight[pIdx2];
 
-          var shotId = bestShotId[pIdx2];
-          var w1 = bestWeight[pIdx2];
-          var bw = smoothBaseW[pIdx2];
-
-          var tLimit = smoothTopLimit[x];
-          var bLimit = smoothBotLimit[x];
-
-          if (shotId >= 0 && w1 > 0 && y >= tLimit && y <= bLimit) {
-            var pr = pixelR[pIdx2];
-            var pg = pixelG[pIdx2];
-            var pb = pixelB[pIdx2];
-
-            if (bw > 0.001) {
-              // Seamless continuous base illumination
-              var bR = smoothBaseR[pIdx2] / bw;
-              var bG = smoothBaseG[pIdx2] / bw;
-              var bB = smoothBaseB[pIdx2] / bw;
-              var baseLum = bR * 0.299 + bG * 0.587 + bB * 0.114;
-              var rawLum = pr * 0.299 + pg * 0.587 + pb * 0.114;
-
-              // Harmonize illumination across seams while keeping 100% of crisp textures
-              var lumRatio = Math.max(0.82, Math.min(1.22, (baseLum + 10.0) / (rawLum + 10.0)));
-              pr = pr * lumRatio + (bR - baseLum) * 0.25;
-              pg = pg * lumRatio + (bG - baseLum) * 0.25;
-              pb = pb * lumRatio + (bB - baseLum) * 0.25;
-            }
-
-            outData[di]     = Math.min(255, Math.max(0, Math.round(pr)));
-            outData[di + 1] = Math.min(255, Math.max(0, Math.round(pg)));
-            outData[di + 2] = Math.min(255, Math.max(0, Math.round(pb)));
-          } else if (y < tLimit) {
-            // Smooth ceiling cosine gradient towards zenith
-            var tCeil = tLimit > 0 ? (y / tLimit) : 1;
-            tCeil = Math.max(0, Math.min(1, tCeil));
-            var curve = 0.5 * (1 - Math.cos(tCeil * Math.PI)); // Cosine ease
-            outData[di]     = Math.min(255, Math.max(0, Math.round(ambCeilR * (1 - curve) + colTopR[x] * curve)));
-            outData[di + 1] = Math.min(255, Math.max(0, Math.round(ambCeilG * (1 - curve) + colTopG[x] * curve)));
-            outData[di + 2] = Math.min(255, Math.max(0, Math.round(ambCeilB * (1 - curve) + colTopB[x] * curve)));
+          if (w > 0.0001) {
+            // Direct pure normalized photographic pixel (ZERO FOG / VIGNETTE)
+            outData[di]     = Math.min(255, Math.max(0, Math.round(accumR[pIdx2] / w)));
+            outData[di + 1] = Math.min(255, Math.max(0, Math.round(accumG[pIdx2] / w)));
+            outData[di + 2] = Math.min(255, Math.max(0, Math.round(accumB[pIdx2] / w)));
           } else {
-            // Smooth floor cosine gradient towards nadir
-            var tFloor = (H - 1 > bLimit) ? ((y - bLimit) / (H - 1 - bLimit)) : 0;
-            tFloor = Math.max(0, Math.min(1, tFloor));
-            var curve2 = 0.5 * (1 + Math.cos(tFloor * Math.PI)); // Cosine ease
-            outData[di]     = Math.min(255, Math.max(0, Math.round(ambFlrR * (1 - curve2) + colBotR[x] * curve2)));
-            outData[di + 1] = Math.min(255, Math.max(0, Math.round(ambFlrG * (1 - curve2) + colBotG[x] * curve2)));
-            outData[di + 2] = Math.min(255, Math.max(0, Math.round(ambFlrB * (1 - curve2) + colBotB[x] * curve2)));
+            // Polar inpainting: smoothly extend real edge colors into ambient ceiling/floor
+            var topLimit = topCoverageRow[x];
+            var botLimit = botCoverageRow[x];
+
+            if (topLimit < H && y < topLimit) {
+              var tCeil = topLimit > 0 ? (y / topLimit) : 1;
+              tCeil = Math.max(0, Math.min(1, tCeil));
+              outData[di]     = Math.round(topR * (1 - tCeil) + colTopR[x] * tCeil);
+              outData[di + 1] = Math.round(topG * (1 - tCeil) + colTopG[x] * tCeil);
+              outData[di + 2] = Math.round(topB * (1 - tCeil) + colTopB[x] * tCeil);
+            } else if (botLimit >= 0 && y > botLimit) {
+              var tFloor = (H - 1 > botLimit) ? ((y - botLimit) / (H - 1 - botLimit)) : 0;
+              tFloor = Math.max(0, Math.min(1, tFloor));
+              outData[di]     = Math.round(colBotR[x] * (1 - tFloor) + botR * tFloor);
+              outData[di + 1] = Math.round(colBotG[x] * (1 - tFloor) + botG * tFloor);
+              outData[di + 2] = Math.round(colBotB[x] * (1 - tFloor) + botB * tFloor);
+            } else {
+              var vNorm = y / (H - 1);
+              outData[di]     = Math.round(topR * (1 - vNorm) + botR * vNorm);
+              outData[di + 1] = Math.round(topG * (1 - vNorm) + botG * vNorm);
+              outData[di + 2] = Math.round(topB * (1 - vNorm) + botB * vNorm);
+            }
           }
           outData[di + 3] = 255;
         }
@@ -5448,15 +6182,15 @@
       ctx.putImageData(outImg, 0, 0);
 
       if (finishBtn) finishBtn.textContent = '⏳ SAVING 360° ROOM…';
-      await new Promise(function (r) { setTimeout(r, 0); });
+      await new Promise(r => setTimeout(r, 0));
 
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.94);
       var finalUrl = dataUrl;
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
-          var blob = await new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.95); });
-          var file = new File([blob], '360_scan_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+          var blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.94));
+          var file = new File([blob], `matterport_360_${Date.now()}.jpg`, { type: 'image/jpeg' });
           var up = await window.uploadToSupabaseStorage(file);
           if (up && up.url) finalUrl = up.url;
         } catch (e) {}
@@ -5467,17 +6201,20 @@
         if (cur) {
           cur.panoUrl = finalUrl;
           cur.tourUrl = '';
-          cur.tag = '360° Real-Time Camera Scan';
+          cur.aspectMode = 'full-360';
+          cur.tag = '360° Matterport Photosphere';
         }
       } else {
         activeSceneList.push({
           id: 'scan-room-' + Date.now().toString(36),
-          name: '📸 Scanned Room ' + (activeSceneList.length + 1),
+          name: '📸 360° Room ' + (activeSceneList.length + 1),
           location: (currentTourData && currentTourData.location) || 'Salt Lake City, UT',
-          tag: '360° Camera Photosphere',
+          tag: '360° Matterport Photosphere',
           panoUrl: finalUrl,
           tourUrl: '',
-          blurb: 'Full 360° space stitched from device camera',
+          aspectMode: 'full-360',
+          vScale: 1.0,
+          blurb: '360° walkthrough room captured in real-time',
           hotspots: [{
             pitch: 0, yaw: 180, label: '🚪 Back to Previous Room',
             targetScene: (activeSceneList[activeSceneIndex] && activeSceneList[activeSceneIndex].id) ||
@@ -5494,10 +6231,10 @@
       if (typeof showToast === 'function') showToast('🎉 360° Photosphere stitched and saved!');
     } catch (err) {
       console.error('[stitch]', err);
-      alert('Stitch failed: ' + (err && err.message ? err.message : String(err)));
+      if (typeof showToast === 'function') showToast('❌ Stitch failed: ' + (err && err.message ? err.message : String(err)));
     } finally {
       if (finishBtn) {
-        finishBtn.textContent = '✨ STITCH & USE 360° ROOM (SAVE)';
+        finishBtn.textContent = '✨ STITCH & SAVE 360°';
         finishBtn.disabled = false;
       }
     }
@@ -5580,10 +6317,14 @@
       const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
       const editBtn = document.getElementById('tourEditModeBtn');
       const editorBar = document.getElementById('tourEditorBar');
+      const propPopover = document.getElementById('tourProportionsPopover');
       if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
       if (editorBar && !unlocked) {
         editorBar.classList.remove('active');
         isEditorMode = false;
+      }
+      if (propPopover && !unlocked) {
+        propPopover.style.display = 'none';
       }
     }
   };
@@ -5593,11 +6334,13 @@
     const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
     const editBtn = document.getElementById('tourEditModeBtn');
     const editorBar = document.getElementById('tourEditorBar');
+    const propPopover = document.getElementById('tourProportionsPopover');
     if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
     if (!unlocked) {
       isEditorMode = false;
       if (editBtn) editBtn.classList.remove('active');
       if (editorBar) editorBar.classList.remove('active');
+      if (propPopover) propPopover.style.display = 'none';
     }
   };
 
