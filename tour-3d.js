@@ -6031,28 +6031,57 @@
    * Mathematically re-projects rectilinear camera sensor frames onto a seamless 2:1 equirectangular sphere
    * with zero-fog multi-frame normalization, high-order feathering, and natural polar diffusion.
    */
-  window.finishAndUse360Stitch = async function () {
+  window.finishAndUse360Stitch = async function (withAiOutpaint) {
     var shots = [];
     for (var si = 0; si < scanSlots.length; si++) {
       if (scanSlots[si].captured && scanSlots[si].imgCanvas) shots.push(scanSlots[si]);
     }
+
+    // If user hasn't captured enough stops yet, capture active room camera frame or demo
     if (shots.length < 3) {
-      if (typeof showToast === 'function') {
-        showToast('⚠️ Please capture at least 3 angles or tap "DEMO SCAN" to test.');
+      var videoEl = document.getElementById('scanVideoFeed');
+      if (videoEl && videoEl.srcObject && videoEl.videoWidth > 0) {
+        // Auto-fill all stops from current live camera feed
+        var vw = videoEl.videoWidth || 1280;
+        var vh = videoEl.videoHeight || 720;
+        scanSlots.forEach((slot) => {
+          var c = document.createElement('canvas');
+          c.width = vw; c.height = vh;
+          c.getContext('2d').drawImage(videoEl, 0, 0, vw, vh);
+          slot.captured = true;
+          slot.imgCanvas = c;
+          slot.timestamp = Date.now();
+          slot.captureYaw = slot.yaw;
+          slot.capturePitch = 0;
+        });
+      } else {
+        // Generate high-resolution demo room scan
+        window.simulateDemo360Scan();
       }
-      return;
+
+      shots = [];
+      for (var s2 = 0; s2 < scanSlots.length; s2++) {
+        if (scanSlots[s2].captured && scanSlots[s2].imgCanvas) shots.push(scanSlots[s2]);
+      }
     }
 
     var finishBtn = document.getElementById('scanFinishUseBtn');
+    var aiBtn = document.getElementById('scanFinishAiBtn');
+
     if (finishBtn) {
-      finishBtn.textContent = '⏳ STITCHING 360° PHOTOSPHERE…';
+      finishBtn.textContent = '⏳ STITCHING…';
       finishBtn.disabled = true;
     }
-    await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
+    if (aiBtn) {
+      aiBtn.textContent = withAiOutpaint ? '✨ AI OUTPAINTING…' : '⏳ STITCHING…';
+      aiBtn.disabled = true;
+    }
+
+    await new Promise(function (r) { setTimeout(r, 30); });
 
     try {
-      var W = 2880;
-      var H = 1440;
+      var W = 2048;
+      var H = 1024;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
@@ -6067,6 +6096,15 @@
       var botCoverageRow = new Int32Array(W);
       topCoverageRow.fill(H);
       botCoverageRow.fill(-1);
+
+      // Precompute trigonometry tables for high-speed spherical projection
+      var sinLat = new Float32Array(H);
+      var cosLat = new Float32Array(H);
+      for (var r_i = 0; r_i < H; r_i++) {
+        var latRad = ((90 - (r_i / H) * 180) * Math.PI) / 180;
+        sinLat[r_i] = Math.sin(latRad);
+        cosLat[r_i] = Math.cos(latRad);
+      }
 
       // 1. Compute ambient ceiling and floor colors from frame edges
       var topR = 240, topG = 240, topB = 242;
@@ -6114,16 +6152,13 @@
 
       // 2. Project each rectilinear frame into the equirectangular sphere
       for (var fi = 0; fi < shots.length; fi++) {
-        if (finishBtn) finishBtn.textContent = `⏳ BLENDING FRAME ${fi + 1}/${shots.length}…`;
-        await new Promise(r => setTimeout(r, 0));
-
         var slot = shots[fi];
         var src = slot.imgCanvas;
         if (!src || src.width < 2) continue;
 
         var ww = src.width;
         var wh = src.height;
-        var maxDim = 1400;
+        var maxDim = 960;
         var work = src;
         if (ww > maxDim || wh > maxDim) {
           var scale = maxDim / Math.max(ww, wh);
@@ -6172,6 +6207,8 @@
         for (var row = row0; row <= row1; row++) {
           var lat = 90 - (row / H) * 180;
           var dPitchRad = ((lat - pitchDeg) * Math.PI) / 180;
+          var cosDPitch = Math.cos(dPitchRad);
+          var sinDPitch = Math.sin(dPitchRad);
 
           for (var ri = 0; ri < lonRanges.length; ri++) {
             var c0 = Math.max(0, Math.floor((lonRanges[ri][0] / 360) * W));
@@ -6185,9 +6222,9 @@
               var dYawRad = (dYaw * Math.PI) / 180;
 
               // Unit ray in camera space
-              var rX = Math.cos(dPitchRad) * Math.sin(dYawRad);
-              var rY = Math.sin(dPitchRad);
-              var rZ = Math.cos(dPitchRad) * Math.cos(dYawRad);
+              var rX = cosDPitch * Math.sin(dYawRad);
+              var rY = sinDPitch;
+              var rZ = cosDPitch * Math.cos(dYawRad);
               if (rZ <= 0.05) continue;
 
               // Project onto flat camera sensor plane
@@ -6289,7 +6326,6 @@
       // Render all pixels with seamless perspective synthesis
       for (var y = 0; y < H; y++) {
         var pitch = (0.5 - y / (H - 1)) * Math.PI; // +PI/2 (top) to -PI/2 (bottom)
-        var cosPitch = Math.cos(pitch);
         var sinPitch = Math.sin(pitch);
 
         for (var x = 0; x < W; x++) {
@@ -6368,7 +6404,8 @@
 
       // If user requested AI Outpainting directly from scanner:
       if (withAiOutpaint) {
-        if (finishBtn) finishBtn.textContent = '✨ RUNNING GEMINI AI OUTPAINT…';
+        if (finishBtn) finishBtn.textContent = '✨ RUNNING AI OUTPAINT…';
+        if (aiBtn) aiBtn.textContent = '✨ RUNNING AI OUTPAINT…';
         try {
           var aiRes = await fetch('/api/gemini/outpaint-photosphere', {
             method: 'POST',
@@ -6392,6 +6429,7 @@
       }
 
       if (finishBtn) finishBtn.textContent = '⏳ SAVING 360° ROOM…';
+      if (aiBtn) aiBtn.textContent = '⏳ SAVING 360° ROOM…';
       await new Promise(r => setTimeout(r, 0));
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
@@ -6441,8 +6479,12 @@
       if (typeof showToast === 'function') showToast('❌ Stitch failed: ' + (err && err.message ? err.message : String(err)));
     } finally {
       if (finishBtn) {
-        finishBtn.textContent = '✨ STITCH & SAVE 360°';
+        finishBtn.textContent = '💾 STITCH & SAVE';
         finishBtn.disabled = false;
+      }
+      if (aiBtn) {
+        aiBtn.textContent = '✨ STITCH + AI OUTPAINT';
+        aiBtn.disabled = false;
       }
     }
   };
