@@ -2956,6 +2956,9 @@
                 <button type="button" class="scan-btn-small" onclick="window.recenterScannerGyro()" title="Recenter current heading to 0°">
                   🎯 RECENTER
                 </button>
+                <button type="button" class="scan-btn-small" id="scanWideLensBtn" onclick="window.toggleWideLensMode()" title="Switch to the phone's ultra-wide lens if available">
+                  🌐 WIDE LENS
+                </button>
                 <button type="button" class="scan-btn-small" onclick="window.toggleCameraFacingMode()" title="Switch Front/Rear Camera">
                   🔄 CAMERA
                 </button>
@@ -5142,6 +5145,60 @@
     runScannerLoop();
   };
 
+  // Wide-lens support: enumerates the device's cameras and, when available,
+  // switches to the phone's ultra-wide back lens (much larger field of view
+  // per shot — captures far more of the room in one photo, meaning less
+  // tilting is needed and there's real optical data instead of guessed fill).
+  let scanUsingWideLens = false;
+  let scanWideLensDeviceId = null;
+  let scanStandardLensDeviceId = null;
+  // Diagonal FOV assumption used by the stitcher — standard phone lenses are
+  // roughly 70-80°, ultra-wide lenses are roughly 120-130°. Getting this
+  // right matters for correct, sharp geometry when re-projecting shots.
+  let scanCameraDiagFovDeg = 76;
+
+  async function findWideLensDeviceId() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const backCams = devices.filter(d => d.kind === 'videoinput');
+      const wide = backCams.find(d => /ultra\s*-?\s*wide/i.test(d.label));
+      const standard = backCams.find(d => /back|rear|environment/i.test(d.label) && !/ultra|wide|tele/i.test(d.label));
+      scanWideLensDeviceId = wide ? wide.deviceId : null;
+      scanStandardLensDeviceId = standard ? standard.deviceId : null;
+      return scanWideLensDeviceId;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  window.toggleWideLensMode = async function () {
+    const btn = document.getElementById('scanWideLensBtn');
+    if (!scanWideLensDeviceId && !scanUsingWideLens) {
+      // Device labels are usually only populated after the first permission grant —
+      // re-enumerate now that we should have camera permission.
+      await findWideLensDeviceId();
+    }
+    if (!scanUsingWideLens && !scanWideLensDeviceId) {
+      if (typeof showToast === 'function') {
+        showToast('⚠️ No ultra-wide lens detected on this device/browser.');
+      }
+      return;
+    }
+    scanUsingWideLens = !scanUsingWideLens;
+    scanCameraDiagFovDeg = scanUsingWideLens ? 122 : 76;
+    await startScannerCameraFeed();
+    if (btn) {
+      btn.textContent = scanUsingWideLens ? '🌐 WIDE LENS: ON' : '🌐 WIDE LENS';
+      btn.style.background = scanUsingWideLens ? '#06D6A0' : '';
+      btn.style.color = scanUsingWideLens ? '#0d1b1e' : '';
+    }
+    if (typeof showToast === 'function') {
+      showToast(scanUsingWideLens
+        ? '🌐 Ultra-wide lens active — each shot now covers much more of the room.'
+        : 'Switched back to the standard lens.');
+    }
+  };
+
   async function startScannerCameraFeed() {
     const video = document.getElementById('scanVideoFeed');
     if (!video) return;
@@ -5152,22 +5209,29 @@
     }
 
     try {
-      const constraints = {
-        video: {
-          facingMode: scanCameraFacing,
-          width: { ideal: 1920, min: 640 },
-          height: { ideal: 1080, min: 480 }
-        },
-        audio: false
+      const videoConstraints = {
+        width: { ideal: 1920, min: 640 },
+        height: { ideal: 1080, min: 480 }
       };
+      if (scanUsingWideLens && scanWideLensDeviceId) {
+        videoConstraints.deviceId = { exact: scanWideLensDeviceId };
+      } else if (!scanUsingWideLens && scanCameraFacing === 'environment' && scanStandardLensDeviceId) {
+        videoConstraints.deviceId = { exact: scanStandardLensDeviceId };
+      } else {
+        videoConstraints.facingMode = scanCameraFacing;
+      }
 
-      scanStream = await navigator.mediaDevices.getUserMedia(constraints);
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
       video.srcObject = scanStream;
       await video.play().catch(e => console.warn('Video play deferred:', e));
+
+      // Now that permission is granted, device labels become readable —
+      // refresh the lens list so the Wide Lens button knows what's available.
+      if (!scanWideLensDeviceId) findWideLensDeviceId();
     } catch (err) {
       console.warn('[Matterport 360 Scanner] Camera fallback:', err);
       try {
-        scanStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: scanCameraFacing }, audio: false });
         video.srcObject = scanStream;
         await video.play().catch(e => console.warn('Video play deferred fallback:', e));
       } catch (err2) {
@@ -5183,6 +5247,7 @@
 
   window.toggleCameraFacingMode = async function () {
     scanCameraFacing = (scanCameraFacing === 'environment') ? 'user' : 'environment';
+    scanUsingWideLens = false; // front camera has no ultra-wide option
     await startScannerCameraFeed();
     if (typeof showToast === 'function') {
       showToast(`🔄 Camera switched to: ${scanCameraFacing === 'environment' ? 'Rear / Room' : 'Front / Self'}`);
@@ -5457,6 +5522,7 @@
     scanSlots[slotIdx].timestamp = Date.now();
     scanSlots[slotIdx].captureYaw = scanCurrentYaw;
     scanSlots[slotIdx].capturePitch = scanCurrentPitch;
+    scanSlots[slotIdx].captureFovDeg = scanCameraDiagFovDeg;
 
     if (flashFx) {
       flashFx.classList.add('flash');
@@ -5916,8 +5982,8 @@
     await new Promise(function (r) { requestAnimationFrame(() => requestAnimationFrame(r)); });
 
     try {
-      var W = 2048;
-      var H = 1024;
+      var W = 2880;
+      var H = 1440;
       var canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
@@ -5988,7 +6054,7 @@
 
         var ww = src.width;
         var wh = src.height;
-        var maxDim = 1024;
+        var maxDim = 1400;
         var work = src;
         if (ww > maxDim || wh > maxDim) {
           var scale = maxDim / Math.max(ww, wh);
@@ -6003,7 +6069,7 @@
 
         // Optical FOV calculation based on frame aspect ratio
         var aspect = ww / wh;
-        var diagFovRad = (76 * Math.PI) / 180;
+        var diagFovRad = ((slot.captureFovDeg || scanCameraDiagFovDeg) * Math.PI) / 180;
         var tanHalfDiag = Math.tan(diagFovRad * 0.5);
         var tanHalfH = tanHalfDiag * (aspect / Math.sqrt(aspect * aspect + 1));
         var tanHalfV = tanHalfDiag * (1 / Math.sqrt(aspect * aspect + 1));
