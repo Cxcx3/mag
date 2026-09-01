@@ -5360,7 +5360,7 @@
       scanCurrentPitch = pitchDeg;
       _scanGyroPrimed = true;
       scanHasGyro = true;
-      setSensorPill('📳 GYRO ACTIVE · READY', '#06D6A0');
+      setSensorPill('📳 GYRO ACTIVE · STEADY', '#06D6A0');
       var btn = document.getElementById('scanEnableGyroBtn');
       if (btn) {
         btn.textContent = '✅ GYRO ACTIVE';
@@ -5374,10 +5374,18 @@
     var targetYaw = normalizeAngle360(yawDeg - scanBaseYawOffset);
     var targetPitch = Math.max(-45, Math.min(45, pitchDeg));
 
-    // Low-pass exponential moving average with unwrapped angle delta to eliminate jitter
+    // High-stability low-pass filter with deadband for rock-solid guide holding
     var dy = angleDiffSigned(targetYaw, scanSmoothYaw);
-    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + dy * 0.35);
-    scanSmoothPitch = scanSmoothPitch + (targetPitch - scanSmoothPitch) * 0.35;
+    var dp = targetPitch - scanSmoothPitch;
+
+    // Small jitter deadzone to ignore sub-degree hand micro-tremors
+    var filterYaw = (Math.abs(dy) < 0.15) ? 0 : dy;
+    var filterPitch = (Math.abs(dp) < 0.15) ? 0 : dp;
+
+    // Smooth response curve (0.24 factor for rock-solid stability without sluggishness)
+    scanSmoothYaw = normalizeAngle360(scanSmoothYaw + filterYaw * 0.24);
+    scanSmoothPitch = scanSmoothPitch + filterPitch * 0.24;
+
     scanCurrentYaw = scanSmoothYaw;
     scanCurrentPitch = scanSmoothPitch;
 
@@ -5720,11 +5728,14 @@
           const screenY = centerY - (diffPitch / vFov) * vh;
           const isVisible = Math.abs(diffYaw) < hFov * 1.1 && Math.abs(diffPitch) < vFov * 1.1;
 
-          if (!slot.captured && angularDist < 8.5) {
+          // Level indicator and magnetic alignment
+          const isLevel = Math.abs(diffPitch) < 5.0;
+          if (!slot.captured && angularDist < 7.5) {
             alignedTargetIdx = idx;
           }
 
-          el.style.transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, -50%)`;
+          // Smooth coordinate positioning without flicker
+          el.style.transform = `translate3d(${screenX.toFixed(1)}px, ${screenY.toFixed(1)}px, 0) translate(-50%, -50%)`;
           el.style.visibility = isVisible ? 'visible' : 'hidden';
 
           const span = el.querySelector('span');
@@ -5734,10 +5745,10 @@
             el.classList.add('captured');
             el.style.opacity = isVisible ? '0.75' : '0';
             if (span) span.textContent = '✓';
-          } else if (angularDist < 8.5) {
+          } else if (angularDist < 7.5) {
             el.classList.add('aligned');
             el.style.opacity = '1';
-            if (span) span.textContent = '●';
+            if (span) span.textContent = isLevel ? '🎯' : '●';
           } else if (idx === closestUncapturedIdx) {
             el.classList.add('pending', 'next-target');
             el.style.opacity = isVisible ? '1' : '0';
@@ -5749,16 +5760,18 @@
           }
         }
 
-        // Center reticle feedback
+        // Center reticle feedback & stable lock
         if (alignedTargetIdx !== -1) {
           const slot = scanSlots[alignedTargetIdx];
+          const isLevel = Math.abs(scanCurrentPitch) < 5.0;
           if (centerRing) {
             centerRing.classList.add('aligned');
             centerRing.classList.toggle('captured', !!slot.captured);
+            centerRing.style.borderColor = slot.captured ? '#06D6A0' : (isLevel ? '#06D6A0' : '#FFD23F');
           }
           if (ringStatus) {
-            ringStatus.textContent = slot.captured ? `✓ CAPTURED (${Math.round(slot.yaw)}°)` : `LOCK · HOLD STEADY`;
-            ringStatus.style.color = slot.captured ? '#06D6A0' : '#FFD23F';
+            ringStatus.textContent = slot.captured ? `✓ CAPTURED (${Math.round(slot.yaw)}°)` : (isLevel ? `🎯 LOCKED · HOLD STEADY` : `LEVEL PHONE · HOLD STEADY`);
+            ringStatus.style.color = slot.captured ? '#06D6A0' : (isLevel ? '#06D6A0' : '#FFD23F');
           }
 
           if (scanAutoSnap && !slot.captured) {
@@ -5769,13 +5782,16 @@
                 if (alignedTargetIdx === scanAlignedAngleIdx && !scanSlots[alignedTargetIdx].captured) {
                   window.captureSpecificScanAngle(alignedTargetIdx);
                 }
-              }, 340);
+              }, 300);
             }
           }
         } else {
           scanAlignedAngleIdx = -1;
           clearTimeout(scanAlignTimer);
-          if (centerRing) centerRing.classList.remove('aligned', 'captured');
+          if (centerRing) {
+            centerRing.classList.remove('aligned', 'captured');
+            centerRing.style.borderColor = '';
+          }
           if (ringStatus) {
             ringStatus.textContent = 'ROTATE TO TARGET DOT';
             ringStatus.style.color = 'rgba(255,255,255,0.75)';
@@ -6254,9 +6270,14 @@
               var g = (srcPx[i00 + 1] * (1 - tx) + srcPx[i10 + 1] * tx) * (1 - ty) + (srcPx[i01 + 1] * (1 - tx) + srcPx[i11 + 1] * tx) * ty;
               var b = (srcPx[i00 + 2] * (1 - tx) + srcPx[i10 + 2] * tx) * (1 - ty) + (srcPx[i01 + 2] * (1 - tx) + srcPx[i11 + 2] * tx) * ty;
 
-              // Smooth cosine-squared edge feathering (clean overlap, zero fog)
-              var edgeW = (1.0 - absU * absU) * (1.0 - absV * absV);
-              var wt = Math.max(0.01, edgeW * edgeW);
+              // Dominant-winner optical center weighting:
+              // Completely eliminates ghosting & double exposures by ensuring each room surface
+              // is rendered from the single best-aimed camera frame, with smooth micro-blended seams.
+              var edgeU = Math.max(0, 1.0 - absU);
+              var edgeV = Math.max(0, 1.0 - absV);
+              var edgeW = edgeU * edgeV;
+              var wt = Math.pow(edgeW, 8);
+              if (wt <= 0.000005) continue;
 
               var pIdx = row * W + col;
               accumR[pIdx] += r * wt;
