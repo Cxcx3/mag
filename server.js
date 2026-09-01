@@ -527,6 +527,7 @@ app.post('/api/admin/community/moderate', async (req, res) => {
 // Endpoint to check AI capability status
 app.get('/api/gemini/status', (req, res) => {
   const hasKey = Boolean(process.env.GEMINI_API_KEY);
+  res.setHeader('Content-Type', 'application/json');
   res.json({
     available: hasKey,
     model: 'gemini-3.1-flash-lite-image',
@@ -536,55 +537,59 @@ app.get('/api/gemini/status', (req, res) => {
 
 // Endpoint to outpaint ceiling & floor on a 360 equirectangular photosphere
 app.post('/api/gemini/outpaint-photosphere', async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
   try {
-    const { imageData, imageUrl, materialsHint, roomType } = req.body;
+    const { imageData, imageUrl, materialsHint, roomType } = req.body || {};
+    const raw = imageData || imageUrl;
 
-    if (!imageData && !imageUrl) {
+    if (!raw) {
       return res.status(400).json({ error: 'No image provided for AI outpainting' });
     }
 
     let base64Data = '';
     let mimeType = 'image/jpeg';
 
-    if (imageData && imageData.startsWith('data:')) {
-      const match = imageData.match(/^data:([^;]+);base64,(.+)$/);
+    if (typeof raw === 'string' && raw.startsWith('data:')) {
+      const match = raw.match(/^data:([^;]+);base64,(.+)$/);
       if (match) {
         mimeType = match[1];
         base64Data = match[2];
       } else {
-        base64Data = imageData.split(',')[1] || imageData;
+        const parts = raw.split(',');
+        base64Data = parts[1] || parts[0];
       }
-    } else if (imageData) {
-      base64Data = imageData;
-    } else if (imageUrl) {
-      // Fetch image from local path or URL
+    } else if (typeof raw === 'string' && raw.startsWith('/uploads/')) {
+      const localPath = path.join(__dirname, raw);
+      if (fs.existsSync(localPath)) {
+        const buffer = await fs.promises.readFile(localPath);
+        mimeType = localPath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+        base64Data = buffer.toString('base64');
+      }
+    } else if (typeof raw === 'string' && (raw.startsWith('http://') || raw.startsWith('https://'))) {
       try {
-        let buffer;
-        if (imageUrl.startsWith('/uploads/')) {
-          const localPath = path.join(__dirname, imageUrl);
-          if (fs.existsSync(localPath)) {
-            buffer = await fs.promises.readFile(localPath);
-            mimeType = localPath.endsWith('.png') ? 'image/png' : 'image/jpeg';
-          }
-        }
-        if (!buffer) {
-          const fetchRes = await fetch(imageUrl);
-          const ab = await fetchRes.arrayBuffer();
-          buffer = Buffer.from(ab);
-          mimeType = fetchRes.headers.get('content-type') || 'image/jpeg';
-        }
+        const fetchRes = await fetch(raw);
+        const ab = await fetchRes.arrayBuffer();
+        const buffer = Buffer.from(ab);
+        mimeType = fetchRes.headers.get('content-type') || 'image/jpeg';
         base64Data = buffer.toString('base64');
       } catch (fe) {
-        console.error('Failed to load image for Gemini:', fe);
-        return res.status(400).json({ error: 'Could not load input image' });
+        console.error('Failed to fetch image URL for Gemini:', fe.message);
+        return res.status(400).json({ error: 'Could not load remote image: ' + fe.message, fallback: true });
       }
+    } else if (typeof raw === 'string' && raw.length > 50) {
+      base64Data = raw;
+    }
+
+    if (!base64Data) {
+      return res.status(400).json({ error: 'Unable to parse image data', fallback: true });
     }
 
     const ai = getGenAI();
     if (!ai) {
-      return res.status(503).json({
-        error: 'GEMINI_API_KEY environment variable is not configured on the server.',
-        fallback: true
+      return res.json({
+        success: false,
+        fallback: true,
+        error: 'GEMINI_API_KEY is not configured on the server. Using optimized procedural reconstruction.',
       });
     }
 
@@ -605,27 +610,37 @@ Your task:
 
     console.log('[Gemini Outpaint] Requesting generative outpainting with model gemini-3.1-flash-lite-image...');
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-lite-image',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType: mimeType
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite-image',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType
+              }
+            },
+            {
+              text: outpaintPrompt
             }
-          },
-          {
-            text: outpaintPrompt
-          }
-        ]
-      }
-    });
+          ]
+        }
+      });
+    } catch (genErr) {
+      console.warn('[Gemini Outpaint generateContent warning]', genErr.message);
+      return res.json({
+        success: false,
+        fallback: true,
+        error: 'Gemini image generation model notice: ' + genErr.message
+      });
+    }
 
     let generatedBase64 = null;
     let textExplanation = '';
 
-    if (response.candidates && response.candidates[0] && response.candidates[0].content && response.candidates[0].content.parts) {
+    if (response && response.candidates && response.candidates[0] && response.candidates[0].content && response.candidates[0].content.parts) {
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData && part.inlineData.data) {
           generatedBase64 = part.inlineData.data;
@@ -654,18 +669,20 @@ Your task:
       });
     }
 
-    // If Gemini returned text analysis or hints
+    // If Gemini returned text analysis
     return res.json({
       success: false,
-      error: 'Gemini did not return an image part. It may require a direct image model or higher resolution configuration.',
+      fallback: true,
+      error: 'Gemini completed analysis. Applying procedural perspective reconstruction.',
       text: textExplanation
     });
 
   } catch (err) {
     console.error('[Gemini Outpaint Error]', err);
-    return res.status(500).json({
-      error: err && err.message ? err.message : 'AI Outpainting failed',
-      details: String(err)
+    return res.json({
+      success: false,
+      fallback: true,
+      error: err && err.message ? err.message : 'AI Outpainting failed'
     });
   }
 });
