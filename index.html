@@ -341,6 +341,37 @@
     margin-bottom: 2px;
   }
   .city-page{ background: var(--paper); }
+  /* Custom page background media — editor-controlled, city pages only */
+  .city-page .page-bg-media{
+    position:absolute;
+    inset:0;
+    z-index:0;
+    overflow:hidden;
+    pointer-events:none;
+    background:var(--paper);
+  }
+  .city-page .page-bg-media-content{
+    position:absolute !important;
+    inset:0 !important;
+    width:100% !important;
+    height:100% !important;
+    min-height:100% !important;
+    border-radius:0 !important;
+    background:transparent !important;
+  }
+  .city-page .page-bg-media-content img,
+  .city-page .page-bg-media-content video,
+  .city-page .page-bg-media-content iframe{
+    width:100% !important;
+    height:100% !important;
+    object-fit:cover !important;
+    display:block;
+  }
+  .city-page .sheet{
+    position:relative;
+    z-index:1;
+    background:transparent;
+  }
   .city-band{
     display: flex; align-items: center; justify-content: space-between;
     padding: 10px 14px; margin: -22px -18px 16px;
@@ -2097,6 +2128,7 @@ function normalizeMagazine(saved){
         theme: city.theme || defaultCity.theme || `theme-c${idx+1}`,
         num: city.num || String(idx + 1).padStart(2, '0'),
         name: city.name || defaultCity.name || `City ${idx+1}`,
+        background: normalizeMedia(city.background, null),
         model,
         ads
       };
@@ -2375,6 +2407,7 @@ function cityPage(c, idx){
     id: 'city-' + cityNum,
     cityIndex: idx,
     cls: 'city-page ' + cityTheme,
+    background: c.background || null,
     html: `
       <div class="city-band">
         <span class="cname">${cityName}</span>
@@ -2686,6 +2719,7 @@ function renderEditor(){
           <div class="ed-field"><label>Role</label><input data-model="role" value="${esc(c.model?.role)}"></div>
           <div class="ed-field full"><label>Bio</label><textarea data-model="bio">${esc(c.model?.bio)}</textarea></div>
           ${mediaFieldHTML('Featured Person Media (Photo or Video)', `city-${ci}-model`, c.model?.media, `model-${ci}-type`)}
+          ${mediaFieldHTML('Page Background (Photo or Video)', `city-${ci}-background`, c.background, `background-${ci}-type`)}
         </div>
         <h4>Businesses</h4>
         <div class="ads">${adsHtml}</div>
@@ -2764,6 +2798,13 @@ function saveActiveTabFields() {
       const modelType = document.querySelector(`input[name="model-${ci}-type"]:checked`)?.value || detectMediaType(modelUrl);
       const cleanModel = sanitizeImageUrl(modelUrl);
       c.model.media = cleanModel ? { type: modelType, url: cleanModel, poster: modelPoster || undefined } : null;
+
+      const bgInput = document.querySelector(`[data-media-url="city-${ci}-background"]`);
+      const bgUrl = bgInput?.value.trim();
+      const bgPoster = bgInput?.dataset.poster?.trim();
+      const bgType = document.querySelector(`input[name="background-${ci}-type"]:checked`)?.value || detectMediaType(bgUrl);
+      const cleanBg = sanitizeImageUrl(bgUrl);
+      c.background = cleanBg ? { type: bgType, url: cleanBg, poster: bgPoster || undefined } : null;
       
       document.querySelectorAll('.ad-editor[data-ai]').forEach(adEl => {
         const ai = +adEl.dataset.ai;
@@ -3754,6 +3795,7 @@ function renderPageContent(){
     const html = typeof p.html === 'function' ? p.html() : p.html;
     pageEl.innerHTML = `
       <div class="face front ${p.cls}">
+        ${p.background ? `<div class="page-bg-media">${mediaBlock(p.background, '[ PAGE BACKGROUND ]', 'page-bg-media-content')}</div>` : ''}
         <div class="sheet">
           <div class="sheet-inner">${html}</div>
         </div>
