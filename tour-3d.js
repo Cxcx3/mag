@@ -237,8 +237,97 @@
   let threeScene = null;
   let threeCamera = null;
   let threeSphere = null;
+  let floorWaypointMesh = null;
   let threeTextureLoader = null;
   let currentTexture = null;
+  let currentFloorColor = { r: 110, g: 95, b: 75 };
+
+  /**
+   * Builds an authentic Matterport-style floor navigation puck & nadir soft-blur disc
+   */
+  function buildFloorWaypointTexture(floorColor) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    const cx = 256, cy = 256;
+
+    const fr = floorColor ? Math.round(floorColor.r) : 110;
+    const fg = floorColor ? Math.round(floorColor.g) : 95;
+    const fb = floorColor ? Math.round(floorColor.b) : 75;
+
+    // 1. Soft radial floor nadir blur disc that cleanly covers the camera tripod pinch point
+    const radGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 235);
+    radGrad.addColorStop(0, `rgba(${fr}, ${fg}, ${fb}, 0.98)`);
+    radGrad.addColorStop(0.35, `rgba(${fr}, ${fg}, ${fb}, 0.90)`);
+    radGrad.addColorStop(0.65, `rgba(${fr}, ${fg}, ${fb}, 0.50)`);
+    radGrad.addColorStop(0.85, `rgba(${fr}, ${fg}, ${fb}, 0.18)`);
+    radGrad.addColorStop(1, `rgba(${fr}, ${fg}, ${fb}, 0)`);
+
+    ctx.fillStyle = radGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 235, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. Realistic subtle drop shadow for Matterport Waypoint Double-Ring
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 4;
+
+    // Outer double-ring: Outer thick white border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 80, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Translucent center puck disc
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 72, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner subtle accent ring
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 60, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    return tex;
+  }
+
+  function updateFloorWaypointMesh(floorColor, isVisible = true) {
+    if (!threeScene || typeof THREE === 'undefined') return;
+    if (floorColor) currentFloorColor = floorColor;
+
+    const tex = buildFloorWaypointTexture(currentFloorColor);
+
+    if (!floorWaypointMesh) {
+      const geometry = new THREE.CircleGeometry(165, 64);
+      const material = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        opacity: 0.98,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      floorWaypointMesh = new THREE.Mesh(geometry, material);
+      floorWaypointMesh.position.set(0, -485, 0);
+      floorWaypointMesh.rotation.x = -Math.PI / 2;
+      threeScene.add(floorWaypointMesh);
+    } else {
+      if (floorWaypointMesh.material.map) floorWaypointMesh.material.map.dispose();
+      floorWaypointMesh.material.map = tex;
+      floorWaypointMesh.material.needsUpdate = true;
+    }
+    floorWaypointMesh.visible = (isVisible !== false);
+  }
 
   // Fallback 2D Canvas Context
   let canvas2d = null;
@@ -434,69 +523,79 @@
           const isArcMode = (aspectMode === 'matterport-arc');
 
           // Compute exact natural vertical height to maintain 1:1 real-world physical room proportions
-          let panoH = Math.min(canvasH, Math.round((canvasW / Math.max(ar, 1.8)) * vScale));
+          let panoH = canvasH;
           if (isArcMode) {
-            panoH = Math.min(canvasH - 60, Math.max(Math.floor(canvasH * 0.45), Math.round(canvasH * 0.52 * vScale)));
+            panoH = Math.min(canvasH, Math.max(Math.floor(canvasH * 0.5), Math.round(canvasH * 0.75 * vScale)));
+          } else {
+            // In 360-loop mode, allow full 100% vertical canvas coverage (no bottom cut) by default
+            panoH = Math.min(canvasH, Math.round(canvasH * vScale));
           }
           const panoY = Math.max(0, Math.min(canvasH - panoH, Math.round((canvasH - panoH) / 2) + vOffset));
 
-          // Sample edge and wall colors for intelligent ambient room fill
-          const sampleC = document.createElement('canvas');
-          sampleC.width = 64;
-          sampleC.height = 64;
-          const sCtxSample = sampleC.getContext('2d');
-          sCtxSample.drawImage(img, 0, 0, 64, 64);
-
+          // Sample edge and wall colors for intelligent ambient room fill (only if needed)
+          const needsPadding = (panoY > 4) || (panoY + panoH < canvasH - 4);
           let tr = 235, tg = 235, tb = 235; // top ceiling
           let br = 65, bg = 55, bb = 50;    // bottom floor
           let lr = 220, lg = 215, lb = 210; // left wall (door side)
           let rr = 220, rg = 215, rb = 210; // right wall (window side)
 
-          try {
-            const topData = sCtxSample.getImageData(0, 0, 64, 4).data;
-            let sumR = 0, sumG = 0, sumB = 0, count = topData.length / 4;
-            for (let i = 0; i < topData.length; i += 4) {
-              sumR += topData[i]; sumG += topData[i+1]; sumB += topData[i+2];
-            }
-            tr = Math.round(sumR / count); tg = Math.round(sumG / count); tb = Math.round(sumB / count);
+          if (needsPadding || isArcMode) {
+            const sampleC = document.createElement('canvas');
+            sampleC.width = 64;
+            sampleC.height = 64;
+            const sCtxSample = sampleC.getContext('2d');
+            sCtxSample.drawImage(img, 0, 0, 64, 64);
 
-            const btmData = sCtxSample.getImageData(0, 60, 64, 4).data;
-            sumR = 0; sumG = 0; sumB = 0;
-            for (let i = 0; i < btmData.length; i += 4) {
-              sumR += btmData[i]; sumG += btmData[i+1]; sumB += btmData[i+2];
-            }
-            br = Math.round(sumR / count); bg = Math.round(sumG / count); bb = Math.round(sumB / count);
+            try {
+              const topData = sCtxSample.getImageData(0, 0, 64, 4).data;
+              let sumR = 0, sumG = 0, sumB = 0, count = topData.length / 4;
+              for (let i = 0; i < topData.length; i += 4) {
+                sumR += topData[i]; sumG += topData[i+1]; sumB += topData[i+2];
+              }
+              tr = Math.round(sumR / count); tg = Math.round(sumG / count); tb = Math.round(sumB / count);
 
-            const leftData = sCtxSample.getImageData(0, 16, 4, 32).data;
-            sumR = 0; sumG = 0; sumB = 0; count = leftData.length / 4;
-            for (let i = 0; i < leftData.length; i += 4) {
-              sumR += leftData[i]; sumG += leftData[i+1]; sumB += leftData[i+2];
-            }
-            lr = Math.round(sumR / count); lg = Math.round(sumG / count); lb = Math.round(sumB / count);
+              const btmData = sCtxSample.getImageData(0, 60, 64, 4).data;
+              sumR = 0; sumG = 0; sumB = 0;
+              for (let i = 0; i < btmData.length; i += 4) {
+                sumR += btmData[i]; sumG += btmData[i+1]; sumB += btmData[i+2];
+              }
+              br = Math.round(sumR / count); bg = Math.round(sumG / count); bb = Math.round(sumB / count);
 
-            const rightData = sCtxSample.getImageData(60, 16, 4, 32).data;
-            sumR = 0; sumG = 0; sumB = 0; count = rightData.length / 4;
-            for (let i = 0; i < rightData.length; i += 4) {
-              sumR += rightData[i]; sumG += rightData[i+1]; sumB += rightData[i+2];
-            }
-            rr = Math.round(sumR / count); rg = Math.round(sumG / count); rb = Math.round(sumB / count);
-          } catch(e) {}
+              const leftData = sCtxSample.getImageData(0, 16, 4, 32).data;
+              sumR = 0; sumG = 0; sumB = 0; count = leftData.length / 4;
+              for (let i = 0; i < leftData.length; i += 4) {
+                sumR += leftData[i]; sumG += leftData[i+1]; sumB += leftData[i+2];
+              }
+              lr = Math.round(sumR / count); lg = Math.round(sumG / count); lb = Math.round(sumB / count);
 
-          // 1. Render Realistic Multi-Band Ceiling Ambient Gradient
-          const topGrad = ctx.createLinearGradient(0, 0, 0, panoY + 8);
-          topGrad.addColorStop(0, `rgb(${Math.round(tr * 0.9)}, ${Math.round(tg * 0.9)}, ${Math.round(tb * 0.9)})`);
-          topGrad.addColorStop(0.7, `rgb(${tr}, ${tg}, ${tb})`);
-          topGrad.addColorStop(1, `rgb(${tr}, ${tg}, ${tb})`);
-          ctx.fillStyle = topGrad;
-          ctx.fillRect(0, 0, canvasW, panoY + 8);
+              const rightData = sCtxSample.getImageData(60, 16, 4, 32).data;
+              sumR = 0; sumG = 0; sumB = 0; count = rightData.length / 4;
+              for (let i = 0; i < rightData.length; i += 4) {
+                sumR += rightData[i]; sumG += rightData[i+1]; sumB += rightData[i+2];
+              }
+              rr = Math.round(sumR / count); rg = Math.round(sumG / count); rb = Math.round(sumB / count);
+            } catch(e) {}
+          }
 
-          // 2. Render Realistic Floor Ambient Gradient
-          const btmGrad = ctx.createLinearGradient(0, panoY + panoH - 8, 0, canvasH);
-          btmGrad.addColorStop(0, `rgb(${br}, ${bg}, ${bb})`);
-          btmGrad.addColorStop(0.5, `rgb(${Math.round(br * 0.85)}, ${Math.round(bg * 0.85)}, ${Math.round(bb * 0.85)})`);
-          btmGrad.addColorStop(1, `rgb(${Math.round(br * 0.7)}, ${Math.round(bg * 0.7)}, ${Math.round(bb * 0.7)})`);
-          ctx.fillStyle = btmGrad;
-          ctx.fillRect(0, panoY + panoH - 8, canvasW, canvasH - (panoY + panoH - 8));
+          if (panoY > 0) {
+            // 1. Render Realistic Multi-Band Ceiling Ambient Gradient (only if top space exists)
+            const topGrad = ctx.createLinearGradient(0, 0, 0, panoY + 8);
+            topGrad.addColorStop(0, `rgb(${Math.round(tr * 0.9)}, ${Math.round(tg * 0.9)}, ${Math.round(tb * 0.9)})`);
+            topGrad.addColorStop(0.7, `rgb(${tr}, ${tg}, ${tb})`);
+            topGrad.addColorStop(1, `rgb(${tr}, ${tg}, ${tb})`);
+            ctx.fillStyle = topGrad;
+            ctx.fillRect(0, 0, canvasW, panoY + 8);
+          }
+
+          if (panoY + panoH < canvasH) {
+            // 2. Render Realistic Floor Ambient Gradient (only if bottom space exists)
+            const btmGrad = ctx.createLinearGradient(0, panoY + panoH - 8, 0, canvasH);
+            btmGrad.addColorStop(0, `rgb(${br}, ${bg}, ${bb})`);
+            btmGrad.addColorStop(0.5, `rgb(${Math.round(br * 0.85)}, ${Math.round(bg * 0.85)}, ${Math.round(bb * 0.85)})`);
+            btmGrad.addColorStop(1, `rgb(${Math.round(br * 0.7)}, ${Math.round(bg * 0.7)}, ${Math.round(bb * 0.7)})`);
+            ctx.fillStyle = btmGrad;
+            ctx.fillRect(0, panoY + panoH - 8, canvasW, canvasH - (panoY + panoH - 8));
+          }
 
           if (isArcMode) {
             // ==============================================================
@@ -628,21 +727,25 @@
             ctx.drawImage(processedStrip, 0, panoY);
           }
 
-          // 4. Soft Edge Feathering (Seam Blend)
-          const featherH = Math.min(28, Math.max(8, Math.floor(panoH * 0.04)));
-          // Top Seam Feather
-          const fTop = ctx.createLinearGradient(0, panoY, 0, panoY + featherH);
-          fTop.addColorStop(0, `rgba(${tr}, ${tg}, ${tb}, 0.85)`);
-          fTop.addColorStop(1, `rgba(${tr}, ${tg}, ${tb}, 0)`);
-          ctx.fillStyle = fTop;
-          ctx.fillRect(0, panoY, canvasW, featherH);
+          // 4. Soft Edge Feathering (only if vertical padding exists)
+          if (needsPadding) {
+            const featherH = Math.min(28, Math.max(8, Math.floor(panoH * 0.04)));
+            if (panoY > 0) {
+              const fTop = ctx.createLinearGradient(0, panoY, 0, panoY + featherH);
+              fTop.addColorStop(0, `rgba(${tr}, ${tg}, ${tb}, 0.85)`);
+              fTop.addColorStop(1, `rgba(${tr}, ${tg}, ${tb}, 0)`);
+              ctx.fillStyle = fTop;
+              ctx.fillRect(0, panoY, canvasW, featherH);
+            }
 
-          // Bottom Seam Feather
-          const fBtm = ctx.createLinearGradient(0, panoY + panoH - featherH, 0, panoY + panoH);
-          fBtm.addColorStop(0, `rgba(${br}, ${bg}, ${bb}, 0)`);
-          fBtm.addColorStop(1, `rgba(${br}, ${bg}, ${bb}, 0.85)`);
-          ctx.fillStyle = fBtm;
-          ctx.fillRect(0, panoY + panoH - featherH, canvasW, featherH);
+            if (panoY + panoH < canvasH) {
+              const fBtm = ctx.createLinearGradient(0, panoY + panoH - featherH, 0, panoY + panoH);
+              fBtm.addColorStop(0, `rgba(${br}, ${bg}, ${bb}, 0)`);
+              fBtm.addColorStop(1, `rgba(${br}, ${bg}, ${bb}, 0.85)`);
+              ctx.fillStyle = fBtm;
+              ctx.fillRect(0, panoY + panoH - featherH, canvasW, featherH);
+            }
+          }
 
           finalTexture = new THREE.CanvasTexture(canvas);
         } else {
@@ -662,6 +765,25 @@
         currentTexture = finalTexture;
         threeSphere.material.map = finalTexture;
         threeSphere.material.needsUpdate = true;
+
+        // Sample floor color and sync Matterport Floor Waypoint Ring & Nadir Disc
+        let floorR = 110, floorG = 95, floorB = 75;
+        try {
+          const sampleC = document.createElement('canvas');
+          sampleC.width = 64;
+          sampleC.height = 64;
+          const sCtxSample = sampleC.getContext('2d');
+          sCtxSample.drawImage(img, 0, 0, 64, 64);
+          const btmData = sCtxSample.getImageData(0, 56, 64, 8).data;
+          let sumR = 0, sumG = 0, sumB = 0, count = btmData.length / 4;
+          for (let i = 0; i < btmData.length; i += 4) {
+            sumR += btmData[i]; sumG += btmData[i+1]; sumB += btmData[i+2];
+          }
+          floorR = Math.round(sumR / count);
+          floorG = Math.round(sumG / count);
+          floorB = Math.round(sumB / count);
+        } catch(e) {}
+        updateFloorWaypointMesh({ r: floorR, g: floorG, b: floorB }, curScene.showFloorRing !== false);
 
         if (loader) loader.classList.add('hidden');
       };
@@ -2411,21 +2533,21 @@
 
           <div class="prop-section-label">1. PROJECTION FORMAT</div>
           <div class="prop-mode-btns" style="display:flex;flex-direction:column;gap:5px;">
-            <button type="button" class="prop-mode-btn active" id="propModeMatterport" onclick="window.setTourAspectMode('matterport-arc')">
-              <span style="font-weight:800;">✨ Matterport Pro Arc (0% Seam · No Split)</span>
-              <span style="color:#06D6A0;font-size:10px;font-weight:800;">RECOMMENDED FOR PHONE PANOS</span>
+            <button type="button" class="prop-mode-btn" id="propModeFull" onclick="window.applyFullSpherePreset()">
+              <span style="font-weight:800;">🌐 100% Full 360° Photosphere (No Cutoff · Show All Floor & Ceiling)</span>
+              <span style="color:#06D6A0;font-size:10px;font-weight:800;">BEST FOR STITCHED 360 PHOTOS & SCANS</span>
             </button>
-            <button type="button" class="prop-mode-btn" id="propMode360Loop" onclick="window.setTourAspectMode('360-loop')">
-              <span>🔄 360° Continuous Loop (Full 360° Sweep Required)</span>
+            <button type="button" class="prop-mode-btn" id="propMode360Loop" onclick="window.apply360LoopPreset()">
+              <span>🔄 360° Continuous Loop (Full Height + Seam Rotation)</span>
             </button>
-            <button type="button" class="prop-mode-btn" id="propModeFull" onclick="window.setTourAspectMode('full-360')">
-              <span>🌐 Full 360° Photosphere (2:1 Spherical)</span>
+            <button type="button" class="prop-mode-btn" id="propModeMatterport" onclick="window.applyMatterportPreset()">
+              <span style="font-weight:800;">✨ Matterport Pro Arc (Partial 180° Sweeps Only)</span>
             </button>
           </div>
 
-          <div style="margin-top:4px;">
-            <button type="button" class="tour-dialog-btn" style="width:100%;background:linear-gradient(135deg, rgba(6,214,160,0.25) 0%, rgba(255,210,63,0.2) 100%);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;padding:8px 10px;font-size:11px;border-radius:8px;" onclick="window.applyMatterportPreset()">
-              🪄 1-CLICK FIX: APPLY MATTERPORT PRO PRESET
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+            <button type="button" class="tour-dialog-btn" style="width:100%;background:linear-gradient(135deg, rgba(6,214,160,0.3) 0%, rgba(255,210,63,0.25) 100%);border:2px solid #06D6A0;color:#06D6A0;font-weight:900;padding:10px 12px;font-size:12px;border-radius:8px;text-align:center;" onclick="window.applyFullSpherePreset()">
+              🌟 1-CLICK FIX: 100% FULL 360° (SHOW FULL FLOOR & COUCH)
             </button>
           </div>
 
@@ -2506,9 +2628,9 @@
             <button type="button" class="tour-dialog-btn" style="flex:1;background:rgba(255,210,63,0.15);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:800;padding:8px 10px;font-size:11px;" onclick="window.autoAlignRoomSeam()">
               🪄 AUTO-ALIGN & FEATHER
             </button>
-            <button type="button" class="prop-sharp-btn" id="propSharpBtn" style="flex:1;padding:8px 10px;" onclick="window.toggleHdSharpness()">
-              <span>✨ 16x HD Filter</span>
-              <span id="propSharpBadge" style="color:#06D6A0;font-weight:800;font-size:10px;">ON</span>
+            <button type="button" class="prop-sharp-btn" id="propFloorRingBtn" style="flex:1;padding:8px 10px;" onclick="window.toggleFloorWaypointRing()">
+              <span>⭕ Floor Puck & Nadir</span>
+              <span id="propFloorRingBadge" style="color:#06D6A0;font-weight:800;font-size:10px;">ON</span>
             </button>
           </div>
 
@@ -3284,7 +3406,7 @@
 
         const sensitivity = fov / 500;
         targetYaw -= dx * sensitivity;
-        targetPitch = Math.max(-85, Math.min(85, targetPitch + dy * sensitivity));
+        targetPitch = Math.max(-88, Math.min(88, targetPitch + dy * sensitivity));
 
         velX = -dx * sensitivity;
         velY = dy * sensitivity;
@@ -3330,7 +3452,7 @@
 
           const sensitivity = fov / 500;
           targetYaw -= dx * sensitivity;
-          targetPitch = Math.max(-85, Math.min(85, targetPitch + dy * sensitivity));
+          targetPitch = Math.max(-88, Math.min(88, targetPitch + dy * sensitivity));
         } else if (e.touches.length === 2 && lastPinchDist !== null) {
           const dist = Math.hypot(
             e.touches[0].clientX - e.touches[1].clientX,
@@ -3475,6 +3597,8 @@
     } else {
       while (yaw > 180) { yaw -= 360; targetYaw -= 360; }
       while (yaw < -180) { yaw += 360; targetYaw += 360; }
+      targetPitch = Math.max(-88, Math.min(88, targetPitch));
+      pitch = Math.max(-89, Math.min(89, pitch));
     }
 
     const compassDial = document.getElementById('compassDial');
@@ -4389,6 +4513,65 @@
       } else {
         showToast('🌐 Full 360° Photosphere Active');
       }
+    }
+  };
+
+  window.applyFullSpherePreset = function () {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.aspectMode = 'full-360';
+    curScene.vScale = 1.0;
+    curScene.hSpan = 1.0;
+    curScene.hShift = 0;
+    curScene.seamBlend = 0;
+    curScene.seamVOffset = 0;
+
+    const btnMat = document.getElementById('propModeMatterport');
+    const btnLoop = document.getElementById('propMode360Loop');
+    const btnFull = document.getElementById('propModeFull');
+    if (btnFull) btnFull.classList.add('active');
+    if (btnMat) btnMat.classList.remove('active');
+    if (btnLoop) btnLoop.classList.remove('active');
+
+    const vScaleSlider = document.getElementById('propVScaleSlider');
+    const vScaleLabel = document.getElementById('propVScaleVal');
+    if (vScaleSlider) vScaleSlider.value = 100;
+    if (vScaleLabel) vScaleLabel.textContent = '100%';
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast('🌟 100% Full 360° Photosphere Active: Full Floor & Ceiling Visible!');
+    }
+  };
+
+  window.apply360LoopPreset = function () {
+    const curScene = activeSceneList[activeSceneIndex];
+    if (!curScene) return;
+    curScene.aspectMode = '360-loop';
+    curScene.vScale = 1.0;
+    curScene.seamBlend = 0.08;
+    curScene.seamVOffset = 0;
+    curScene.hSpan = 1.0;
+
+    const btnMat = document.getElementById('propModeMatterport');
+    const btnLoop = document.getElementById('propMode360Loop');
+    const btnFull = document.getElementById('propModeFull');
+    if (btnLoop) btnLoop.classList.add('active');
+    if (btnMat) btnMat.classList.remove('active');
+    if (btnFull) btnFull.classList.remove('active');
+
+    const vScaleSlider = document.getElementById('propVScaleSlider');
+    const vScaleLabel = document.getElementById('propVScaleVal');
+    if (vScaleSlider) vScaleSlider.value = 100;
+    if (vScaleLabel) vScaleLabel.textContent = '100%';
+
+    loadThreePanoTexture(currentPanoUrl, curScene);
+    window.saveTourChangesToMagazine();
+
+    if (typeof showToast === 'function') {
+      showToast('🔄 360° Continuous Loop Active: 100% Height with Seamless Blending!');
     }
   };
 
