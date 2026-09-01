@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import multer from 'multer';
 import { execFile } from 'child_process';
 import util from 'util';
+import { GoogleGenAI } from '@google/genai';
 
 const execFilePromise = util.promisify(execFile);
 
@@ -13,6 +14,24 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
+
+// Lazy GenAI initialization
+let _genAI = null;
+function getGenAI() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  if (!_genAI) {
+    _genAI = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build'
+        }
+      }
+    });
+  }
+  return _genAI;
+}
 
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -498,6 +517,156 @@ app.post('/api/admin/community/moderate', async (req, res) => {
   } catch (err) {
     console.error('Admin moderation error:', err);
     return res.status(500).json({ error: 'Moderation failed' });
+  }
+});
+
+// =========================================================================
+// GEMINI AI PHOTOSPHERE CEILING & FLOOR OUTPAINTING ENGINE
+// =========================================================================
+
+// Endpoint to check AI capability status
+app.get('/api/gemini/status', (req, res) => {
+  const hasKey = Boolean(process.env.GEMINI_API_KEY);
+  res.json({
+    available: hasKey,
+    model: 'gemini-3.1-flash-lite-image',
+    features: ['photosphere-outpaint', 'material-reconstruction', 'hdr-fill']
+  });
+});
+
+// Endpoint to outpaint ceiling & floor on a 360 equirectangular photosphere
+app.post('/api/gemini/outpaint-photosphere', async (req, res) => {
+  try {
+    const { imageData, imageUrl, materialsHint, roomType } = req.body;
+
+    if (!imageData && !imageUrl) {
+      return res.status(400).json({ error: 'No image provided for AI outpainting' });
+    }
+
+    let base64Data = '';
+    let mimeType = 'image/jpeg';
+
+    if (imageData && imageData.startsWith('data:')) {
+      const match = imageData.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        mimeType = match[1];
+        base64Data = match[2];
+      } else {
+        base64Data = imageData.split(',')[1] || imageData;
+      }
+    } else if (imageData) {
+      base64Data = imageData;
+    } else if (imageUrl) {
+      // Fetch image from local path or URL
+      try {
+        let buffer;
+        if (imageUrl.startsWith('/uploads/')) {
+          const localPath = path.join(__dirname, imageUrl);
+          if (fs.existsSync(localPath)) {
+            buffer = await fs.promises.readFile(localPath);
+            mimeType = localPath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+          }
+        }
+        if (!buffer) {
+          const fetchRes = await fetch(imageUrl);
+          const ab = await fetchRes.arrayBuffer();
+          buffer = Buffer.from(ab);
+          mimeType = fetchRes.headers.get('content-type') || 'image/jpeg';
+        }
+        base64Data = buffer.toString('base64');
+      } catch (fe) {
+        console.error('Failed to load image for Gemini:', fe);
+        return res.status(400).json({ error: 'Could not load input image' });
+      }
+    }
+
+    const ai = getGenAI();
+    if (!ai) {
+      return res.status(503).json({
+        error: 'GEMINI_API_KEY environment variable is not configured on the server.',
+        fallback: true
+      });
+    }
+
+    const hintText = materialsHint ? ` Specifically match these room features: ${materialsHint}.` : '';
+    const roomText = roomType ? ` Room type: ${roomType}.` : '';
+
+    const outpaintPrompt = `You are a professional architectural 360° photosphere reconstruction and VR restoration model.
+This image is a 360-degree equirectangular panorama of an interior space. The middle section contains real photographic details, but the upper ceiling and lower floor areas need realistic generative reconstruction and outpainting.
+
+Your task:
+1. Reconstruct and outpaint the full ceiling (top 30-40% of the equirectangular sphere) and the full floor (bottom 30-40% of the sphere).
+2. Faithfully match the real materials visible in the middle photo:
+   - If hardwood floor planks are present, synthesize realistic wood grain, plank orientation, reflection, and baseboards matching the exact wood tone and perspective.
+   - If tile or carpet is present, extend that exact material texture realistically across the entire floor.
+   - Reconstruct the ceiling with realistic drywall texture, crown moldings, and naturally placed ceiling light fixtures or recessed pot lights consistent with the room's ambient lighting and perspective.
+3. Keep the middle original photographic room details intact and seamlessly blend the boundaries with 0% distortion or seam lines.
+4. Output the complete, full-resolution 2:1 ratio 360-degree equirectangular panoramic image.${roomText}${hintText}`;
+
+    console.log('[Gemini Outpaint] Requesting generative outpainting with model gemini-3.1-flash-lite-image...');
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-lite-image',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType: mimeType
+            }
+          },
+          {
+            text: outpaintPrompt
+          }
+        ]
+      }
+    });
+
+    let generatedBase64 = null;
+    let textExplanation = '';
+
+    if (response.candidates && response.candidates[0] && response.candidates[0].content && response.candidates[0].content.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData && part.inlineData.data) {
+          generatedBase64 = part.inlineData.data;
+        } else if (part.text) {
+          textExplanation += part.text;
+        }
+      }
+    }
+
+    if (generatedBase64) {
+      // Save the AI enhanced photosphere to uploads folder
+      const outFileName = `gemini-photosphere-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
+      const outFilePath = path.join(uploadsDir, outFileName);
+      const imageBuffer = Buffer.from(generatedBase64, 'base64');
+      await fs.promises.writeFile(outFilePath, imageBuffer);
+
+      const outUrl = `/uploads/${outFileName}`;
+      console.log(`[Gemini Outpaint] Successfully generated and saved 360 photosphere to ${outUrl}`);
+
+      return res.json({
+        success: true,
+        panoUrl: outUrl,
+        aiGenerated: true,
+        text: textExplanation,
+        timestamp: Date.now()
+      });
+    }
+
+    // If Gemini returned text analysis or hints
+    return res.json({
+      success: false,
+      error: 'Gemini did not return an image part. It may require a direct image model or higher resolution configuration.',
+      text: textExplanation
+    });
+
+  } catch (err) {
+    console.error('[Gemini Outpaint Error]', err);
+    return res.status(500).json({
+      error: err && err.message ? err.message : 'AI Outpainting failed',
+      details: String(err)
+    });
   }
 });
 

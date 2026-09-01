@@ -2552,6 +2552,9 @@
             <button type="button" class="tour-ed-btn" onclick="window.openPlaceHotspotDialog()" title="Place interactive door hotspot at camera angle">
               🚪 PLACE DOOR PIN
             </button>
+            <button type="button" class="tour-ed-btn" onclick="window.openAiOutpaintModal()" title="AI Outpaint and reconstruct clean ceiling & floor with Gemini AI" style="background:rgba(63,221,224,0.18);border:1.5px solid #3FDDE0;color:#3FDDE0;font-weight:900;">
+              ✨ AI OUTPAINT ROOM
+            </button>
             <button type="button" class="tour-ed-btn" style="background:#FFD23F;color:#14121A;font-weight:900;" onclick="window.open360CameraScanner('new_room')" title="Scan room with your device camera and stitch into 360 photo">
               📸 360 CAMERA SCAN
             </button>
@@ -2587,6 +2590,10 @@
             <div class="tour-tool-grid-item primary" onclick="window.setTourStartingView(); window.toggleTourToolsDropdown(false);">
               <span>📍 Set Starting View</span>
               <span class="tour-tool-grid-item-desc">Lock current angle as default</span>
+            </div>
+            <div class="tour-tool-grid-item" style="background:rgba(63,221,224,0.15);border:1px solid #3FDDE0;" onclick="window.openAiOutpaintModal(); window.toggleTourToolsDropdown(false);">
+              <span style="color:#3FDDE0;font-weight:900;">✨ AI Outpaint Room</span>
+              <span class="tour-tool-grid-item-desc">Reconstruct floor & ceiling with Gemini</span>
             </div>
             <div class="tour-tool-grid-item" onclick="window.openPlaceHotspotDialog(); window.toggleTourToolsDropdown(false);">
               <span>🚪 Place Door Pin</span>
@@ -2767,8 +2774,9 @@
                 <div class="tour-source-tabs">
                   <button type="button" class="tour-src-tab active" id="editTabBtnUpload" onclick="window.switchEditRoomTab('upload')">📸 Upload New 360</button>
                   <button type="button" class="tour-src-tab" id="editTabBtnCamera" onclick="window.switchEditRoomTab('camera')">📷 360 Camera Scan</button>
+                  <button type="button" class="tour-src-tab" id="editTabBtnAi" onclick="window.closeEditRoomDialog(); window.openAiOutpaintModal();" style="color:#3FDDE0;font-weight:900;">✨ AI Outpaint</button>
                   <button type="button" class="tour-src-tab" id="editTabBtnPreset" onclick="window.switchEditRoomTab('preset')">🌄 Utah Presets</button>
-                  <button type="button" class="tour-src-tab" id="editTabBtnUrl" onclick="window.switchEditRoomTab('url')">🔗 Paste URL / Embed</button>
+                  <button type="button" class="tour-src-tab" id="editTabBtnUrl" onclick="window.switchEditRoomTab('url')">🔗 Paste URL</button>
                 </div>
 
                 <!-- Tab 1: Upload File -->
@@ -2930,6 +2938,64 @@
           </div>
         </div>
 
+        <!-- 6.5. GEMINI AI CEILING & FLOOR OUTPAINTING MODAL -->
+        <div class="tour-dialog-overlay" id="tourAiOutpaintModal" style="display:none; z-index:90;">
+          <div class="tour-dialog-card" style="max-width:560px; border-color:#3FDDE0; box-shadow:0 12px 40px rgba(63,221,224,0.3);">
+            <div class="tour-dialog-header">
+              <span class="tour-dialog-title" style="color:#3FDDE0;">✨ AI Outpaint Ceiling & Floor (Gemini)</span>
+              <button type="button" class="tour-dialog-close" onclick="window.closeAiOutpaintModal()">✕</button>
+            </div>
+            <div class="tour-dialog-body">
+              <div style="font-size:12px;color:rgba(255,255,255,0.9);line-height:1.5;margin-bottom:12px;">
+                Reconstruct and synthesize the upper ceiling and lower floor for this room using Google Gemini's generative multimodal model. Gemini analyzes the room's actual wall colors, lighting, and floor materials to fill the poles seamlessly.
+              </div>
+
+              <!-- Photosphere Preview Thumbnail -->
+              <div style="position:relative;width:100%;height:130px;background:#0d1b1e;border-radius:10px;overflow:hidden;border:1px solid rgba(63,221,224,0.3);margin-bottom:12px;">
+                <img id="aiOutpaintPanoThumb" src="" alt="Current Photosphere" style="width:100%;height:100%;object-fit:cover;">
+                <div style="position:absolute;top:6px;left:8px;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;color:#FFD23F;">
+                  ROOM: <span id="aiOutpaintRoomNameLabel">Living Room</span>
+                </div>
+                <div style="position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,0.7);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;color:#06D6A0;">
+                  2:1 EQUIRECTANGULAR SPHERE
+                </div>
+              </div>
+
+              <!-- Room Material Presets & Chips -->
+              <div class="tour-field-group">
+                <label class="tour-field-label">Quick Material Presets (Click to Auto-Fill Prompt)</label>
+                <div class="tour-quick-chips" style="margin-bottom:8px;">
+                  <span class="tour-chip" onclick="window.setOutpaintMaterialChip('🪵 Dark oak hardwood floor planks with grain, white drywall ceiling with recessed spotlights')">🪵 Oak Hardwood + Pot Lights</span>
+                  <span class="tour-chip" onclick="window.setOutpaintMaterialChip('🪵 Light blonde maple wood floor, smooth flat white ceiling')">🪵 Blonde Maple Wood</span>
+                  <span class="tour-chip" onclick="window.setOutpaintMaterialChip('🏛️ Polished grey marble tile floor, contemporary chandelier ceiling')">🏛️ Marble Tiles</span>
+                  <span class="tour-chip" onclick="window.setOutpaintMaterialChip('🧶 Neutral grey plush carpet floor, modern ceiling light fixture')">🧶 Plush Carpet</span>
+                  <span class="tour-chip" onclick="window.setOutpaintMaterialChip('🏢 Polished concrete industrial floor, exposed ductwork & track lights')">🏢 Industrial Loft</span>
+                </div>
+              </div>
+
+              <!-- Custom Material Prompt Hint -->
+              <div class="tour-field-group">
+                <label class="tour-field-label">Custom Room Material Description (Optional)</label>
+                <textarea class="tour-dialog-input" id="aiOutpaintPromptInput" rows="2" style="resize:vertical;font-size:11px;" placeholder="e.g. Dark walnut wood floor running towards the window, clean white drywall ceiling with soft warm lighting"></textarea>
+              </div>
+
+              <!-- Status Notification -->
+              <div id="aiOutpaintStatusBox" style="display:none;font-size:11px;padding:8px 12px;border-radius:8px;line-height:1.4;margin-bottom:4px;"></div>
+            </div>
+            <div class="tour-dialog-footer" style="justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-secondary" onclick="window.runProceduralArchitecturalInpaint()" title="Instant algorithmic perspective inpainting without using AI credits">
+                🪵 PROCEDURAL FILL (INSTANT)
+              </button>
+              <div style="display:flex;gap:8px;">
+                <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeAiOutpaintModal()">CANCEL</button>
+                <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" id="aiOutpaintSubmitBtn" style="background:#3FDDE0;color:#0d1b1e;font-weight:900;box-shadow:0 2px 12px rgba(63,221,224,0.4);" onclick="window.runGeminiAiOutpaint()">
+                  ✨ RECONSTRUCT WITH GEMINI
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 7. IN-ROOM 360 CAMERA SCANNER & EQUIRECTANGULAR STITCHER MODAL -->
         <div class="tour-dialog-overlay" id="tourCameraScanModal" style="display:none; z-index:100; padding:0; background:rgba(0,0,0,0.96);">
           <div class="tour-camera-scanner-container">
@@ -3058,9 +3124,12 @@
                 </button>
               </div>
 
-              <div class="scan-bottom-right">
-                <button type="button" class="scan-ctrl-btn scan-btn-success" id="scanFinishUseBtn" onclick="window.finishAndUse360Stitch()">
-                  ✨ STITCH & SAVE 360°
+              <div class="scan-bottom-right" style="display:flex;gap:6px;">
+                <button type="button" class="scan-ctrl-btn" id="scanFinishAiBtn" onclick="window.finishAndUse360Stitch(true)" style="background:#3FDDE0;color:#0d1b1e;font-weight:900;" title="Stitch photos and automatically reconstruct ceiling & floor with Gemini AI">
+                  ✨ STITCH + AI OUTPAINT
+                </button>
+                <button type="button" class="scan-ctrl-btn scan-btn-success" id="scanFinishUseBtn" onclick="window.finishAndUse360Stitch(false)">
+                  💾 STITCH & SAVE
                 </button>
               </div>
             </div>
@@ -6165,48 +6234,64 @@
         }
       }
 
-      // 3. Composite final image: 100% crisp camera pixels + seamless polar inpainting
+      // 3. Composite final image: 100% crisp camera pixels + seamless polar perspective inpainting
       var outImg = ctx.createImageData(W, H);
       var outData = outImg.data;
 
       // Extract boundary colors per column for natural seamless ceiling & floor fill
-      var colTopR = new Uint8Array(W);
-      var colTopG = new Uint8Array(W);
-      var colTopB = new Uint8Array(W);
-      var colBotR = new Uint8Array(W);
-      var colBotG = new Uint8Array(W);
-      var colBotB = new Uint8Array(W);
+      var colTopR = new Float32Array(W);
+      var colTopG = new Float32Array(W);
+      var colTopB = new Float32Array(W);
+      var colBotR = new Float32Array(W);
+      var colBotG = new Float32Array(W);
+      var colBotB = new Float32Array(W);
+
+      var sumTopR = 0, sumTopG = 0, sumTopB = 0, topCount = 0;
+      var sumBotR = 0, sumBotG = 0, sumBotB = 0, botCount = 0;
 
       for (var col = 0; col < W; col++) {
-        var topR_c = topR, topG_c = topG, topB_c = topB;
-        var botR_c = botR, botG_c = botG, botB_c = botB;
-
         var tRow = topCoverageRow[col];
         if (tRow < H) {
           var tIdx = tRow * W + col;
           if (accumWeight[tIdx] > 0) {
-            topR_c = Math.round(accumR[tIdx] / accumWeight[tIdx]);
-            topG_c = Math.round(accumG[tIdx] / accumWeight[tIdx]);
-            topB_c = Math.round(accumB[tIdx] / accumWeight[tIdx]);
+            colTopR[col] = accumR[tIdx] / accumWeight[tIdx];
+            colTopG[col] = accumG[tIdx] / accumWeight[tIdx];
+            colTopB[col] = accumB[tIdx] / accumWeight[tIdx];
+            sumTopR += colTopR[col]; sumTopG += colTopG[col]; sumTopB += colTopB[col];
+            topCount++;
           }
+        } else {
+          colTopR[col] = topR; colTopG[col] = topG; colTopB[col] = topB;
         }
 
         var bRow = botCoverageRow[col];
         if (bRow >= 0) {
           var bIdx = bRow * W + col;
           if (accumWeight[bIdx] > 0) {
-            botR_c = Math.round(accumR[bIdx] / accumWeight[bIdx]);
-            botG_c = Math.round(accumG[bIdx] / accumWeight[bIdx]);
-            botB_c = Math.round(accumB[bIdx] / accumWeight[bIdx]);
+            colBotR[col] = accumR[bIdx] / accumWeight[bIdx];
+            colBotG[col] = accumG[bIdx] / accumWeight[bIdx];
+            colBotB[col] = accumB[bIdx] / accumWeight[bIdx];
+            sumBotR += colBotR[col]; sumBotG += colBotG[col]; sumBotB += colBotB[col];
+            botCount++;
           }
+        } else {
+          colBotR[col] = botR; colBotG[col] = botG; colBotB[col] = botB;
         }
-
-        colTopR[col] = topR_c; colTopG[col] = topG_c; colTopB[col] = topB_c;
-        colBotR[col] = botR_c; colBotG[col] = botG_c; colBotB[col] = botB_c;
       }
 
-      // Render all pixels
+      var avgTopR = topCount > 0 ? (sumTopR / topCount) : topR;
+      var avgTopG = topCount > 0 ? (sumTopG / topCount) : topG;
+      var avgTopB = topCount > 0 ? (sumTopB / topCount) : topB;
+      var avgBotR = botCount > 0 ? (sumBotR / botCount) : botR;
+      var avgBotG = botCount > 0 ? (sumBotG / botCount) : botG;
+      var avgBotB = botCount > 0 ? (sumBotB / botCount) : botB;
+
+      // Render all pixels with seamless perspective synthesis
       for (var y = 0; y < H; y++) {
+        var pitch = (0.5 - y / (H - 1)) * Math.PI; // +PI/2 (top) to -PI/2 (bottom)
+        var cosPitch = Math.cos(pitch);
+        var sinPitch = Math.sin(pitch);
+
         for (var x = 0; x < W; x++) {
           var pIdx2 = y * W + x;
           var di = pIdx2 * 4;
@@ -6218,27 +6303,58 @@
             outData[di + 1] = Math.min(255, Math.max(0, Math.round(accumG[pIdx2] / w)));
             outData[di + 2] = Math.min(255, Math.max(0, Math.round(accumB[pIdx2] / w)));
           } else {
-            // Polar inpainting: smoothly extend real edge colors into ambient ceiling/floor
             var topLimit = topCoverageRow[x];
             var botLimit = botCoverageRow[x];
 
             if (topLimit < H && y < topLimit) {
-              var tCeil = topLimit > 0 ? (y / topLimit) : 1;
-              tCeil = Math.max(0, Math.min(1, tCeil));
-              outData[di]     = Math.round(topR * (1 - tCeil) + colTopR[x] * tCeil);
-              outData[di + 1] = Math.round(topG * (1 - tCeil) + colTopG[x] * tCeil);
-              outData[di + 2] = Math.round(topB * (1 - tCeil) + colTopB[x] * tCeil);
+              // CEILING RECONSTRUCTION: Ambient room light + soft central light glow
+              var distToZenith = y / Math.max(1, topLimit); // 0 at top, 1 at edge
+              var radialFactor = Math.max(0, Math.min(1, distToZenith));
+              var smoothT = radialFactor * radialFactor * (3 - 2 * radialFactor);
+
+              // Soft central light fixture glow at zenith
+              var zenithGlow = Math.max(0, (1 - radialFactor * 1.5)) * 25;
+
+              var cR = avgTopR * (1 - smoothT) + colTopR[x] * smoothT + zenithGlow;
+              var cG = avgTopG * (1 - smoothT) + colTopG[x] * smoothT + zenithGlow;
+              var cB = avgTopB * (1 - smoothT) + colTopB[x] * smoothT + zenithGlow;
+
+              outData[di]     = Math.min(255, Math.max(0, Math.round(cR)));
+              outData[di + 1] = Math.min(255, Math.max(0, Math.round(cG)));
+              outData[di + 2] = Math.min(255, Math.max(0, Math.round(cB)));
             } else if (botLimit >= 0 && y > botLimit) {
-              var tFloor = (H - 1 > botLimit) ? ((y - botLimit) / (H - 1 - botLimit)) : 0;
-              tFloor = Math.max(0, Math.min(1, tFloor));
-              outData[di]     = Math.round(colBotR[x] * (1 - tFloor) + botR * tFloor);
-              outData[di + 1] = Math.round(colBotG[x] * (1 - tFloor) + botG * tFloor);
-              outData[di + 2] = Math.round(colBotB[x] * (1 - tFloor) + botB * tFloor);
+              // FLOOR RECONSTRUCTION: Realistic perspective room floor synthesis (e.g. wood plank grain)
+              var distToNadir = (y - botLimit) / Math.max(1, H - 1 - botLimit); // 0 at edge, 1 at bottom nadir
+              var radialFloor = Math.max(0, Math.min(1, distToNadir));
+              var smoothF = radialFloor * radialFloor * (3 - 2 * radialFloor);
+
+              // Calculate ground plane coordinate for floor texture
+              var yaw = (x / W) * 2 * Math.PI - Math.PI;
+              var floorDist = Math.abs(1.6 / Math.min(-0.05, sinPitch));
+              var worldX = Math.sin(yaw) * floorDist;
+              var worldZ = Math.cos(yaw) * floorDist;
+
+              // Synthesize subtle hardwood floor plank lines
+              var plankWidth = 0.28; // 28cm planks
+              var plankCoord = Math.abs(worldX / plankWidth);
+              var plankSeam = Math.abs((plankCoord - Math.round(plankCoord))) * 2.0;
+              var seamDarken = plankSeam < 0.08 ? 0.85 : 1.0;
+
+              // Subtle wood grain noise
+              var woodGrain = 1.0 + 0.04 * Math.sin(worldZ * 12.0 + Math.sin(worldX * 8.0));
+
+              var baseR = (colBotR[x] * (1 - smoothF) + avgBotR * smoothF) * seamDarken * woodGrain;
+              var baseG = (colBotG[x] * (1 - smoothF) + avgBotG * smoothF) * seamDarken * woodGrain;
+              var baseB = (colBotB[x] * (1 - smoothF) + avgBotB * smoothF) * seamDarken * woodGrain;
+
+              outData[di]     = Math.min(255, Math.max(0, Math.round(baseR)));
+              outData[di + 1] = Math.min(255, Math.max(0, Math.round(baseG)));
+              outData[di + 2] = Math.min(255, Math.max(0, Math.round(baseB)));
             } else {
               var vNorm = y / (H - 1);
-              outData[di]     = Math.round(topR * (1 - vNorm) + botR * vNorm);
-              outData[di + 1] = Math.round(topG * (1 - vNorm) + botG * vNorm);
-              outData[di + 2] = Math.round(topB * (1 - vNorm) + botB * vNorm);
+              outData[di]     = Math.round(avgTopR * (1 - vNorm) + avgBotR * vNorm);
+              outData[di + 1] = Math.round(avgTopG * (1 - vNorm) + avgBotG * vNorm);
+              outData[di + 2] = Math.round(avgTopB * (1 - vNorm) + avgBotB * vNorm);
             }
           }
           outData[di + 3] = 255;
@@ -6247,11 +6363,36 @@
 
       ctx.putImageData(outImg, 0, 0);
 
-      if (finishBtn) finishBtn.textContent = '⏳ SAVING 360° ROOM…';
-      await new Promise(r => setTimeout(r, 0));
-
       var dataUrl = canvas.toDataURL('image/jpeg', 0.94);
       var finalUrl = dataUrl;
+
+      // If user requested AI Outpainting directly from scanner:
+      if (withAiOutpaint) {
+        if (finishBtn) finishBtn.textContent = '✨ RUNNING GEMINI AI OUTPAINT…';
+        try {
+          var aiRes = await fetch('/api/gemini/outpaint-photosphere', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageData: dataUrl,
+              materialsHint: 'Reconstruct realistic hardwood floor grain and smooth drywall ceiling with recessed pot lights',
+              roomType: 'Interior Room'
+            })
+          });
+          var aiJson = await aiRes.json();
+          if (aiJson && aiJson.success && aiJson.panoUrl) {
+            finalUrl = aiJson.panoUrl;
+            if (typeof showToast === 'function') showToast('✨ Gemini AI outpainted ceiling and floor!');
+          } else if (aiJson && aiJson.error) {
+            console.warn('[Gemini Outpaint Notice]:', aiJson.error);
+          }
+        } catch (aiErr) {
+          console.warn('[Gemini Outpaint network error]:', aiErr);
+        }
+      }
+
+      if (finishBtn) finishBtn.textContent = '⏳ SAVING 360° ROOM…';
+      await new Promise(r => setTimeout(r, 0));
 
       if (typeof window.uploadToSupabaseStorage === 'function') {
         try {
@@ -6303,6 +6444,265 @@
         finishBtn.textContent = '✨ STITCH & SAVE 360°';
         finishBtn.disabled = false;
       }
+    }
+  };
+
+  // =========================================================================
+  // GEMINI AI OUTPAINTING MODAL CONTROLLERS & ACTIONS
+  // =========================================================================
+
+  let currentAiOutpaintTargetSceneIdx = 0;
+
+  window.openAiOutpaintModal = function (sceneIdx) {
+    if (typeof sceneIdx === 'number' && sceneIdx >= 0 && sceneIdx < activeSceneList.length) {
+      currentAiOutpaintTargetSceneIdx = sceneIdx;
+    } else {
+      currentAiOutpaintTargetSceneIdx = activeSceneIndex;
+    }
+
+    const scene = activeSceneList[currentAiOutpaintTargetSceneIdx];
+    if (!scene) {
+      if (typeof showToast === 'function') showToast('⚠️ No active room found to outpaint.');
+      return;
+    }
+
+    const modal = document.getElementById('tourAiOutpaintModal');
+    const thumb = document.getElementById('aiOutpaintPanoThumb');
+    const nameLabel = document.getElementById('aiOutpaintRoomNameLabel');
+    const statusBox = document.getElementById('aiOutpaintStatusBox');
+
+    if (nameLabel) nameLabel.textContent = scene.name || 'Current Space';
+    if (thumb) {
+      thumb.src = scene.panoUrl || '';
+      thumb.style.display = scene.panoUrl ? 'block' : 'none';
+    }
+    if (statusBox) {
+      statusBox.style.display = 'none';
+      statusBox.innerHTML = '';
+    }
+
+    if (modal) modal.style.display = 'flex';
+  };
+
+  window.closeAiOutpaintModal = function () {
+    const modal = document.getElementById('tourAiOutpaintModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.setOutpaintMaterialChip = function (promptText) {
+    const input = document.getElementById('aiOutpaintPromptInput');
+    if (input) {
+      input.value = promptText;
+      input.focus();
+    }
+  };
+
+  window.runGeminiAiOutpaint = async function () {
+    const scene = activeSceneList[currentAiOutpaintTargetSceneIdx];
+    if (!scene || !scene.panoUrl) {
+      if (typeof showToast === 'function') showToast('⚠️ Please provide or capture a 360 photo first.');
+      return;
+    }
+
+    const btn = document.getElementById('aiOutpaintSubmitBtn');
+    const statusBox = document.getElementById('aiOutpaintStatusBox');
+    const promptInput = document.getElementById('aiOutpaintPromptInput');
+    const materialsHint = promptInput ? promptInput.value.trim() : '';
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ GEMINI GENERATING OUTPAINT…';
+    }
+    if (statusBox) {
+      statusBox.style.display = 'block';
+      statusBox.style.background = 'rgba(63,221,224,0.15)';
+      statusBox.style.color = '#3FDDE0';
+      statusBox.style.border = '1px solid #3FDDE0';
+      statusBox.innerHTML = '🤖 <strong>Contacting Google Gemini:</strong> Analyzing room materials and synthesizing clean ceiling and floor...';
+    }
+
+    try {
+      const res = await fetch('/api/gemini/outpaint-photosphere', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: scene.panoUrl,
+          materialsHint: materialsHint || 'Reconstruct realistic hardwood floor planks, clean drywall ceiling with pot lights',
+          roomType: scene.name || 'Interior Space'
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.panoUrl) {
+        scene.panoUrl = data.panoUrl;
+        scene.aspectMode = 'full-360';
+        scene.tag = '✨ Gemini AI Outpainted Photosphere';
+
+        if (statusBox) {
+          statusBox.style.background = 'rgba(6,214,160,0.15)';
+          statusBox.style.color = '#06D6A0';
+          statusBox.style.border = '1px solid #06D6A0';
+          statusBox.innerHTML = '🎉 <strong>Success!</strong> AI outpainted the ceiling and floor based on room materials.';
+        }
+
+        const thumb = document.getElementById('aiOutpaintPanoThumb');
+        if (thumb) thumb.src = data.panoUrl;
+
+        // Reload active scene in 3D viewport
+        loadScene(currentAiOutpaintTargetSceneIdx);
+        if (typeof window.saveTourChangesToMagazine === 'function') window.saveTourChangesToMagazine();
+
+        setTimeout(() => {
+          window.closeAiOutpaintModal();
+          if (typeof showToast === 'function') showToast('✨ Room restored with Gemini AI Outpainting!');
+        }, 1200);
+
+      } else {
+        const errMsg = data.error || 'AI Outpainting could not generate image.';
+        if (statusBox) {
+          statusBox.style.background = 'rgba(255,107,107,0.15)';
+          statusBox.style.color = '#FF6B6B';
+          statusBox.style.border = '1px solid #FF6B6B';
+          statusBox.innerHTML = `⚠️ <strong>Notice:</strong> ${errMsg}<br><small style="color:rgba(255,255,255,0.8);">Tip: You can also use the instant <strong>Procedural Fill</strong> button below.</small>`;
+        }
+        if (typeof showToast === 'function') showToast('⚠️ ' + errMsg);
+      }
+    } catch (err) {
+      console.error('[runGeminiAiOutpaint]', err);
+      if (statusBox) {
+        statusBox.style.background = 'rgba(255,107,107,0.15)';
+        statusBox.style.color = '#FF6B6B';
+        statusBox.style.border = '1px solid #FF6B6B';
+        statusBox.innerHTML = '❌ <strong>Error:</strong> ' + (err && err.message ? err.message : String(err));
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '✨ RECONSTRUCT WITH GEMINI';
+      }
+    }
+  };
+
+  window.runProceduralArchitecturalInpaint = async function () {
+    const scene = activeSceneList[currentAiOutpaintTargetSceneIdx];
+    if (!scene || !scene.panoUrl) {
+      if (typeof showToast === 'function') showToast('⚠️ No active room found.');
+      return;
+    }
+
+    const statusBox = document.getElementById('aiOutpaintStatusBox');
+    if (statusBox) {
+      statusBox.style.display = 'block';
+      statusBox.style.background = 'rgba(255,210,63,0.15)';
+      statusBox.style.color = '#FFD23F';
+      statusBox.style.border = '1px solid #FFD23F';
+      statusBox.innerHTML = '🪵 Synthesizing perspective hardwood floor planks and ambient ceiling light falloff...';
+    }
+
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = scene.panoUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      const W = img.naturalWidth || 2048;
+      const H = img.naturalHeight || 1024;
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, W, H);
+
+      const imgData = ctx.getImageData(0, 0, W, H);
+      const data = imgData.data;
+
+      // Sample middle band for wall, ceiling and floor colors
+      const midY = Math.floor(H / 2);
+      let rSumTop = 0, gSumTop = 0, bSumTop = 0, countTop = 0;
+      let rSumBot = 0, gSumBot = 0, bSumBot = 0, countBot = 0;
+
+      for (let x = 0; x < W; x += 4) {
+        const topIdx = (Math.floor(H * 0.35) * W + x) * 4;
+        rSumTop += data[topIdx]; gSumTop += data[topIdx + 1]; bSumTop += data[topIdx + 2];
+        countTop++;
+
+        const botIdx = (Math.floor(H * 0.65) * W + x) * 4;
+        rSumBot += data[botIdx]; gSumBot += data[botIdx + 1]; bSumBot += data[botIdx + 2];
+        countBot++;
+      }
+
+      const avgTR = rSumTop / countTop, avgTG = gSumTop / countTop, avgTB = bSumTop / countTop;
+      const avgBR = rSumBot / countBot, avgBG = gSumBot / countBot, avgBB = bSumBot / countBot;
+
+      // Blend top 25% (Ceiling) and bottom 25% (Floor)
+      const ceilLimit = Math.floor(H * 0.28);
+      const floorLimit = Math.floor(H * 0.72);
+
+      for (let y = 0; y < H; y++) {
+        const pitch = (0.5 - y / (H - 1)) * Math.PI;
+        const sinPitch = Math.sin(pitch);
+
+        for (let x = 0; x < W; x++) {
+          const idx = (y * W + x) * 4;
+
+          if (y < ceilLimit) {
+            const t = y / ceilLimit;
+            const smoothT = t * t * (3 - 2 * t);
+            const zenithGlow = Math.max(0, (1 - t * 1.5)) * 25;
+            data[idx]     = Math.min(255, Math.round(avgTR * (1 - smoothT) + data[idx] * smoothT + zenithGlow));
+            data[idx + 1] = Math.min(255, Math.round(avgTG * (1 - smoothT) + data[idx + 1] * smoothT + zenithGlow));
+            data[idx + 2] = Math.min(255, Math.round(avgTB * (1 - smoothT) + data[idx + 2] * smoothT + zenithGlow));
+          } else if (y > floorLimit) {
+            const t = (y - floorLimit) / (H - 1 - floorLimit);
+            const smoothF = t * t * (3 - 2 * t);
+
+            const yaw = (x / W) * 2 * Math.PI - Math.PI;
+            const floorDist = Math.abs(1.6 / Math.min(-0.05, sinPitch));
+            const worldX = Math.sin(yaw) * floorDist;
+            const worldZ = Math.cos(yaw) * floorDist;
+
+            const plankCoord = Math.abs(worldX / 0.28);
+            const plankSeam = Math.abs((plankCoord - Math.round(plankCoord))) * 2.0;
+            const seamDarken = plankSeam < 0.08 ? 0.85 : 1.0;
+            const woodGrain = 1.0 + 0.03 * Math.sin(worldZ * 12.0);
+
+            data[idx]     = Math.min(255, Math.round((data[idx] * (1 - smoothF) + avgBR * smoothF) * seamDarken * woodGrain));
+            data[idx + 1] = Math.min(255, Math.round((data[idx + 1] * (1 - smoothF) + avgBG * smoothF) * seamDarken * woodGrain));
+            data[idx + 2] = Math.min(255, Math.round((data[idx + 2] * (1 - smoothF) + avgBB * smoothF) * seamDarken * woodGrain));
+          }
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+      const newPanoUrl = canvas.toDataURL('image/jpeg', 0.94);
+      scene.panoUrl = newPanoUrl;
+      scene.aspectMode = 'full-360';
+
+      const thumb = document.getElementById('aiOutpaintPanoThumb');
+      if (thumb) thumb.src = newPanoUrl;
+
+      loadScene(currentAiOutpaintTargetSceneIdx);
+      if (typeof window.saveTourChangesToMagazine === 'function') window.saveTourChangesToMagazine();
+
+      if (statusBox) {
+        statusBox.style.background = 'rgba(6,214,160,0.15)';
+        statusBox.style.color = '#06D6A0';
+        statusBox.style.border = '1px solid #06D6A0';
+        statusBox.innerHTML = '🎉 Instant perspective floor and ceiling synthesis applied!';
+      }
+
+      setTimeout(() => {
+        window.closeAiOutpaintModal();
+        if (typeof showToast === 'function') showToast('🪵 Procedural floor & ceiling synthesized!');
+      }, 1000);
+
+    } catch (e) {
+      console.error('[runProceduralArchitecturalInpaint]', e);
+      if (typeof showToast === 'function') showToast('❌ Inpainting failed: ' + (e && e.message ? e.message : String(e)));
     }
   };
 
