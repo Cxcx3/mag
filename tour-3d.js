@@ -4971,11 +4971,11 @@
         rings[ringKey].push(s);
       }
 
-      // Feature strip extraction helper for Normalized Cross-Correlation
+      // Feature strip extraction helper with Normalized Cross-Correlation (NCC)
       function extractFeatureThumb(cvs, isLeft, tW, tH) {
         var w = cvs.width;
         var h = cvs.height;
-        var cropW = Math.round(w * 0.36);
+        var cropW = Math.round(w * 0.38);
         var sx = isLeft ? 0 : Math.max(0, w - cropW);
         var tmp = document.createElement('canvas');
         tmp.width = tW;
@@ -5007,8 +5007,8 @@
         var th = thumbRight.h;
         var a = thumbRight.norm;
         var b = thumbLeft.norm;
-        var maxShiftX = 8;
-        var maxShiftY = 4;
+        var maxShiftX = 16;
+        var maxShiftY = 6;
         var bestScore = -999;
         var bestDx = 0;
         var bestDy = 0;
@@ -5054,26 +5054,33 @@
           var sA = ringShots[i];
           var sB = ringShots[(i + 1) % N];
 
-          var nominalDeltaYaw = (i === N - 1)
+          // Compute nominal step from gyro capture yaw if valid, otherwise ideal ring step
+          var gyroDelta = (i === N - 1)
+            ? (360.0 - sA.capYaw + sB.capYaw)
+            : (sB.capYaw - sA.capYaw);
+          if (gyroDelta < 0) gyroDelta += 360;
+
+          var idealDelta = (i === N - 1)
             ? (360.0 - sA.idealYaw + sB.idealYaw)
             : (sB.idealYaw - sA.idealYaw);
-          if (nominalDeltaYaw < 0) nominalDeltaYaw += 360;
+          if (idealDelta < 0) idealDelta += 360;
 
-          var nominalDeltaPitch = sB.idealPitch ? (sB.idealPitch - sA.idealPitch) : 0;
+          var nominalDeltaYaw = (gyroDelta >= 15 && gyroDelta <= 55) ? (gyroDelta * 0.7 + idealDelta * 0.3) : idealDelta;
+          var nominalDeltaPitch = sB.capPitch - sA.capPitch;
 
           // Compute optical feature alignment on overlap strip
           try {
-            var thumbA = extractFeatureThumb(sA.srcCanvas, false, 48, 48); // right edge of A
-            var thumbB = extractFeatureThumb(sB.srcCanvas, true, 48, 48);  // left edge of B
+            var thumbA = extractFeatureThumb(sA.srcCanvas, false, 64, 64); // right edge of A
+            var thumbB = extractFeatureThumb(sB.srcCanvas, true, 64, 64);  // left edge of B
             var shift = computePairwiseShift(thumbA, thumbB);
 
-            if (shift.score > 0.25) {
+            if (shift.score > 0.28) {
               // Convert pixel shift to degrees
-              var overlapDeg = sA.fovHDeg * 0.36;
-              var degShiftX = (shift.dx / 48) * overlapDeg;
-              var degShiftY = (shift.dy / 48) * (sA.fovVDeg * 0.36);
-              stepDeltasYaw[i] = nominalDeltaYaw - degShiftX * 0.45;
-              stepDeltasPitch[i] = nominalDeltaPitch - degShiftY * 0.35;
+              var overlapDeg = sA.fovHDeg * 0.38;
+              var degShiftX = (shift.dx / 64) * overlapDeg;
+              var degShiftY = (shift.dy / 64) * (sA.fovVDeg * 0.38);
+              stepDeltasYaw[i] = nominalDeltaYaw - degShiftX * 0.75;
+              stepDeltasPitch[i] = nominalDeltaPitch - degShiftY * 0.55;
             } else {
               stepDeltasYaw[i] = nominalDeltaYaw;
               stepDeltasPitch[i] = nominalDeltaPitch;
@@ -5117,64 +5124,77 @@
       }
 
       // =========================================================================
-      // EXPOSURE & LUMINANCE EQUALIZATION (Matterport-Style Gain Balancing)
+      // RGB CHANNEL GAIN EQUALIZATION (Harmonizes White Balance & Exposure)
       // =========================================================================
-      // Compute center-weighted average luminance for each shot
-      var shotLums = new Float32Array(shotDatas.length);
-      var totalAvgLum = 0;
+      var shotAvgR = new Float32Array(shotDatas.length);
+      var shotAvgG = new Float32Array(shotDatas.length);
+      var shotAvgB = new Float32Array(shotDatas.length);
+      var totalSumR = 0, totalSumG = 0, totalSumB = 0;
+
       for (var li = 0; li < shotDatas.length; li++) {
         var sLi = shotDatas[li];
         var sPxArr = sLi.srcPx;
         var sW = sLi.ww, sH = sLi.wh;
-        var lSum = 0, lCount = 0;
-        // Sample center 50% box to avoid lens corner dark spots
-        var cx0 = Math.floor(sW * 0.25), cx1 = Math.floor(sW * 0.75);
-        var cy0 = Math.floor(sH * 0.25), cy1 = Math.floor(sH * 0.75);
+        var rSum = 0, gSum = 0, bSum = 0, lCount = 0;
+        var cx0 = Math.floor(sW * 0.22), cx1 = Math.floor(sW * 0.78);
+        var cy0 = Math.floor(sH * 0.22), cy1 = Math.floor(sH * 0.78);
         var step = Math.max(2, Math.floor(sW / 40));
         for (var sy = cy0; sy < cy1; sy += step) {
           for (var sx = cx0; sx < cx1; sx += step) {
             var pOff = (sy * sW + sx) * 4;
-            var lumVal = sPxArr[pOff] * 0.299 + sPxArr[pOff + 1] * 0.587 + sPxArr[pOff + 2] * 0.114;
-            lSum += lumVal;
+            rSum += sPxArr[pOff];
+            gSum += sPxArr[pOff + 1];
+            bSum += sPxArr[pOff + 2];
             lCount++;
           }
         }
-        var avgL = lCount > 0 ? (lSum / lCount) : 128;
-        shotLums[li] = Math.max(25, avgL);
-        totalAvgLum += shotLums[li];
+        var ar = lCount > 0 ? (rSum / lCount) : 128;
+        var ag = lCount > 0 ? (gSum / lCount) : 128;
+        var ab = lCount > 0 ? (bSum / lCount) : 128;
+        shotAvgR[li] = Math.max(20, ar);
+        shotAvgG[li] = Math.max(20, ag);
+        shotAvgB[li] = Math.max(20, ab);
+        totalSumR += shotAvgR[li];
+        totalSumG += shotAvgG[li];
+        totalSumB += shotAvgB[li];
       }
-      var targetSceneLum = totalAvgLum / shotDatas.length;
 
-      // Assign balanced gain multiplier to each shot (gentle exponent 0.60 to prevent over-boosting windows)
-      var shotGains = new Float32Array(shotDatas.length);
+      var sceneAvgR = totalSumR / shotDatas.length;
+      var sceneAvgG = totalSumG / shotDatas.length;
+      var sceneAvgB = totalSumB / shotDatas.length;
+
+      var gainR = new Float32Array(shotDatas.length);
+      var gainG = new Float32Array(shotDatas.length);
+      var gainB = new Float32Array(shotDatas.length);
       for (var gi = 0; gi < shotDatas.length; gi++) {
-        var rawRatio = targetSceneLum / shotLums[gi];
-        // Compress ratio into [0.72, 1.38]
-        var gainVal = Math.pow(rawRatio, 0.60);
-        shotGains[gi] = Math.max(0.72, Math.min(1.38, gainVal));
+        gainR[gi] = Math.max(0.72, Math.min(1.38, Math.pow(sceneAvgR / shotAvgR[gi], 0.55)));
+        gainG[gi] = Math.max(0.72, Math.min(1.38, Math.pow(sceneAvgG / shotAvgG[gi], 0.55)));
+        gainB[gi] = Math.max(0.72, Math.min(1.38, Math.pow(sceneAvgB / shotAvgB[gi], 0.55)));
       }
 
-      // Best and secondary shot ray assignment arrays (Zero Double-Vision Ghosting)
+      // Continuous Multi-Band Buffers: Seamless Base Illumination + Crisp Sharp Texture
+      var smoothBaseR = new Float32Array(W * H);
+      var smoothBaseG = new Float32Array(W * H);
+      var smoothBaseB = new Float32Array(W * H);
+      var smoothBaseW = new Float32Array(W * H);
+
       var bestWeight = new Float32Array(W * H);
       var bestShotId = new Int16Array(W * H);
       bestShotId.fill(-1);
-      var secWeight = new Float32Array(W * H);
 
       var pixelR = new Float32Array(W * H);
       var pixelG = new Float32Array(W * H);
       var pixelB = new Float32Array(W * H);
 
-      var secR = new Float32Array(W * H);
-      var secG = new Float32Array(W * H);
-      var secB = new Float32Array(W * H);
-
-      // PASS 1: Project spherical rays with Voronoi winner-take-all & anti-vignette correction
+      // PASS 1: Project spherical rays with Multi-Band Illumination & anti-vignette compensation
       for (var si = 0; si < shotDatas.length; si++) {
         if (finishBtn) finishBtn.textContent = '⏳ EQUALIZING & BLENDING ' + (si + 1) + '/' + shotDatas.length + '…';
         await new Promise(function (r) { setTimeout(r, 0); });
 
         var sData = shotDatas[si];
-        var sGain = shotGains[si];
+        var sGainR = gainR[si];
+        var sGainG = gainG[si];
+        var sGainB = gainB[si];
         var sPx = sData.srcPx;
         var sWw = sData.ww;
         var sWh = sData.wh;
@@ -5245,15 +5265,8 @@
               var fy = (0.5 - v * 0.5) * (sWh - 1);
               if (fx < 0 || fy < 0 || fx >= sWw - 1 || fy >= sWh - 1) continue;
 
-              // Optical weight (highest at lens center, 0 at sensor boundaries)
-              var wu = Math.max(0, 1.0 - uSq);
-              var wv = Math.max(0, 1.0 - vSq);
-              var optWeight = (wu * wu) * (wv * wv);
-              if (optWeight <= 0.0001) continue;
-
               // Radial anti-vignette gain: brightens darker lens corners
-              var vignetteComp = 1.0 + 0.18 * (uSq + vSq);
-              var totalGain = sGain * vignetteComp;
+              var vignetteComp = 1.0 + 0.16 * (uSq + vSq);
 
               // Bilinear interpolation
               var x0 = fx | 0;
@@ -5271,29 +5284,30 @@
               var g = (sPx[i00 + 1] * (1 - tx) + sPx[i10 + 1] * tx) * (1 - ty) + (sPx[i01 + 1] * (1 - tx) + sPx[i11 + 1] * tx) * ty;
               var b = (sPx[i00 + 2] * (1 - tx) + sPx[i10 + 2] * tx) * (1 - ty) + (sPx[i01 + 2] * (1 - tx) + sPx[i11 + 2] * tx) * ty;
 
-              // Apply exposure & vignette correction
-              r = Math.min(255, r * totalGain);
-              g = Math.min(255, g * totalGain);
-              b = Math.min(255, b * totalGain);
+              // Apply color temperature & vignette correction
+              r = Math.min(255, r * sGainR * vignetteComp);
+              g = Math.min(255, g * sGainG * vignetteComp);
+              b = Math.min(255, b * sGainB * vignetteComp);
 
               var pIdx = row * W + col;
 
-              if (optWeight > bestWeight[pIdx]) {
-                secWeight[pIdx] = bestWeight[pIdx];
-                secR[pIdx] = pixelR[pIdx];
-                secG[pIdx] = pixelG[pIdx];
-                secB[pIdx] = pixelB[pIdx];
+              // 1. Continuous wide-angle Illumination Base weight (dissolves vertical bands)
+              var baseW = Math.max(0, 1.0 - uSq) * Math.max(0, 1.0 - vSq);
+              if (baseW > 0.0001) {
+                smoothBaseR[pIdx] += r * baseW;
+                smoothBaseG[pIdx] += g * baseW;
+                smoothBaseB[pIdx] += b * baseW;
+                smoothBaseW[pIdx] += baseW;
+              }
 
+              // 2. Optical ray weight for dominant sharp detail selection
+              var optWeight = baseW * baseW;
+              if (optWeight > bestWeight[pIdx]) {
                 bestWeight[pIdx] = optWeight;
                 bestShotId[pIdx] = si;
                 pixelR[pIdx] = r;
                 pixelG[pIdx] = g;
                 pixelB[pIdx] = b;
-              } else if (optWeight > secWeight[pIdx]) {
-                secWeight[pIdx] = optWeight;
-                secR[pIdx] = r;
-                secG[pIdx] = g;
-                secB[pIdx] = b;
               }
             }
           }
@@ -5374,7 +5388,7 @@
       var ambFlrG  = cntBot > 0 ? (sumBotG / cntBot) : botG;
       var ambFlrB  = cntBot > 0 ? (sumBotB / cntBot) : botB;
 
-      // Populate full panorama buffer (Sharp Crisp Objects with Micro-Feathered Seam Transition)
+      // Populate full panorama buffer (Multi-Band Illumination Harmonization + Crisp Sharp Textures)
       for (var y = 0; y < H; y++) {
         for (var x = 0; x < W; x++) {
           var pIdx2 = y * W + x;
@@ -5382,6 +5396,7 @@
 
           var shotId = bestShotId[pIdx2];
           var w1 = bestWeight[pIdx2];
+          var bw = smoothBaseW[pIdx2];
 
           var tLimit = smoothTopLimit[x];
           var bLimit = smoothBotLimit[x];
@@ -5391,18 +5406,19 @@
             var pg = pixelG[pIdx2];
             var pb = pixelB[pIdx2];
 
-            // Micro-feather strictly at overlapping boundary seams (ratio > 0.72)
-            var w2 = secWeight[pIdx2];
-            if (w2 > 0) {
-              var ratio = w2 / w1;
-              if (ratio > 0.72) {
-                var t = (ratio - 0.72) / 0.28;
-                var smoothT = t * t * (3.0 - 2.0 * t);
-                var blend = 0.5 * smoothT;
-                pr = pr * (1.0 - blend) + secR[pIdx2] * blend;
-                pg = pg * (1.0 - blend) + secG[pIdx2] * blend;
-                pb = pb * (1.0 - blend) + secB[pIdx2] * blend;
-              }
+            if (bw > 0.001) {
+              // Seamless continuous base illumination
+              var bR = smoothBaseR[pIdx2] / bw;
+              var bG = smoothBaseG[pIdx2] / bw;
+              var bB = smoothBaseB[pIdx2] / bw;
+              var baseLum = bR * 0.299 + bG * 0.587 + bB * 0.114;
+              var rawLum = pr * 0.299 + pg * 0.587 + pb * 0.114;
+
+              // Harmonize illumination across seams while keeping 100% of crisp textures
+              var lumRatio = Math.max(0.82, Math.min(1.22, (baseLum + 10.0) / (rawLum + 10.0)));
+              pr = pr * lumRatio + (bR - baseLum) * 0.25;
+              pg = pg * lumRatio + (bG - baseLum) * 0.25;
+              pb = pb * lumRatio + (bB - baseLum) * 0.25;
             }
 
             outData[di]     = Math.min(255, Math.max(0, Math.round(pr)));
