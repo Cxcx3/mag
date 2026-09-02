@@ -1,3 +1,4 @@
+
 /**
  * SpotLIGHT 3D / 360° Immersive Photosphere & Walkthrough Tour Engine
  * 
@@ -225,6 +226,7 @@
   let velX = 0;
   let velY = 0;
   let lastPinchDist = null;
+  let viewerEventsBound = false;
 
   let isAutoRotating = false;
   let autoRotateSpeed = 0.12;
@@ -3303,6 +3305,7 @@
 
   /**
    * Event Listeners & Interaction Binding
+   * Idempotent: safe to call multiple times; listeners attach only once.
    */
   function bindViewerEvents() {
     const modal = document.getElementById('tour3dModal');
@@ -3318,29 +3321,9 @@
     const zoomOutBtn = document.getElementById('tourZoomOut');
     const container = document.getElementById('tourViewportContainer');
 
+    // Button handlers can be re-assigned safely (overwrite)
     if (closeBtn) closeBtn.onclick = () => window.close3dTourModal();
     if (editModeBtn) editModeBtn.onclick = () => window.toggleTourEditorMode();
-
-    window.addEventListener('keydown', (e) => {
-      if (!modal.classList.contains('active')) return;
-      if (e.key === 'Escape') {
-        window.close3dTourModal();
-      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-        targetYaw -= 15;
-        isAutoRotating = false;
-      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-        targetYaw += 15;
-        isAutoRotating = false;
-      } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-        targetPitch = Math.min(85, targetPitch + 10);
-      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
-        targetPitch = Math.max(-85, targetPitch - 10);
-      } else if (e.key === '+' || e.key === '=') {
-        adjustZoom(-8);
-      } else if (e.key === '-' || e.key === '_') {
-        adjustZoom(8);
-      }
-    });
 
     if (autoRotateBtn) {
       autoRotateBtn.onclick = () => {
@@ -3399,9 +3382,38 @@
       };
     }
 
+    // Attach window / container listeners only once to avoid stacked handlers that kill drag/keyboard
+    if (viewerEventsBound) return;
+    viewerEventsBound = true;
+
+    window.addEventListener('keydown', (e) => {
+      if (!modal.classList.contains('active')) return;
+      // Ignore when typing in inputs/dialogs
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+      if (e.key === 'Escape') {
+        window.close3dTourModal();
+      } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        targetYaw -= 15;
+        isAutoRotating = false;
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        targetYaw += 15;
+        isAutoRotating = false;
+      } else if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        targetPitch = Math.min(85, targetPitch + 10);
+        isAutoRotating = false;
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        targetPitch = Math.max(-85, targetPitch - 10);
+        isAutoRotating = false;
+      } else if (e.key === '+' || e.key === '=') {
+        adjustZoom(-8);
+      } else if (e.key === '-' || e.key === '_') {
+        adjustZoom(8);
+      }
+    });
+
     if (container) {
       container.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.tour-hotspot-pin') || e.target.closest('button') || e.target.closest('iframe') || e.target.closest('.tour-dialog-overlay')) return;
+        if (e.target.closest('.tour-hotspot-pin') || e.target.closest('button') || e.target.closest('iframe') || e.target.closest('.tour-dialog-overlay') || e.target.closest('#tourSceneTravelTransition')) return;
         isDragging = true;
         isAutoRotating = false;
         startX = e.clientX;
@@ -3431,6 +3443,11 @@
         isDragging = false;
       });
 
+      // Also catch mouse leaving window so drag doesn't stick
+      window.addEventListener('mouseleave', () => {
+        isDragging = false;
+      });
+
       container.addEventListener('wheel', (e) => {
         if (document.getElementById('tourEmbedFrame')?.style.display === 'block') return;
         e.preventDefault();
@@ -3438,7 +3455,7 @@
       }, { passive: false });
 
       container.addEventListener('touchstart', (e) => {
-        if (e.target.closest('.tour-hotspot-pin') || e.target.closest('button') || e.target.closest('iframe') || e.target.closest('.tour-dialog-overlay')) return;
+        if (e.target.closest('.tour-hotspot-pin') || e.target.closest('button') || e.target.closest('iframe') || e.target.closest('.tour-dialog-overlay') || e.target.closest('#tourSceneTravelTransition')) return;
         isAutoRotating = false;
 
         if (e.touches.length === 1) {
@@ -3480,6 +3497,11 @@
       }, { passive: true });
 
       container.addEventListener('touchend', () => {
+        isDragging = false;
+        lastPinchDist = null;
+      }, { passive: true });
+
+      container.addEventListener('touchcancel', () => {
         isDragging = false;
         lastPinchDist = null;
       }, { passive: true });
@@ -7012,9 +7034,144 @@
     }
   };
 
+  // Smooth Matterport-style room-to-room navigation for door pins.
+  // The existing viewer, camera, hotspots and loading engine remain unchanged;
+  // this only adds the missing public switchTourScene action and a short visual
+  // travel transition before/after the destination room loads.
+  let tourSceneTransitionActive = false;
+  let tourSceneTransitionEl = null;
+
+  function ensureTourSceneTransition() {
+    const container = document.getElementById('tourViewportContainer');
+    if (!container) return null;
+
+    if (!tourSceneTransitionEl) {
+      tourSceneTransitionEl = document.createElement('div');
+      tourSceneTransitionEl.id = 'tourSceneTravelTransition';
+      tourSceneTransitionEl.setAttribute('aria-hidden', 'true');
+      tourSceneTransitionEl.style.cssText = [
+        'position:absolute',
+        'inset:0',
+        'z-index:19',
+        'pointer-events:none',
+        'opacity:0',
+        'background:radial-gradient(circle at 50% 52%, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.32) 58%, rgba(0,0,0,0.72) 100%)',
+        'backdrop-filter:blur(0px)',
+        '-webkit-backdrop-filter:blur(0px)',
+        'transition:opacity 220ms cubic-bezier(.22,.61,.36,1), backdrop-filter 220ms ease, -webkit-backdrop-filter 220ms ease',
+        'will-change:opacity,backdrop-filter'
+      ].join(';');
+      container.appendChild(tourSceneTransitionEl);
+    }
+    return tourSceneTransitionEl;
+  }
+
+  function setTourTravelVisual(progress, entering) {
+    const canvas = document.getElementById('tour3dCanvas');
+    const hotspotLayer = document.getElementById('tourHotspotsLayer');
+    const p = Math.max(0, Math.min(1, progress));
+    const zoom = entering ? (1 + p * 0.028) : (1.028 - p * 0.028);
+    const blur = entering ? p * 1.15 : (1 - p) * 1.15;
+    if (canvas) {
+      canvas.style.transition = 'transform 220ms cubic-bezier(.22,.61,.36,1), filter 220ms ease';
+      canvas.style.transformOrigin = '50% 50%';
+      canvas.style.transform = `scale(${zoom.toFixed(4)})`;
+      canvas.style.filter = `blur(${blur.toFixed(2)}px)`;
+    }
+    if (hotspotLayer) {
+      hotspotLayer.style.transition = 'opacity 160ms ease, transform 220ms ease';
+      hotspotLayer.style.opacity = entering ? String(Math.max(0, 1 - p * 1.15)) : String(Math.min(1, p * 1.15));
+      hotspotLayer.style.transform = `scale(${zoom.toFixed(4)})`;
+      hotspotLayer.style.transformOrigin = '50% 50%';
+    }
+  }
+
+  function resetTourTravelVisual() {
+    const canvas = document.getElementById('tour3dCanvas');
+    const hotspotLayer = document.getElementById('tourHotspotsLayer');
+    if (canvas) {
+      canvas.style.transition = '';
+      canvas.style.transform = '';
+      canvas.style.filter = '';
+    }
+    if (hotspotLayer) {
+      hotspotLayer.style.transition = '';
+      hotspotLayer.style.opacity = '';
+      hotspotLayer.style.transform = '';
+    }
+    // Safety: make sure travel veil never blocks interaction after transition
+    if (tourSceneTransitionEl) {
+      tourSceneTransitionEl.style.opacity = '0';
+      tourSceneTransitionEl.style.pointerEvents = 'none';
+      tourSceneTransitionEl.style.backdropFilter = 'blur(0px)';
+      tourSceneTransitionEl.style.webkitBackdropFilter = 'blur(0px)';
+    }
+  }
+
+  window.switchTourScene = function (targetSceneId) {
+    if (tourSceneTransitionActive) return;
+
+    const targetIndex = activeSceneList.findIndex(sc => sc && sc.id === targetSceneId);
+    if (targetIndex < 0) {
+      console.warn('[SpotLIGHT 360] Hotspot target room not found:', targetSceneId);
+      if (typeof showToast === 'function') showToast('⚠️ This door is not connected to a room yet.');
+      return;
+    }
+
+    if (targetIndex === activeSceneIndex) return;
+
+    const overlay = ensureTourSceneTransition();
+    if (!overlay) {
+      loadScene(targetIndex);
+      return;
+    }
+
+    tourSceneTransitionActive = true;
+    isAutoRotating = false;
+    isDragging = false;
+    lastPinchDist = null;
+    // Properly remove gyro listener so orientation events stop fighting user drag/keyboard
+    if (typeof disableGyro === 'function') {
+      disableGyro();
+    } else {
+      gyroEnabled = false;
+    }
+
+    // Travel-in: gently zoom/blur toward the door, like a short Matterport move.
+    setTourTravelVisual(0, true);
+    requestAnimationFrame(() => {
+      overlay.style.opacity = '1';
+      overlay.style.backdropFilter = 'blur(2px)';
+      overlay.style.webkitBackdropFilter = 'blur(2px)';
+      setTourTravelVisual(1, true);
+    });
+
+    setTimeout(() => {
+      loadScene(targetIndex);
+
+      // Let the destination texture begin loading while the transition veil
+      // stays up. Then reveal the new room smoothly instead of flashing/jumping.
+      setTimeout(() => {
+        overlay.style.opacity = '0';
+        overlay.style.backdropFilter = 'blur(0px)';
+        overlay.style.webkitBackdropFilter = 'blur(0px)';
+        setTourTravelVisual(1, false);
+
+        setTimeout(() => {
+          resetTourTravelVisual();
+          isDragging = false;
+          tourSceneTransitionActive = false;
+        }, 260);
+      }, 220);
+    }, 230);
+  };
+
   window.switchTourSceneIndex = function (idx) {
     if (idx >= 0 && idx < activeSceneList.length) {
-      loadScene(idx);
+      const scene = activeSceneList[idx];
+      if (scene && scene.id) {
+        window.switchTourScene(scene.id);
+      }
     }
   };
 
@@ -7076,6 +7233,13 @@
     pitch = 0;
     fov = 75;
     isAutoRotating = false;
+    isDragging = false;
+    lastPinchDist = null;
+    tourSceneTransitionActive = false;
+    if (typeof resetTourTravelVisual === 'function') resetTourTravelVisual();
+
+    // Ensure interaction bindings exist (idempotent)
+    bindViewerEvents();
 
     loadScene(0);
 
