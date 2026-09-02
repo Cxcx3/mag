@@ -7116,6 +7116,124 @@
     }
   };
 
+    // Smooth Matterport-style room-to-room navigation for door pins.
+  let tourSceneTransitionActive = false;
+  let tourSceneTransitionEl = null;
+
+  function ensureTourSceneTransition() {
+    const container = document.getElementById('tourViewportContainer');
+    if (!container) return null;
+
+    if (!tourSceneTransitionEl) {
+      tourSceneTransitionEl = document.createElement('div');
+      tourSceneTransitionEl.id = 'tourSceneTravelTransition';
+      tourSceneTransitionEl.setAttribute('aria-hidden', 'true');
+      tourSceneTransitionEl.style.cssText = [
+        'position:absolute',
+        'inset:0',
+        'z-index:19',
+        'pointer-events:none',
+        'opacity:0',
+        'background:radial-gradient(circle at 50% 52%, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.32) 58%, rgba(0,0,0,0.72) 100%)',
+        'backdrop-filter:blur(0px)',
+        '-webkit-backdrop-filter:blur(0px)',
+        'transition:opacity 220ms cubic-bezier(.22,.61,.36,1), backdrop-filter 220ms ease, -webkit-backdrop-filter 220ms ease',
+        'will-change:opacity,backdrop-filter'
+      ].join(';');
+      container.appendChild(tourSceneTransitionEl);
+    }
+    return tourSceneTransitionEl;
+  }
+
+  function setTourTravelVisual(progress, entering) {
+    const canvas = document.getElementById('tour3dCanvas');
+    const hotspotLayer = document.getElementById('tourHotspotsLayer');
+    const p = Math.max(0, Math.min(1, progress));
+    const zoom = entering ? (1 + p * 0.028) : (1.028 - p * 0.028);
+    const blur = entering ? p * 1.15 : (1 - p) * 1.15;
+    if (canvas) {
+      canvas.style.transition = 'transform 220ms cubic-bezier(.22,.61,.36,1), filter 220ms ease';
+      canvas.style.transformOrigin = '50% 50%';
+      canvas.style.transform = `scale(${zoom.toFixed(4)})`;
+      canvas.style.filter = `blur(${blur.toFixed(2)}px)`;
+    }
+    if (hotspotLayer) {
+      hotspotLayer.style.transition = 'opacity 160ms ease, transform 220ms ease';
+      hotspotLayer.style.opacity = entering ? String(Math.max(0, 1 - p * 1.15)) : String(Math.min(1, p * 1.15));
+      hotspotLayer.style.transform = `scale(${zoom.toFixed(4)})`;
+      hotspotLayer.style.transformOrigin = '50% 50%';
+    }
+  }
+
+  function resetTourTravelVisual() {
+    const canvas = document.getElementById('tour3dCanvas');
+    const hotspotLayer = document.getElementById('tourHotspotsLayer');
+    if (canvas) {
+      canvas.style.transform = 'scale(1)';
+      canvas.style.filter = 'blur(0px)';
+    }
+    if (hotspotLayer) {
+      hotspotLayer.style.opacity = '1';
+      hotspotLayer.style.transform = 'scale(1)';
+    }
+  }
+
+  window.switchTourScene = function (targetSceneId) {
+    if (tourSceneTransitionActive) return;
+
+    const targetIndex = activeSceneList.findIndex(sc => sc && sc.id === targetSceneId);
+    if (targetIndex < 0) {
+      console.warn('[SpotLIGHT 360] Hotspot target room not found:', targetSceneId);
+      if (typeof showToast === 'function') showToast('⚠️ This door is not connected to a room yet.');
+      return;
+    }
+
+    if (targetIndex === activeSceneIndex) return;
+
+    const overlay = ensureTourSceneTransition();
+    if (!overlay) {
+      loadScene(targetIndex);
+      return;
+    }
+
+    tourSceneTransitionActive = true;
+    isAutoRotating = false;
+    gyroEnabled = false;
+
+    setTourTravelVisual(0, true);
+    requestAnimationFrame(() => {
+      overlay.style.opacity = '1';
+      overlay.style.backdropFilter = 'blur(2px)';
+      overlay.style.webkitBackdropFilter = 'blur(2px)';
+      setTourTravelVisual(1, true);
+    });
+
+    setTimeout(() => {
+      loadScene(targetIndex);
+
+      setTimeout(() => {
+        overlay.style.opacity = '0';
+        overlay.style.backdropFilter = 'blur(0px)';
+        overlay.style.webkitBackdropFilter = 'blur(0px)';
+        setTourTravelVisual(1, false);
+
+        setTimeout(() => {
+          resetTourTravelVisual();
+          tourSceneTransitionActive = false;
+        }, 260);
+      }, 220);
+    }, 230);
+  };
+
+  window.switchTourSceneIndex = function (idx) {
+    if (idx >= 0 && idx < activeSceneList.length) {
+      const scene = activeSceneList[idx];
+      if (scene && scene.id) {
+        window.switchTourScene(scene.id);
+      }
+    }
+  };
+  
   window.close3dTourModal = function () {
     const modal = document.getElementById('tour3dModal');
     if (modal) {
