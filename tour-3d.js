@@ -3524,6 +3524,8 @@
     ring.className = 'tour-floor-ring';
     container.appendChild(ring);
 
+    let hideTimer = null;
+
     container.addEventListener('mousemove', (e) => {
       if (document.getElementById('tourEmbedFrame')?.style.display === 'block') {
         ring.classList.remove('visible');
@@ -3533,6 +3535,26 @@
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
+      // Only show the ring in the lower part of the view
+      if (y > rect.height * 0.45) {
+        ring.style.left = x + 'px';
+        ring.style.top = y + 'px';
+        ring.classList.add('visible');
+
+        // Reset the 3-second hide timer
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(() => {
+          ring.classList.remove('visible');
+        }, 3000);
+      } else {
+        ring.classList.remove('visible');
+      }
+    });
+
+    container.addEventListener('mouseleave', () => {
+      clearTimeout(hideTimer);
+      ring.classList.remove('visible');
+    });
       // Only show the ring in the lower part of the view (feels more like a floor)
       if (y > rect.height * 0.45) {
         ring.style.left = x + 'px';
@@ -3541,10 +3563,6 @@
       } else {
         ring.classList.remove('visible');
       }
-    });
-
-    container.addEventListener('mouseleave', () => {
-      ring.classList.remove('visible');
     });
 
     container.addEventListener('mousedown', () => {
