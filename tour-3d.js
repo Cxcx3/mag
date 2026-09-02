@@ -1144,7 +1144,30 @@
         0%, 100% { transform: scale(1); opacity: 1; }
         50% { transform: scale(1.4); opacity: 0.6; }
       }
-
+       /* Matterport-style floor navigation ring that follows the mouse */
+.tour-floor-ring {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  border: 5px solid rgba(255, 255, 255, 0.75);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 15;
+  transform: translate(-50%, -50%) rotateX(72deg);
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.45),
+              inset 0 0 12px rgba(255, 255, 255, 0.35);
+  opacity: 0;
+  transition: opacity 0.15s ease, width 0.12s ease, height 0.12s ease;
+  will-change: transform, opacity;
+}
+.tour-floor-ring.visible {
+  opacity: 1;
+}
+.tour-floor-ring.clicked {
+  width: 56px;
+  height: 56px;
+  border-color: rgba(255, 255, 255, 1);
+}
       /* Editor Tool Bar Overlay */
       .tour-editor-bar {
         position: absolute;
@@ -3299,6 +3322,7 @@
 
     document.body.appendChild(modal);
     bindViewerEvents();
+    initFloorRing();
   }
 
   /**
@@ -3490,6 +3514,47 @@
     }
   }
 
+    // Matterport-style floor ring that follows the mouse
+  function initFloorRing() {
+    const container = document.getElementById('tourViewportContainer');
+    if (!container || document.getElementById('tourFloorRing')) return;
+
+    const ring = document.createElement('div');
+    ring.id = 'tourFloorRing';
+    ring.className = 'tour-floor-ring';
+    container.appendChild(ring);
+
+    container.addEventListener('mousemove', (e) => {
+      if (document.getElementById('tourEmbedFrame')?.style.display === 'block') {
+        ring.classList.remove('visible');
+        return;
+      }
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // Only show the ring in the lower part of the view (feels more like a floor)
+      if (y > rect.height * 0.45) {
+        ring.style.left = x + 'px';
+        ring.style.top = y + 'px';
+        ring.classList.add('visible');
+      } else {
+        ring.classList.remove('visible');
+      }
+    });
+
+    container.addEventListener('mouseleave', () => {
+      ring.classList.remove('visible');
+    });
+
+    container.addEventListener('mousedown', () => {
+      ring.classList.add('clicked');
+    });
+    container.addEventListener('mouseup', () => {
+      ring.classList.remove('clicked');
+    });
+  }
+  
   function adjustZoom(delta) {
     targetFov = Math.max(35, Math.min(95, targetFov + delta));
     const zoomLevelEl = document.getElementById('tourZoomLevel');
