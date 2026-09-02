@@ -485,16 +485,27 @@
         const nw = img.naturalWidth || img.width || 2048;
         const nh = img.naturalHeight || img.height || 1024;
         const ar = nw / nh;
-        
-        const isWidePano = (aspectMode === 'matterport-arc') || (aspectMode === 'iphone-pano') || (aspectMode === '360-loop') || (aspectMode !== 'full-360' && ar > 2.0);
+
+        // A true 2:1 equirectangular image is already a complete 360° master.
+        // Keep the original pixels intact instead of forcing it through the
+        // arc/crop/fill pipeline. This gives the sphere clean, natural
+        // perspective while preserving the existing Matterport-style UI.
+        const isTrueEquirectangular = ar >= 1.98 && ar <= 2.02;
+        const renderAspectMode = isTrueEquirectangular ? 'full-360' : aspectMode;
+        const isWidePano = !isTrueEquirectangular && (
+          renderAspectMode === 'matterport-arc' ||
+          renderAspectMode === 'iphone-pano' ||
+          renderAspectMode === '360-loop' ||
+          (renderAspectMode !== 'full-360' && ar > 2.0)
+        );
 
         if (typeBadge) {
-          if (aspectMode === 'matterport-arc' || (isWidePano && aspectMode !== '360-loop' && aspectMode !== 'full-360')) {
+          if (renderAspectMode === 'matterport-arc' || (isWidePano && renderAspectMode !== '360-loop' && renderAspectMode !== 'full-360')) {
             typeBadge.textContent = '✨ MATTERPORT PRO (0% SEAM)';
             typeBadge.style.background = 'rgba(6, 214, 160, 0.18)';
             typeBadge.style.borderColor = '#06D6A0';
             typeBadge.style.color = '#06D6A0';
-          } else if (aspectMode === '360-loop' || aspectMode === 'iphone-pano') {
+          } else if (renderAspectMode === '360-loop' || renderAspectMode === 'iphone-pano') {
             typeBadge.textContent = '🔄 360° LOOP WALKTHROUGH';
             typeBadge.style.background = 'rgba(255, 210, 63, 0.18)';
             typeBadge.style.borderColor = '#FFD23F';
@@ -520,7 +531,7 @@
           canvas.height = canvasH;
           const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-          const isArcMode = (aspectMode === 'matterport-arc');
+          const isArcMode = (renderAspectMode === 'matterport-arc');
 
           // Compute exact natural vertical height to maintain 1:1 real-world physical room proportions
           let panoH = canvasH;
@@ -757,6 +768,10 @@
         finalTexture.generateMipmaps = true;
         finalTexture.minFilter = THREE.LinearMipmapLinearFilter;
         finalTexture.magFilter = THREE.LinearFilter;
+        // Preserve the captured image's intended color/brightness on modern Three.js.
+        if ('colorSpace' in finalTexture && typeof THREE.SRGBColorSpace !== 'undefined') {
+          finalTexture.colorSpace = THREE.SRGBColorSpace;
+        }
         if (threeRenderer) {
           finalTexture.anisotropy = Math.min(16, threeRenderer.capabilities.getMaxAnisotropy() || 1);
         }
