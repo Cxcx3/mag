@@ -4,8 +4,8 @@
  * Powered by Three.js WebGL Rectilinear Projection
  * 
  * Features:
- * - True Rectilinear 360° Photosphere Rendering (Zero fisheye / circular distortion, 100% natural perspective like Kuula, ThingLink, Matterport)
- * - Universal URL Normalizer (Kuula, ThingLink, Matterport, 360Cities, Momento360, Polycam, YouTube 360, Google Maps, direct 360 photos)
+ * - True Rectilinear 360° Photosphere Rendering (Zero fisheye / circular distortion, 100% natural perspective like professional 360° platforms)
+ * - Universal URL Normalizer (ThingLink, Matterport, 360Cities, Momento360, Polycam, YouTube 360, Google Maps, direct 360 photos)
  * - Interactive Hotspot Engine with exact 3D Vector Projection
  * - Add/Edit/Delete Hotspot Doors with Live Camera Orientation Capture
  * - Add New 360 Rooms via File Upload (Supabase Cloud Storage), Preset Photospheres, or Custom 360 URLs
@@ -36,20 +36,7 @@
       }
     }
 
-    // 1. Kuula (e.g. https://kuula.co/share/XXXX or https://kuula.co/post/XXXX)
-    const matchKuula = trimmed.match(/kuula\.co\/(post|share)\/([a-zA-Z0-9_-]+)/i);
-    if (matchKuula) {
-      const id = matchKuula[2];
-      return {
-        isEmbed: true,
-        isImage: false,
-        url: `https://kuula.co/share/${id}?logo=1&info=1&fs=1&vr=1&sd=1&thumbs=1`,
-        provider: 'Kuula',
-        originalUrl: trimmed
-      };
-    }
-
-    // 2. ThingLink (e.g. https://www.thinglink.com/scene/XXXX, https://www.thinglink.com/mediacard/XXXX, https://www.thinglink.com/card/XXXX)
+    // 1. ThingLink (e.g. https://www.thinglink.com/scene/XXXX, https://www.thinglink.com/mediacard/XXXX, https://www.thinglink.com/card/XXXX)
     const matchThingLink = trimmed.match(/thinglink\.com\/(scene|mediacard|card)\/([a-zA-Z0-9_-]+)/i);
     if (matchThingLink) {
       const id = matchThingLink[2];
@@ -256,10 +243,10 @@
   ];
 
   // ==========================================
-  // KUULA 360 ICON REGISTRY & PALETTE
-  // Authentic vectors inspired by Kuula Pin System
+  // SPOTLIGHT 360 ICON REGISTRY & PALETTE
+  // Custom vector icon set for the SpotLIGHT pin system
   // ==========================================
-  const KUULA_ICONS = {
+  const SPOTLIGHT_ICONS = {
     // Navigation
     'chevron-floor': {
       name: 'Floor Walking Chevron',
@@ -516,18 +503,18 @@
   };
 
   /**
-   * Helper function to cleanly return rendered SVG string or custom image for any Kuula icon key
+   * Helper function to cleanly return rendered SVG string or custom image for any SpotLIGHT icon key
    */
-  function getKuulaSvg(iconKeyOrDef, color) {
+  function getSpotlightSvg(iconKeyOrDef, color) {
     if (!iconKeyOrDef) return '';
     let def = null;
     if (typeof iconKeyOrDef === 'string') {
       if (iconKeyOrDef.startsWith('data:image') || iconKeyOrDef.startsWith('http')) {
         return `<img src="${iconKeyOrDef}" alt="icon" style="width:100%;height:100%;object-fit:contain;border-radius:50%;">`;
       }
-      def = (typeof KUULA_ICONS !== 'undefined' && KUULA_ICONS[iconKeyOrDef])
-        ? KUULA_ICONS[iconKeyOrDef]
-        : (typeof KUULA_ICONS !== 'undefined' ? (KUULA_ICONS['chevron-floor'] || KUULA_ICONS['chevron-up']) : null);
+      def = (typeof SPOTLIGHT_ICONS !== 'undefined' && SPOTLIGHT_ICONS[iconKeyOrDef])
+        ? SPOTLIGHT_ICONS[iconKeyOrDef]
+        : (typeof SPOTLIGHT_ICONS !== 'undefined' ? (SPOTLIGHT_ICONS['chevron-floor'] || SPOTLIGHT_ICONS['chevron-up']) : null);
     } else if (typeof iconKeyOrDef === 'object') {
       def = iconKeyOrDef;
     }
@@ -1550,7 +1537,7 @@
         transition: transform 0.1s linear;
       }
 
-      /* Hotspots in 3D Scene - Kuula & Matterport Engine */
+      /* Hotspots in 3D Scene - SpotLIGHT 3D Engine */
       .tour-hotspots-layer {
         position: absolute;
         inset: 0;
@@ -1573,16 +1560,16 @@
       .tour-hotspot-pin:hover {
         z-index: 25;
       }
-      .tour-hotspot-pin.kuula-pin-2d:hover .kuula-pin-disc,
-      .tour-hotspot-pin.kuula-pin-wall:hover .kuula-pin-disc {
+      .tour-hotspot-pin.spotlight-pin-2d:hover .spotlight-pin-disc,
+      .tour-hotspot-pin.spotlight-pin-wall:hover .spotlight-pin-disc {
         transform: scale(calc(var(--pin-scale, 1) * 1.12));
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85), 0 0 18px var(--pin-glow, rgba(255, 210, 63, 0.7));
       }
-      .tour-hotspot-pin:hover .kuula-pin-label {
+      .tour-hotspot-pin:hover .spotlight-pin-label {
         opacity: 1;
         transform: translateY(-2px);
       }
-      .kuula-pin-disc {
+      .spotlight-pin-disc {
         position: relative;
         width: var(--pin-size, 42px);
         height: var(--pin-size, 42px);
@@ -1597,21 +1584,21 @@
         backdrop-filter: blur(6px);
         -webkit-backdrop-filter: blur(6px);
       }
-      .kuula-beacon-pulse {
+      .spotlight-beacon-pulse {
         position: absolute;
         inset: -5px;
         border-radius: 50%;
         border: 1.5px solid var(--pin-color, #FFD23F);
         opacity: 0.8;
         pointer-events: none;
-        animation: kuulaBeacon 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+        animation: spotlightBeacon 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
       }
-      @keyframes kuulaBeacon {
+      @keyframes spotlightBeacon {
         0% { transform: scale(0.9); opacity: 0.85; }
         60% { transform: scale(1.55); opacity: 0; }
         100% { transform: scale(1.55); opacity: 0; }
       }
-      .kuula-pin-icon-inner {
+      .spotlight-pin-icon-inner {
         width: 60%;
         height: 60%;
         display: flex;
@@ -1620,19 +1607,19 @@
         transition: transform 0.15s ease;
         pointer-events: none;
       }
-      .kuula-pin-icon-inner svg {
+      .spotlight-pin-icon-inner svg {
         width: 100%;
         height: 100%;
         display: block;
       }
-      .kuula-pin-icon-inner img {
+      .spotlight-pin-icon-inner img {
         width: 100%;
         height: 100%;
         object-fit: contain;
         border-radius: 50%;
       }
-      .kuula-pin-label,
-      .kuula-pin-caption {
+      .spotlight-pin-label,
+      .spotlight-pin-caption {
         margin-top: 6px;
         background: rgba(14, 12, 19, 0.92);
         border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1649,35 +1636,35 @@
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
       }
-      .kuula-pin-label.label-hover,
-      .kuula-tooltip-hover .kuula-pin-caption,
-      .kuula-tooltip-hover .kuula-pin-label {
+      .spotlight-pin-label.label-hover,
+      .spotlight-tooltip-hover .spotlight-pin-caption,
+      .spotlight-tooltip-hover .spotlight-pin-label {
         opacity: 0;
         transform: translateY(2px);
       }
-      .tour-hotspot-pin.kuula-tooltip-hover:hover .kuula-pin-caption,
-      .tour-hotspot-pin.kuula-tooltip-hover:hover .kuula-pin-label,
-      .tour-hotspot-pin:hover .kuula-pin-label.label-hover {
+      .tour-hotspot-pin.spotlight-tooltip-hover:hover .spotlight-pin-caption,
+      .tour-hotspot-pin.spotlight-tooltip-hover:hover .spotlight-pin-label,
+      .tour-hotspot-pin:hover .spotlight-pin-label.label-hover {
         opacity: 1;
         transform: translateY(-2px);
       }
-      .kuula-pin-label.label-always,
-      .kuula-pin-caption {
+      .spotlight-pin-label.label-always,
+      .spotlight-pin-caption {
         opacity: 1;
       }
-      .kuula-pin-label.label-none,
-      .kuula-label-none .kuula-pin-caption,
-      .kuula-label-none .kuula-pin-label {
+      .spotlight-pin-label.label-none,
+      .spotlight-label-none .spotlight-pin-caption,
+      .spotlight-label-none .spotlight-pin-label {
         display: none !important;
       }
-      /* Placement: Floor (3D perspective tilt flat onto ground like Kuula) */
+      /* Placement: Floor (3D perspective tilt flat onto the ground) */
       .placement-floor,
-      .kuula-pin-floor {
+      .spotlight-pin-floor {
         perspective: 900px;
         transform-style: preserve-3d;
       }
-      .placement-floor .kuula-pin-disc,
-      .kuula-pin-floor .kuula-pin-disc {
+      .placement-floor .spotlight-pin-disc,
+      .spotlight-pin-floor .spotlight-pin-disc {
         transform: perspective(600px) rotateX(var(--floor-tilt, 68deg)) rotateZ(var(--floor-rot, 0deg)) scale(var(--pin-scale, 1));
         transform-origin: 50% 50%;
         background: radial-gradient(circle at 50% 50%, rgba(20, 18, 28, 0.45) 0%, rgba(10, 8, 16, 0.75) 100%);
@@ -1685,33 +1672,33 @@
         border-radius: 50%;
         box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65), 0 0 16px var(--pin-glow, rgba(63, 221, 224, 0.4));
       }
-      .tour-hotspot-pin.placement-floor:hover .kuula-pin-disc,
-      .tour-hotspot-pin.kuula-pin-floor:hover .kuula-pin-disc {
+      .tour-hotspot-pin.placement-floor:hover .spotlight-pin-disc,
+      .tour-hotspot-pin.spotlight-pin-floor:hover .spotlight-pin-disc {
         transform: perspective(600px) rotateX(var(--floor-tilt, 68deg)) rotateZ(var(--floor-rot, 0deg)) scale(calc(var(--pin-scale, 1) * 1.18));
         border-style: solid;
         box-shadow: 0 14px 34px rgba(0, 0, 0, 0.85), 0 0 24px var(--pin-glow, rgba(63, 221, 224, 0.75));
       }
-      .placement-floor .kuula-beacon-pulse,
-      .kuula-pin-floor .kuula-beacon-pulse {
+      .placement-floor .spotlight-beacon-pulse,
+      .spotlight-pin-floor .spotlight-beacon-pulse {
         border-style: dashed;
         border-width: 1.5px;
       }
-      .placement-floor .kuula-pin-icon-inner,
-      .kuula-pin-floor .kuula-pin-icon-inner {
+      .placement-floor .spotlight-pin-icon-inner,
+      .spotlight-pin-floor .spotlight-pin-icon-inner {
         transform: none !important;
       }
       /* Placement: Wall & 2D */
-      .placement-wall .kuula-pin-disc,
-      .kuula-pin-wall .kuula-pin-disc,
-      .kuula-pin-2d .kuula-pin-disc {
+      .placement-wall .spotlight-pin-disc,
+      .spotlight-pin-wall .spotlight-pin-disc,
+      .spotlight-pin-2d .spotlight-pin-disc {
         transform: scale(var(--pin-scale, 1));
       }
-      .tour-hotspot-pin.kuula-pin-2d:hover .kuula-pin-disc,
-      .tour-hotspot-pin.kuula-pin-wall:hover .kuula-pin-disc {
+      .tour-hotspot-pin.spotlight-pin-2d:hover .spotlight-pin-disc,
+      .tour-hotspot-pin.spotlight-pin-wall:hover .spotlight-pin-disc {
         transform: scale(calc(var(--pin-scale, 1) * 1.12));
       }
       /* Editor Mode handles */
-      .tour-hotspot-pin.editor-pin .kuula-pin-disc {
+      .tour-hotspot-pin.editor-pin .spotlight-pin-disc {
         border-color: #06D6A0 !important;
         box-shadow: 0 4px 18px rgba(6, 214, 160, 0.5) !important;
       }
@@ -1740,8 +1727,8 @@
         transform: scale(1.2);
       }
 
-      /* Kuula Checkerboard & Inspector Controls */
-      .kuula-checkerboard {
+      /* Checkerboard & Inspector Controls */
+      .spotlight-checkerboard {
         background-color: #1a1820;
         background-image: 
           linear-gradient(45deg, #25222e 25%, transparent 25%), 
@@ -1756,14 +1743,14 @@
         align-items: center;
         justify-content: center;
       }
-      .kuula-inspector-section {
+      .spotlight-inspector-section {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 10px;
         padding: 12px;
         margin-bottom: 12px;
       }
-      .kuula-inspector-title {
+      .spotlight-inspector-title {
         font-size: 11px;
         font-weight: 800;
         text-transform: uppercase;
@@ -1774,7 +1761,7 @@
         align-items: center;
         justify-content: space-between;
       }
-      .kuula-tint-swatch {
+      .spotlight-tint-swatch {
         width: 22px;
         height: 22px;
         border-radius: 50%;
@@ -1782,15 +1769,15 @@
         cursor: pointer;
         transition: transform 0.15s, border-color 0.15s;
       }
-      .kuula-tint-swatch:hover {
+      .spotlight-tint-swatch:hover {
         transform: scale(1.2);
         border-color: #fff;
       }
-      .kuula-tint-swatch.active {
+      .spotlight-tint-swatch.active {
         border-color: #fff;
         box-shadow: 0 0 8px #fff;
       }
-      .kuula-pill-group {
+      .spotlight-pill-group {
         display: flex;
         gap: 6px;
         background: rgba(0, 0, 0, 0.4);
@@ -1798,7 +1785,7 @@
         border-radius: 8px;
         border: 1px solid rgba(255, 255, 255, 0.08);
       }
-      .kuula-pill-btn {
+      .spotlight-pill-btn {
         flex: 1;
         background: transparent;
         border: none;
@@ -1811,16 +1798,16 @@
         transition: all 0.15s ease;
         text-align: center;
       }
-      .kuula-pill-btn:hover {
+      .spotlight-pill-btn:hover {
         color: #fff;
         background: rgba(255, 255, 255, 0.08);
       }
-      .kuula-pill-btn.active {
+      .spotlight-pill-btn.active {
         background: #FFD23F;
         color: #14121A;
         font-weight: 800;
       }
-      .kuula-icons-grid {
+      .spotlight-icons-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
         gap: 8px;
@@ -1831,8 +1818,8 @@
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 10px;
       }
-      .kuula-icon-card,
-      .kuula-icon-item {
+      .spotlight-icon-card,
+      .spotlight-icon-item {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -1848,19 +1835,19 @@
         outline: none;
         user-select: none;
       }
-      .kuula-icon-card:hover,
-      .kuula-icon-item:hover {
+      .spotlight-icon-card:hover,
+      .spotlight-icon-item:hover {
         background: rgba(255, 210, 63, 0.15);
         border-color: #FFD23F;
         transform: translateY(-2px);
       }
-      .kuula-icon-card.active,
-      .kuula-icon-item.selected {
+      .spotlight-icon-card.active,
+      .spotlight-icon-item.selected {
         background: rgba(255, 210, 63, 0.25);
         border-color: #FFD23F;
         box-shadow: 0 0 10px rgba(255, 210, 63, 0.4);
       }
-      .kuula-icon-card-preview {
+      .spotlight-icon-card-preview {
         width: 30px;
         height: 30px;
         display: flex;
@@ -1868,17 +1855,17 @@
         justify-content: center;
         pointer-events: none;
       }
-      .kuula-icon-card-preview svg {
+      .spotlight-icon-card-preview svg {
         width: 24px;
         height: 24px;
         display: block;
       }
-      .kuula-icon-card-preview img {
+      .spotlight-icon-card-preview img {
         width: 24px;
         height: 24px;
         object-fit: contain;
       }
-      .kuula-icon-card-name {
+      .spotlight-icon-card-name {
         font-size: 10px;
         font-weight: 600;
         color: rgba(255, 255, 255, 0.85);
@@ -3513,7 +3500,7 @@
         <!-- Three.js Canvas -->
         <canvas class="tour-3d-canvas" id="tour3dCanvas"></canvas>
 
-        <!-- External Embed Frame (Kuula, ThingLink, Matterport, 360Cities, YouTube VR) -->
+        <!-- External Embed Frame (ThingLink, Matterport, 360Cities, YouTube VR) -->
         <iframe class="tour-embed-frame" id="tourEmbedFrame" style="display:none;" allow="xr-spatial-tracking; vr; accelerometer; gyroscope; fullscreen" allowfullscreen></iframe>
 
         <!-- Hotspots Layer -->
@@ -3531,7 +3518,7 @@
           <div class="tour-loader-sub" id="tourLoaderSub">Rendering realistic spherical photosphere</div>
         </div>
 
-        <!-- 1. PLACE HOTSPOT DIALOG (Kuula Style Pin Inspector) -->
+        <!-- 1. PLACE HOTSPOT DIALOG (Pin Inspector) -->
         <div class="tour-dialog-overlay" id="tourPlaceHotspotModal" style="display:none; z-index: 100;">
           <div class="tour-dialog-card" style="max-width: 480px; max-height: 90vh; overflow-y: auto;">
             <div class="tour-dialog-header">
@@ -3543,15 +3530,15 @@
                 📐 Targeting Camera: Yaw 0°, Pitch 0°
               </div>
 
-              <!-- 1. ICON & TINT SECTION (KUULA STYLE) -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">
+              <!-- 1. ICON & TINT SECTION -->
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">
                   <span>Icon</span>
                   <span id="placeHsIconCategory" style="color:rgba(255,255,255,0.4);font-size:10px;text-transform:none;">Floor Walking Chevron</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:14px;">
                   <!-- Checkerboard Preview Box -->
-                  <div class="kuula-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;">
+                  <div class="spotlight-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;">
                     <div id="placeHsIconPreviewInner" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;transition:transform 0.15s ease;">
                       <!-- SVG icon injected here -->
                     </div>
@@ -3575,12 +3562,12 @@
                       </div>
                       <!-- Preset Swatches -->
                       <div style="display:flex;gap:5px;">
-                        <div class="kuula-tint-swatch active" style="background:#FFD23F;" onclick="window.setHotspotTint('#FFD23F', 'place')" title="Gold"></div>
-                        <div class="kuula-tint-swatch" style="background:#06D6A0;" onclick="window.setHotspotTint('#06D6A0', 'place')" title="Emerald"></div>
-                        <div class="kuula-tint-swatch" style="background:#3FDDE0;" onclick="window.setHotspotTint('#3FDDE0', 'place')" title="Cyan"></div>
-                        <div class="kuula-tint-swatch" style="background:#FF4D6D;" onclick="window.setHotspotTint('#FF4D6D', 'place')" title="Coral"></div>
-                        <div class="kuula-tint-swatch" style="background:#FFFFFF;" onclick="window.setHotspotTint('#FFFFFF', 'place')" title="White"></div>
-                        <div class="kuula-tint-swatch" style="background:#1877F2;" onclick="window.setHotspotTint('#1877F2', 'place')" title="Blue"></div>
+                        <div class="spotlight-tint-swatch active" style="background:#FFD23F;" onclick="window.setHotspotTint('#FFD23F', 'place')" title="Gold"></div>
+                        <div class="spotlight-tint-swatch" style="background:#06D6A0;" onclick="window.setHotspotTint('#06D6A0', 'place')" title="Emerald"></div>
+                        <div class="spotlight-tint-swatch" style="background:#3FDDE0;" onclick="window.setHotspotTint('#3FDDE0', 'place')" title="Cyan"></div>
+                        <div class="spotlight-tint-swatch" style="background:#FF4D6D;" onclick="window.setHotspotTint('#FF4D6D', 'place')" title="Coral"></div>
+                        <div class="spotlight-tint-swatch" style="background:#FFFFFF;" onclick="window.setHotspotTint('#FFFFFF', 'place')" title="White"></div>
+                        <div class="spotlight-tint-swatch" style="background:#1877F2;" onclick="window.setHotspotTint('#1877F2', 'place')" title="Blue"></div>
                       </div>
                     </div>
                   </div>
@@ -3588,8 +3575,8 @@
               </div>
 
               <!-- 2. APPEARANCE SECTION -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">Appearance</div>
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">Appearance</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                   <div>
                     <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:#aaa;margin-bottom:4px;">
@@ -3609,8 +3596,8 @@
               </div>
 
               <!-- 3. ROTATION SECTION -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">
                   <span>Rotation</span>
                   <button type="button" onclick="window.resetHotspotRotation('place')" style="background:none;border:none;color:#3FDDE0;cursor:pointer;font-size:10px;font-weight:700;text-decoration:underline;">Reset</button>
                 </div>
@@ -3621,12 +3608,12 @@
               </div>
 
               <!-- 4. POSITION / PLACEMENT -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">Position & Orientation</div>
-                <div class="kuula-pill-group" style="margin-bottom:8px;">
-                  <button type="button" class="kuula-pill-btn" id="placePlacement2d" onclick="window.setHotspotPlacement('2d', 'place')">2D (Billboard)</button>
-                  <button type="button" class="kuula-pill-btn active" id="placePlacementFloor" onclick="window.setHotspotPlacement('floor', 'place')">Floor (3D Walk Puck)</button>
-                  <button type="button" class="kuula-pill-btn" id="placePlacementWall" onclick="window.setHotspotPlacement('wall', 'place')">Wall (Vertical)</button>
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">Position & Orientation</div>
+                <div class="spotlight-pill-group" style="margin-bottom:8px;">
+                  <button type="button" class="spotlight-pill-btn" id="placePlacement2d" onclick="window.setHotspotPlacement('2d', 'place')">2D (Billboard)</button>
+                  <button type="button" class="spotlight-pill-btn active" id="placePlacementFloor" onclick="window.setHotspotPlacement('floor', 'place')">Floor (3D Walk Puck)</button>
+                  <button type="button" class="spotlight-pill-btn" id="placePlacementWall" onclick="window.setHotspotPlacement('wall', 'place')">Wall (Vertical)</button>
                 </div>
                 <label style="display:flex;align-items:center;gap:8px;font-size:11px;color:#ccc;cursor:pointer;user-select:none;">
                   <input type="checkbox" id="placeHsScaleOnZoom" checked style="accent-color:#FFD23F;">
@@ -3635,13 +3622,13 @@
               </div>
 
               <!-- 5. LABEL & TOOLTIP -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">Label & Tooltip</div>
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">Label & Tooltip</div>
                 <input type="text" class="tour-dialog-input" id="newHsLabelInput" placeholder="e.g. 🚪 Step Inside Studio" value="🚪 Step Inside Space" style="margin-bottom:8px;">
-                <div class="kuula-pill-group" style="margin-bottom:8px;">
-                  <button type="button" class="kuula-pill-btn active" id="placeLabelAlways" onclick="window.setHotspotLabelMode('always', 'place')">Always Show</button>
-                  <button type="button" class="kuula-pill-btn" id="placeLabelHover" onclick="window.setHotspotLabelMode('hover', 'place')">Hover Tooltip</button>
-                  <button type="button" class="kuula-pill-btn" id="placeLabelNone" onclick="window.setHotspotLabelMode('none', 'place')">Icon Only</button>
+                <div class="spotlight-pill-group" style="margin-bottom:8px;">
+                  <button type="button" class="spotlight-pill-btn active" id="placeLabelAlways" onclick="window.setHotspotLabelMode('always', 'place')">Always Show</button>
+                  <button type="button" class="spotlight-pill-btn" id="placeLabelHover" onclick="window.setHotspotLabelMode('hover', 'place')">Hover Tooltip</button>
+                  <button type="button" class="spotlight-pill-btn" id="placeLabelNone" onclick="window.setHotspotLabelMode('none', 'place')">Icon Only</button>
                 </div>
                 <div class="tour-quick-chips">
                   <span class="tour-chip" onclick="window.setQuickHsLabel('🚪 Step Inside Studio')">🚪 Step Inside</span>
@@ -3653,12 +3640,12 @@
               </div>
 
               <!-- 6. ACTION / TARGET -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">Click Action</div>
-                <div class="kuula-pill-group" style="margin-bottom:10px;">
-                  <button type="button" class="kuula-pill-btn active" id="placeActionScene" onclick="window.setHotspotActionType('scene', 'place')">🚪 Walk to Room</button>
-                  <button type="button" class="kuula-pill-btn" id="placeActionInfo" onclick="window.setHotspotActionType('info', 'place')">ℹ️ Info Card</button>
-                  <button type="button" class="kuula-pill-btn" id="placeActionUrl" onclick="window.setHotspotActionType('url', 'place')">🔗 Web Link</button>
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">Click Action</div>
+                <div class="spotlight-pill-group" style="margin-bottom:10px;">
+                  <button type="button" class="spotlight-pill-btn active" id="placeActionScene" onclick="window.setHotspotActionType('scene', 'place')">🚪 Walk to Room</button>
+                  <button type="button" class="spotlight-pill-btn" id="placeActionInfo" onclick="window.setHotspotActionType('info', 'place')">ℹ️ Info Card</button>
+                  <button type="button" class="spotlight-pill-btn" id="placeActionUrl" onclick="window.setHotspotActionType('url', 'place')">🔗 Web Link</button>
                 </div>
 
                 <div id="placeActionSceneGroup" class="tour-field-group">
@@ -3685,11 +3672,11 @@
 
                   <!-- Media Type Selector Pills -->
                   <label class="tour-field-label" style="font-size:10px;">Media to Display on Click</label>
-                  <div class="kuula-pill-group" style="margin-bottom:8px;">
-                    <button type="button" class="kuula-pill-btn active" id="placeMediaNone" onclick="window.setHotspotMediaType('none', 'place')">Icon Only</button>
-                    <button type="button" class="kuula-pill-btn" id="placeMediaPhoto" onclick="window.setHotspotMediaType('photo', 'place')">📸 Photo</button>
-                    <button type="button" class="kuula-pill-btn" id="placeMediaVideo" onclick="window.setHotspotMediaType('video', 'place')">🎥 Video</button>
-                    <button type="button" class="kuula-pill-btn" id="placeMediaModel3d" onclick="window.setHotspotMediaType('model3d', 'place')">🧊 3D Model</button>
+                  <div class="spotlight-pill-group" style="margin-bottom:8px;">
+                    <button type="button" class="spotlight-pill-btn active" id="placeMediaNone" onclick="window.setHotspotMediaType('none', 'place')">Icon Only</button>
+                    <button type="button" class="spotlight-pill-btn" id="placeMediaPhoto" onclick="window.setHotspotMediaType('photo', 'place')">📸 Photo</button>
+                    <button type="button" class="spotlight-pill-btn" id="placeMediaVideo" onclick="window.setHotspotMediaType('video', 'place')">🎥 Video</button>
+                    <button type="button" class="spotlight-pill-btn" id="placeMediaModel3d" onclick="window.setHotspotMediaType('model3d', 'place')">🧊 3D Model</button>
                   </div>
 
                   <!-- Photo Options Container -->
@@ -3782,11 +3769,11 @@
           </div>
         </div>
 
-        <!-- KUULA ICON PICKER DIALOG (Full Palette from Kuula) -->
+        <!-- SPOTLIGHT ICON PICKER DIALOG -->
         <div class="tour-dialog-overlay" id="tourIconPickerModal" style="display:none; z-index:110;">
           <div class="tour-dialog-card" style="max-width:520px; max-height:88vh; overflow-y:auto;">
             <div class="tour-dialog-header">
-              <span class="tour-dialog-title">🎨 Choose Kuula Pin Icon</span>
+              <span class="tour-dialog-title">🎨 Choose Pin Icon</span>
               <button type="button" class="tour-dialog-close" onclick="window.closeIconPickerModal()">✕</button>
             </div>
             <div class="tour-dialog-body" style="padding:14px;">
@@ -3802,8 +3789,8 @@
                 <button type="button" class="tour-chip" onclick="window.filterIconPickerCategory('Social', this)">Social</button>
               </div>
 
-              <!-- Grid of authentic Kuula icons -->
-              <div class="kuula-icons-grid" id="kuulaIconsGridContainer">
+              <!-- Grid of pin icons -->
+              <div class="spotlight-icons-grid" id="spotlightIconsGridContainer">
                 <!-- Dynamically populated by JS -->
               </div>
 
@@ -3942,9 +3929,9 @@
               <!-- Tab 3: URL -->
               <div id="roomTabUrl" style="display:none;">
                 <div class="tour-field-group">
-                  <label class="tour-field-label">360° Photo URL, Kuula, ThingLink, or Matterport Link</label>
-                  <input type="text" class="tour-dialog-input" id="newRoomUrlInput" placeholder="Paste Kuula, ThingLink, Matterport, or 360° image URL">
-                  <small style="color:rgba(255,255,255,0.6);font-size:10px;">Supports Kuula, ThingLink, 360Cities, Matterport, Momento360, Polycam, YouTube 360, and direct 360 image URLs</small>
+                  <label class="tour-field-label">360° Photo URL, ThingLink, or Matterport Link</label>
+                  <input type="text" class="tour-dialog-input" id="newRoomUrlInput" placeholder="Paste ThingLink, Matterport, or 360° image URL">
+                  <small style="color:rgba(255,255,255,0.6);font-size:10px;">Supports ThingLink, 360Cities, Matterport, Momento360, Polycam, YouTube 360, and direct 360 image URLs</small>
                 </div>
               </div>
             </div>
@@ -4016,8 +4003,8 @@
 
                 <!-- Tab 3: URL -->
                 <div id="editRoomTabUrl" style="display:none;">
-                  <input type="text" class="tour-dialog-input" id="editRoomUrlInput" placeholder="Paste Kuula, ThingLink, Matterport, or 360° image URL">
-                  <small style="color:rgba(255,255,255,0.6);font-size:10px;margin-top:4px;display:block;">Supports Kuula, ThingLink, 360Cities, Matterport, Momento360, Polycam, YouTube 360, and direct 360 image URLs</small>
+                  <input type="text" class="tour-dialog-input" id="editRoomUrlInput" placeholder="Paste ThingLink, Matterport, or 360° image URL">
+                  <small style="color:rgba(255,255,255,0.6);font-size:10px;margin-top:4px;display:block;">Supports ThingLink, 360Cities, Matterport, Momento360, Polycam, YouTube 360, and direct 360 image URLs</small>
                 </div>
               </div>
 
@@ -4114,25 +4101,25 @@
           </div>
         </div>
 
-        <!-- 6. EDIT / DELETE HOTSPOT MODAL (Kuula Style Pin Inspector) -->
+        <!-- 6. EDIT / DELETE HOTSPOT MODAL (Pin Inspector) -->
         <div class="tour-dialog-overlay" id="tourEditHotspotModal" style="display:none; z-index:100;">
           <div class="tour-dialog-card" style="max-width:480px; max-height:90vh; overflow-y:auto;">
             <div class="tour-dialog-header">
-              <span class="tour-dialog-title">✏️ Edit Hotspot Pin (Kuula Inspector)</span>
+              <span class="tour-dialog-title">✏️ Edit Hotspot Pin (Pin Inspector)</span>
               <button type="button" class="tour-dialog-close" onclick="window.closeEditHotspotDialog()">✕</button>
             </div>
             <div class="tour-dialog-body" style="padding:14px;">
               <input type="hidden" id="editHsIndex" value="-1">
 
               <!-- 1. ICON & TINT SECTION -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">
                   <span>Icon</span>
                   <span id="editHsIconCategory" style="color:rgba(255,255,255,0.4);font-size:10px;text-transform:none;">Navigation</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:14px;">
                   <!-- Checkerboard Preview Box -->
-                  <div class="kuula-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;">
+                  <div class="spotlight-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;">
                     <div id="editHsIconPreviewInner" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;transition:transform 0.15s ease;">
                       <!-- SVG icon injected here -->
                     </div>
@@ -4156,12 +4143,12 @@
                       </div>
                       <!-- Preset Swatches -->
                       <div style="display:flex;gap:5px;">
-                        <div class="kuula-tint-swatch" style="background:#FFD23F;" onclick="window.setHotspotTint('#FFD23F', 'edit')" title="Gold"></div>
-                        <div class="kuula-tint-swatch" style="background:#06D6A0;" onclick="window.setHotspotTint('#06D6A0', 'edit')" title="Emerald"></div>
-                        <div class="kuula-tint-swatch" style="background:#3FDDE0;" onclick="window.setHotspotTint('#3FDDE0', 'edit')" title="Cyan"></div>
-                        <div class="kuula-tint-swatch" style="background:#FF4D6D;" onclick="window.setHotspotTint('#FF4D6D', 'edit')" title="Coral"></div>
-                        <div class="kuula-tint-swatch" style="background:#FFFFFF;" onclick="window.setHotspotTint('#FFFFFF', 'edit')" title="White"></div>
-                        <div class="kuula-tint-swatch" style="background:#1877F2;" onclick="window.setHotspotTint('#1877F2', 'edit')" title="Blue"></div>
+                        <div class="spotlight-tint-swatch" style="background:#FFD23F;" onclick="window.setHotspotTint('#FFD23F', 'edit')" title="Gold"></div>
+                        <div class="spotlight-tint-swatch" style="background:#06D6A0;" onclick="window.setHotspotTint('#06D6A0', 'edit')" title="Emerald"></div>
+                        <div class="spotlight-tint-swatch" style="background:#3FDDE0;" onclick="window.setHotspotTint('#3FDDE0', 'edit')" title="Cyan"></div>
+                        <div class="spotlight-tint-swatch" style="background:#FF4D6D;" onclick="window.setHotspotTint('#FF4D6D', 'edit')" title="Coral"></div>
+                        <div class="spotlight-tint-swatch" style="background:#FFFFFF;" onclick="window.setHotspotTint('#FFFFFF', 'edit')" title="White"></div>
+                        <div class="spotlight-tint-swatch" style="background:#1877F2;" onclick="window.setHotspotTint('#1877F2', 'edit')" title="Blue"></div>
                       </div>
                     </div>
                   </div>
@@ -4169,8 +4156,8 @@
               </div>
 
               <!-- 2. APPEARANCE SECTION -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">Appearance</div>
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">Appearance</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                   <div>
                     <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:#aaa;margin-bottom:4px;">
@@ -4190,8 +4177,8 @@
               </div>
 
               <!-- 3. ROTATION SECTION -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">
                   <span>Rotation</span>
                   <button type="button" onclick="window.resetHotspotRotation('edit')" style="background:none;border:none;color:#3FDDE0;cursor:pointer;font-size:10px;font-weight:700;text-decoration:underline;">Reset</button>
                 </div>
@@ -4202,12 +4189,12 @@
               </div>
 
               <!-- 4. POSITION / PLACEMENT -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">Position & Orientation</div>
-                <div class="kuula-pill-group" style="margin-bottom:8px;">
-                  <button type="button" class="kuula-pill-btn" id="editPlacement2d" onclick="window.setHotspotPlacement('2d', 'edit')">2D (Billboard)</button>
-                  <button type="button" class="kuula-pill-btn" id="editPlacementFloor" onclick="window.setHotspotPlacement('floor', 'edit')">Floor (3D Walk Puck)</button>
-                  <button type="button" class="kuula-pill-btn" id="editPlacementWall" onclick="window.setHotspotPlacement('wall', 'edit')">Wall (Vertical)</button>
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">Position & Orientation</div>
+                <div class="spotlight-pill-group" style="margin-bottom:8px;">
+                  <button type="button" class="spotlight-pill-btn" id="editPlacement2d" onclick="window.setHotspotPlacement('2d', 'edit')">2D (Billboard)</button>
+                  <button type="button" class="spotlight-pill-btn" id="editPlacementFloor" onclick="window.setHotspotPlacement('floor', 'edit')">Floor (3D Walk Puck)</button>
+                  <button type="button" class="spotlight-pill-btn" id="editPlacementWall" onclick="window.setHotspotPlacement('wall', 'edit')">Wall (Vertical)</button>
                 </div>
                 <label style="display:flex;align-items:center;gap:8px;font-size:11px;color:#ccc;cursor:pointer;user-select:none;margin-bottom:8px;">
                   <input type="checkbox" id="editHsScaleOnZoom" checked style="accent-color:#FFD23F;">
@@ -4219,23 +4206,23 @@
               </div>
 
               <!-- 5. LABEL & TOOLTIP -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">Label & Tooltip</div>
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">Label & Tooltip</div>
                 <input type="text" class="tour-dialog-input" id="editHsLabelInput" placeholder="Hotspot Label..." style="margin-bottom:8px;">
-                <div class="kuula-pill-group">
-                  <button type="button" class="kuula-pill-btn active" id="editLabelAlways" onclick="window.setHotspotLabelMode('always', 'edit')">Always Show</button>
-                  <button type="button" class="kuula-pill-btn" id="editLabelHover" onclick="window.setHotspotLabelMode('hover', 'edit')">Hover Tooltip</button>
-                  <button type="button" class="kuula-pill-btn" id="editLabelNone" onclick="window.setHotspotLabelMode('none', 'edit')">Icon Only</button>
+                <div class="spotlight-pill-group">
+                  <button type="button" class="spotlight-pill-btn active" id="editLabelAlways" onclick="window.setHotspotLabelMode('always', 'edit')">Always Show</button>
+                  <button type="button" class="spotlight-pill-btn" id="editLabelHover" onclick="window.setHotspotLabelMode('hover', 'edit')">Hover Tooltip</button>
+                  <button type="button" class="spotlight-pill-btn" id="editLabelNone" onclick="window.setHotspotLabelMode('none', 'edit')">Icon Only</button>
                 </div>
               </div>
 
               <!-- 6. ACTION / TARGET -->
-              <div class="kuula-inspector-section">
-                <div class="kuula-inspector-title">Click Action</div>
-                <div class="kuula-pill-group" style="margin-bottom:10px;">
-                  <button type="button" class="kuula-pill-btn active" id="editActionScene" onclick="window.setHotspotActionType('scene', 'edit')">🚪 Walk to Room</button>
-                  <button type="button" class="kuula-pill-btn" id="editActionInfo" onclick="window.setHotspotActionType('info', 'edit')">ℹ️ Info Card</button>
-                  <button type="button" class="kuula-pill-btn" id="editActionUrl" onclick="window.setHotspotActionType('url', 'edit')">🔗 Web Link</button>
+              <div class="spotlight-inspector-section">
+                <div class="spotlight-inspector-title">Click Action</div>
+                <div class="spotlight-pill-group" style="margin-bottom:10px;">
+                  <button type="button" class="spotlight-pill-btn active" id="editActionScene" onclick="window.setHotspotActionType('scene', 'edit')">🚪 Walk to Room</button>
+                  <button type="button" class="spotlight-pill-btn" id="editActionInfo" onclick="window.setHotspotActionType('info', 'edit')">ℹ️ Info Card</button>
+                  <button type="button" class="spotlight-pill-btn" id="editActionUrl" onclick="window.setHotspotActionType('url', 'edit')">🔗 Web Link</button>
                 </div>
 
                 <div id="editActionSceneGroup" class="tour-field-group">
@@ -4262,11 +4249,11 @@
 
                   <!-- Media Type Selector Pills -->
                   <label class="tour-field-label" style="font-size:10px;">Media to Display on Click</label>
-                  <div class="kuula-pill-group" style="margin-bottom:8px;">
-                    <button type="button" class="kuula-pill-btn active" id="editMediaNone" onclick="window.setHotspotMediaType('none', 'edit')">Icon Only</button>
-                    <button type="button" class="kuula-pill-btn" id="editMediaPhoto" onclick="window.setHotspotMediaType('photo', 'edit')">📸 Photo</button>
-                    <button type="button" class="kuula-pill-btn" id="editMediaVideo" onclick="window.setHotspotMediaType('video', 'edit')">🎥 Video</button>
-                    <button type="button" class="kuula-pill-btn" id="editMediaModel3d" onclick="window.setHotspotMediaType('model3d', 'edit')">🧊 3D Model</button>
+                  <div class="spotlight-pill-group" style="margin-bottom:8px;">
+                    <button type="button" class="spotlight-pill-btn active" id="editMediaNone" onclick="window.setHotspotMediaType('none', 'edit')">Icon Only</button>
+                    <button type="button" class="spotlight-pill-btn" id="editMediaPhoto" onclick="window.setHotspotMediaType('photo', 'edit')">📸 Photo</button>
+                    <button type="button" class="spotlight-pill-btn" id="editMediaVideo" onclick="window.setHotspotMediaType('video', 'edit')">🎥 Video</button>
+                    <button type="button" class="spotlight-pill-btn" id="editMediaModel3d" onclick="window.setHotspotMediaType('model3d', 'edit')">🧊 3D Model</button>
                   </div>
 
                   <!-- Photo Options Container -->
@@ -4939,7 +4926,7 @@
   }
 
   /**
-   * Synchronizes Persistent Hotspot DOM Nodes with Kuula Icons and Disc Beacons
+   * Synchronizes Persistent Hotspot DOM Nodes with SpotLIGHT Icons and Disc Beacons
    */
   function syncHotspotsDom() {
     const layer = document.getElementById('tourHotspotsLayer');
@@ -4958,8 +4945,8 @@
       const opacityVal = (hs.opacity != null ? hs.opacity : 100) / 100;
       const rotationDeg = hs.rotation || 0;
 
-      const placementClass = (placement === 'floor') ? 'kuula-pin-floor' : ((placement === 'wall') ? 'kuula-pin-wall' : 'kuula-pin-2d');
-      const labelClass = (labelMode === 'hover') ? 'kuula-tooltip-hover' : ((labelMode === 'none') ? 'kuula-label-none' : '');
+      const placementClass = (placement === 'floor') ? 'spotlight-pin-floor' : ((placement === 'wall') ? 'spotlight-pin-wall' : 'spotlight-pin-2d');
+      const labelClass = (labelMode === 'hover') ? 'spotlight-tooltip-hover' : ((labelMode === 'none') ? 'spotlight-label-none' : '');
       pin.className = `tour-hotspot-pin ${placementClass} ${labelClass} ${isEditorMode ? 'editor-pin' : ''}`;
       pin.dataset.hsIndex = idx;
       pin.style.display = 'none';
@@ -4969,30 +4956,30 @@
 
       // 1. Disc container
       const disc = document.createElement('div');
-      disc.className = 'kuula-pin-disc';
+      disc.className = 'spotlight-pin-disc';
 
       // 2. Ripple Beacon ring
       const beacon = document.createElement('div');
-      beacon.className = 'kuula-beacon-pulse';
+      beacon.className = 'spotlight-beacon-pulse';
       disc.appendChild(beacon);
 
       // 3. Icon Inner container
       const iconWrapper = document.createElement('div');
-      iconWrapper.className = 'kuula-pin-icon-inner';
+      iconWrapper.className = 'spotlight-pin-icon-inner';
       if (placement !== 'floor') {
         iconWrapper.style.transform = `rotate(${rotationDeg}deg)`;
       }
 
-      // Render Kuula Icon SVG or uploaded custom icon
+      // Render pin icon SVG or uploaded custom icon
       const iconKey = hs.icon || 'chevron-floor';
-      iconWrapper.innerHTML = getKuulaSvg(iconKey, color);
+      iconWrapper.innerHTML = getSpotlightSvg(iconKey, color);
       disc.appendChild(iconWrapper);
       pin.appendChild(disc);
 
       // 4. Label / Tooltip Caption
       if (labelMode !== 'none' && hs.label) {
         const lbl = document.createElement('span');
-        lbl.className = 'kuula-pin-caption';
+        lbl.className = 'spotlight-pin-caption';
         lbl.textContent = hs.label;
         pin.appendChild(lbl);
       }
@@ -5034,7 +5021,7 @@
   }
 
   /**
-   * Updates Hotspot Screen Coordinates with 3D Vector Math & Kuula Perspective Scaling
+   * Updates Hotspot Screen Coordinates with 3D Vector Math & Perspective Scaling
    */
   function updateHotspotPositions3D(camera) {
     const layer = document.getElementById('tourHotspotsLayer');
@@ -5186,7 +5173,7 @@
     const norm = normalize3dTourUrl(scene.tourUrl || scene.panoUrl || currentTourData?.tourUrl || currentTourData?.panoUrl || '');
 
     if (norm.isEmbed) {
-      // 1. External Embed (Kuula, ThingLink, Matterport, 360Cities, Momento360, YouTube VR)
+      // 1. External Embed (ThingLink, Matterport, 360Cities, Momento360, YouTube VR)
       if (loaderTitle) loaderTitle.textContent = `LOADING ${norm.provider.toUpperCase()} 360°...`;
       if (loaderSub) loaderSub.textContent = 'Launching interactive immersive viewer';
 
@@ -5329,7 +5316,7 @@
   };
 
   // ==========================================
-  // KUULA-STYLE HOTSPOT INSPECTOR & ICON SYSTEM
+  // SPOTLIGHT HOTSPOT INSPECTOR & ICON SYSTEM
   // ==========================================
   const placeHsState = {
     icon: 'chevron-up',
@@ -5399,12 +5386,12 @@
       previewInner.style.color = state.color;
 
       const iconKey = state.icon || 'chevron-floor';
-      previewInner.innerHTML = getKuulaSvg(iconKey, state.color || '#FFD23F');
+      previewInner.innerHTML = getSpotlightSvg(iconKey, state.color || '#FFD23F');
       if (categoryLabel) {
         if (typeof iconKey === 'string' && (iconKey.startsWith('data:image') || iconKey.startsWith('http'))) {
           categoryLabel.textContent = 'Custom Upload';
         } else {
-          const iconDef = (typeof KUULA_ICONS !== 'undefined' && KUULA_ICONS[iconKey]) ? KUULA_ICONS[iconKey] : null;
+          const iconDef = (typeof SPOTLIGHT_ICONS !== 'undefined' && SPOTLIGHT_ICONS[iconKey]) ? SPOTLIGHT_ICONS[iconKey] : null;
           categoryLabel.textContent = iconDef ? `${iconDef.name} (${iconDef.category})` : 'Floor Chevron (Navigation)';
         }
       }
@@ -5602,15 +5589,32 @@
     const reader = new FileReader();
 
     if (type === 'model3d') {
-      reader.onload = function (e) {
-        state.model3dUrl = e.target.result;
+      // IMPORTANT: never use readAsDataURL for .glb files — they can be many MB,
+      // and base64-encoding a large binary file into one giant string (then
+      // stuffing it into an <input> value) is exactly what was crashing the
+      // tab on load. Upload to Supabase Storage instead and use the real URL.
+      if (typeof window.uploadToSupabaseStorage === 'function') {
+        if (typeof showToast === 'function') showToast(`⏳ Uploading "${file.name}"…`);
+        window.uploadToSupabaseStorage(file).then((result) => {
+          state.model3dUrl = result.url;
+          state.model3dPreset = 'custom';
+          syncInspectorUI(target);
+          if (typeof showToast === 'function') showToast(`🧊 3D model "${file.name}" loaded!`);
+        }).catch((err) => {
+          console.error('GLB upload failed:', err);
+          if (typeof showToast === 'function') showToast(`❌ Could not upload "${file.name}". Try a smaller file.`);
+        });
+      } else {
+        // Fallback with no cloud storage available: use a lightweight blob URL
+        // (session-only — won't persist across reloads) rather than a data URL.
+        const blobUrl = URL.createObjectURL(file);
+        state.model3dUrl = blobUrl;
         state.model3dPreset = 'custom';
         syncInspectorUI(target);
         if (typeof showToast === 'function') {
-          showToast(`🧊 3D model "${file.name}" loaded!`);
+          showToast(`🧊 3D model "${file.name}" loaded (this session only).`);
         }
-      };
-      reader.readAsDataURL(file);
+      }
     } else if (type === 'photo') {
       reader.onload = function (e) {
         state.photoUrl = e.target.result;
@@ -5621,11 +5625,23 @@
       };
       reader.readAsDataURL(file);
     } else if (type === 'video') {
-      const blobUrl = URL.createObjectURL(file);
-      state.videoUrl = blobUrl;
-      syncInspectorUI(target);
-      if (typeof showToast === 'function') {
-        showToast(`🎥 Item video "${file.name}" ready to play!`);
+      if (typeof window.uploadToSupabaseStorage === 'function') {
+        if (typeof showToast === 'function') showToast(`⏳ Uploading "${file.name}"…`);
+        window.uploadToSupabaseStorage(file).then((result) => {
+          state.videoUrl = result.url;
+          syncInspectorUI(target);
+          if (typeof showToast === 'function') showToast(`🎥 Item video "${file.name}" ready to play!`);
+        }).catch((err) => {
+          console.error('Video upload failed:', err);
+          if (typeof showToast === 'function') showToast(`❌ Could not upload "${file.name}".`);
+        });
+      } else {
+        const blobUrl = URL.createObjectURL(file);
+        state.videoUrl = blobUrl;
+        syncInspectorUI(target);
+        if (typeof showToast === 'function') {
+          showToast(`🎥 Item video "${file.name}" ready to play (this session only).`);
+        }
       }
     }
   };
@@ -5658,7 +5674,7 @@
   };
 
   // ==========================================
-  // KUULA ICON PICKER MODAL
+  // SPOTLIGHT ICON PICKER MODAL
   // ==========================================
   window.openIconPickerModal = function (target) {
     window.currentIconPickerTarget = target || 'place';
@@ -5687,8 +5703,8 @@
   };
 
   window.populateIconPickerGrid = function () {
-    const grid = document.getElementById('kuulaIconsGridContainer');
-    if (!grid || typeof KUULA_ICONS === 'undefined') return;
+    const grid = document.getElementById('spotlightIconsGridContainer');
+    if (!grid || typeof SPOTLIGHT_ICONS === 'undefined') return;
 
     const target = window.currentIconPickerTarget || 'place';
     const state = (target === 'place') ? placeHsState : editHsState;
@@ -5696,13 +5712,13 @@
 
     grid.innerHTML = '';
 
-    Object.entries(KUULA_ICONS).forEach(([key, item]) => {
+    Object.entries(SPOTLIGHT_ICONS).forEach(([key, item]) => {
       if (curCat !== 'All' && item.category !== curCat) return;
 
       const isSelected = (state.icon === key);
       const card = document.createElement('button');
       card.type = 'button';
-      card.className = `kuula-icon-card ${isSelected ? 'active' : ''}`;
+      card.className = `spotlight-icon-card ${isSelected ? 'active' : ''}`;
       card.title = item.name;
       card.onclick = () => {
         state.icon = key;
@@ -5711,12 +5727,12 @@
       };
 
       const preview = document.createElement('div');
-      preview.className = 'kuula-icon-card-preview';
-      preview.innerHTML = getKuulaSvg(key, isSelected ? '#FFD23F' : (item.defaultColor || '#FFFFFF'));
+      preview.className = 'spotlight-icon-card-preview';
+      preview.innerHTML = getSpotlightSvg(key, isSelected ? '#FFD23F' : (item.defaultColor || '#FFFFFF'));
       card.appendChild(preview);
 
       const name = document.createElement('div');
-      name.className = 'kuula-icon-card-name';
+      name.className = 'spotlight-icon-card-name';
       name.textContent = item.name;
       card.appendChild(name);
 
@@ -6172,6 +6188,18 @@
     const isUrl = (typeof modelSrc === 'string') && (modelSrc.startsWith('http') || modelSrc.startsWith('data:') || modelSrc.startsWith('blob:'));
     if (isUrl && typeof THREE.GLTFLoader !== 'undefined') {
       const loader = new THREE.GLTFLoader();
+      // Many exported .glb files use Draco mesh compression — without a
+      // DRACOLoader attached, those specific files fail to parse even though
+      // the request itself succeeds. jsDelivr hosts the matching decoder.
+      if (typeof THREE.DRACOLoader !== 'undefined') {
+        try {
+          const dracoLoader = new THREE.DRACOLoader();
+          dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
+          loader.setDRACOLoader(dracoLoader);
+        } catch (dracoErr) {
+          console.warn('DRACOLoader setup failed (non-Draco models still work):', dracoErr);
+        }
+      }
       loader.load(
         modelSrc,
         (gltf) => {
@@ -6480,7 +6508,7 @@
           iconWrap.style.display = 'flex';
           iconWrap.style.borderColor = hs.color || '#FFD23F';
           const iconKey = hs.icon || 'info';
-          iconWrap.innerHTML = getKuulaSvg(iconKey, hs.color || '#FFD23F');
+          iconWrap.innerHTML = getSpotlightSvg(iconKey, hs.color || '#FFD23F');
         }
       }
     }
@@ -6639,7 +6667,7 @@
     window.saveTourChangesToMagazine();
 
     if (typeof showToast === 'function') {
-      showToast(`📍 Placed Kuula hotspot "${label}" at Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°!`);
+      showToast(`📍 Placed hotspot "${label}" at Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°!`);
     }
   };
 
@@ -6797,7 +6825,7 @@
       location: currentTourData?.location || 'Salt Lake City, UT',
       tag: 'Custom 360° Space',
       panoUrl: panoUrl,
-      tourUrl: panoUrl.includes('kuula.co') || panoUrl.includes('thinglink.com') || panoUrl.includes('matterport.com') || panoUrl.includes('360cities.net') || panoUrl.includes('momento360.com') ? panoUrl : '',
+      tourUrl: panoUrl.includes('thinglink.com') || panoUrl.includes('matterport.com') || panoUrl.includes('360cities.net') || panoUrl.includes('momento360.com') ? panoUrl : '',
       blurb: 'Interactive 360° walk-in space',
       hotspots: [
         { pitch: 0, yaw: 180, label: '🚪 Back to Previous Room', targetScene: activeSceneList[activeSceneIndex]?.id || activeSceneList[0]?.id }
@@ -7029,7 +7057,7 @@
       scene.tourUrl = '';
     } else if (urlInp && urlInp.value.trim()) {
       const u = urlInp.value.trim();
-      if (u.includes('kuula.co') || u.includes('thinglink.com') || u.includes('matterport.com') || u.includes('360cities.net') || u.includes('momento360.com')) {
+      if (u.includes('thinglink.com') || u.includes('matterport.com') || u.includes('360cities.net') || u.includes('momento360.com')) {
         scene.tourUrl = u;
         scene.panoUrl = '';
       } else {
@@ -7668,7 +7696,7 @@
   };
 
   // ==========================================
-  // 7. EDIT / DELETE HOTSPOT DIALOG (KUULA INSPECTOR)
+  // 7. EDIT / DELETE HOTSPOT DIALOG (PIN INSPECTOR)
   // ==========================================
   window.editHotspotDetails = function (index, event) {
     if (event) { event.stopPropagation(); event.preventDefault(); }
@@ -7793,7 +7821,7 @@
     window.saveTourChangesToMagazine();
 
     if (typeof showToast === 'function') {
-      showToast('✅ Kuula Hotspot pin updated!');
+      showToast('✅ Hotspot pin updated!');
     }
   };
 
