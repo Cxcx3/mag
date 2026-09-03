@@ -809,16 +809,45 @@
     }
   }
 
+  // Texture and processed canvas cache to ensure instant room round-trips with zero re-download
+  const panoTextureCache = new Map();
+
+  function isTextureCached(tex) {
+    if (!tex) return false;
+    for (const item of panoTextureCache.values()) {
+      if (item && item.texture === tex) return true;
+    }
+    return false;
+  }
+
+  function getSceneCacheKey(curScene, urlOrCanvas) {
+    if (!curScene) return 'default';
+    const aspectMode = curScene.aspectMode || 'matterport-arc';
+    const vScale = typeof curScene.vScale === 'number' ? curScene.vScale : 1.0;
+    const vOffset = typeof curScene.vOffset === 'number' ? curScene.vOffset : 0;
+    const hShift = typeof curScene.hShift === 'number' ? curScene.hShift : 0;
+    const seamBlend = typeof curScene.seamBlend === 'number' ? curScene.seamBlend : 0.08;
+    const seamVOffset = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0;
+    const hSpan = typeof curScene.hSpan === 'number' ? curScene.hSpan : 1.0;
+    const srcStr = (typeof urlOrCanvas === 'string') ? urlOrCanvas : (curScene.panoUrl || curScene.tourUrl || curScene.id || '');
+    return `${curScene.id || 'scene'}_${srcStr}_${aspectMode}_${vScale}_${vOffset}_${hShift}_${seamBlend}_${seamVOffset}_${hSpan}`;
+  }
+
   /**
    * Loads Equirectangular or Cylindrical (iPhone Pano) Texture into Three.js Sphere
    * with Zero-Distortion Auto Aspect Processing, Matterport Pro Multi-Band Ambient Diffusion, and 16x Anisotropic Filtering.
+   * Suppresses the loader overlay whenever an active texture is already rendering so the scene never flickers black.
    */
-  function loadThreePanoTexture(urlOrCanvas, sceneOverride) {
+  function loadThreePanoTexture(urlOrCanvas, sceneOverride, options = {}) {
     if (!threeSphere) {
       if (!initThreeEngine()) return;
     }
     const loader = document.getElementById('tourLoader');
-    if (loader) loader.classList.remove('hidden');
+    const hasActiveTexture = !!(threeSphere && threeSphere.material && threeSphere.material.map);
+    // Never show the loader overlay if an active texture is already visible on the sphere, or if suppressed
+    if (loader && !hasActiveTexture && (!options || !options.suppressLoader)) {
+      loader.classList.remove('hidden');
+    }
 
     const curScene = sceneOverride || activeSceneList[activeSceneIndex] || {};
     // Aspect Modes: 'matterport-arc' (0% seam natural arc), '360-loop' / 'iphone-pano' (continuous loop), 'full-360' (2:1 sphere)
@@ -832,6 +861,27 @@
     const typeBadge = document.getElementById('tourTypeBadge');
 
     if (typeof urlOrCanvas === 'string' && urlOrCanvas) {
+      const cacheKey = getSceneCacheKey(curScene, urlOrCanvas);
+      if (panoTextureCache.has(cacheKey)) {
+        const cached = panoTextureCache.get(cacheKey);
+        if (cached && cached.texture) {
+          if (currentTexture && currentTexture !== cached.texture && !isTextureCached(currentTexture)) {
+            currentTexture.dispose();
+          }
+          currentTexture = cached.texture;
+          threeSphere.material.map = cached.texture;
+          threeSphere.material.needsUpdate = true;
+          if (cached.floorColor) {
+            updateFloorWaypointMesh(cached.floorColor, curScene.showFloorRing !== false);
+          }
+          if (loader) loader.classList.add('hidden');
+          if (options && typeof options.onReady === 'function') {
+            options.onReady(cached);
+          }
+          return;
+        }
+      }
+
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
@@ -1129,7 +1179,7 @@
           finalTexture.anisotropy = Math.min(16, threeRenderer.capabilities.getMaxAnisotropy() || 1);
         }
 
-        if (currentTexture) currentTexture.dispose();
+        if (currentTexture && currentTexture !== finalTexture && !isTextureCached(currentTexture)) currentTexture.dispose();
         currentTexture = finalTexture;
         threeSphere.material.map = finalTexture;
         threeSphere.material.needsUpdate = true;
@@ -1153,7 +1203,15 @@
         } catch(e) {}
         updateFloorWaypointMesh({ r: floorR, g: floorG, b: floorB }, curScene.showFloorRing !== false);
 
+        panoTextureCache.set(cacheKey, {
+          texture: finalTexture,
+          floorColor: { r: floorR, g: floorG, b: floorB }
+        });
+
         if (loader) loader.classList.add('hidden');
+        if (options && typeof options.onReady === 'function') {
+          options.onReady({ texture: finalTexture, floorColor: { r: floorR, g: floorG, b: floorB } });
+        }
       };
 
       img.onerror = (err) => {
@@ -1162,11 +1220,14 @@
         const texture = new THREE.CanvasTexture(fallbackCanvas);
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
-        if (currentTexture) currentTexture.dispose();
+        if (currentTexture && currentTexture !== texture && !isTextureCached(currentTexture)) currentTexture.dispose();
         currentTexture = texture;
         threeSphere.material.map = texture;
         threeSphere.material.needsUpdate = true;
         if (loader) loader.classList.add('hidden');
+        if (options && typeof options.onReady === 'function') {
+          options.onReady({ texture, floorColor: { r: 110, g: 95, b: 75 } });
+        }
       };
 
       img.src = urlOrCanvas;
@@ -1176,13 +1237,74 @@
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
 
-      if (currentTexture) currentTexture.dispose();
+      if (currentTexture && currentTexture !== texture && !isTextureCached(currentTexture)) currentTexture.dispose();
       currentTexture = texture;
       threeSphere.material.map = texture;
       threeSphere.material.needsUpdate = true;
 
       if (loader) loader.classList.add('hidden');
+      if (options && typeof options.onReady === 'function') {
+        options.onReady({ texture, floorColor: { r: 110, g: 95, b: 75 } });
+      }
     }
+  }
+
+  /**
+   * Asynchronously preloads and caches a scene's panorama texture into memory.
+   * If already cached, it resolves immediately with 0ms delay.
+   * If loading over the network, the current scene remains completely visible and interactive,
+   * resolving once the new texture is fully loaded and ready to swap.
+   */
+  function preparePanoTextureAsync(urlOrCanvas, scene) {
+    const curScene = scene || activeSceneList[activeSceneIndex] || {};
+    const cacheKey = getSceneCacheKey(curScene, urlOrCanvas);
+    if (panoTextureCache.has(cacheKey)) {
+      return Promise.resolve(panoTextureCache.get(cacheKey));
+    }
+
+    return new Promise((resolve) => {
+      if (typeof urlOrCanvas === 'string' && urlOrCanvas) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          // Pre-decode by running through loadThreePanoTexture silently
+          loadThreePanoTexture(urlOrCanvas, curScene, {
+            suppressLoader: true,
+            onReady: (res) => resolve(res)
+          });
+        };
+        img.onerror = () => {
+          loadThreePanoTexture(urlOrCanvas, curScene, {
+            suppressLoader: true,
+            onReady: (res) => resolve(res)
+          });
+        };
+        img.src = urlOrCanvas;
+      } else {
+        loadThreePanoTexture(urlOrCanvas, curScene, {
+          suppressLoader: true,
+          onReady: (res) => resolve(res)
+        });
+      }
+    });
+  }
+
+  /**
+   * Preloads all panoramas across active tour scenes into browser & WebGL memory
+   * so walking transitions execute with 0ms network latency.
+   */
+  function preloadTourPanoramas() {
+    if (!Array.isArray(activeSceneList) || activeSceneList.length <= 1) return;
+    activeSceneList.forEach((sc, idx) => {
+      if (idx === activeSceneIndex) return;
+      const norm = normalize3dTourUrl(sc.tourUrl || sc.panoUrl || '');
+      const url = norm.isImage ? norm.url : (sc.panoUrl || sc.tourUrl);
+      if (url && (url.startsWith('http') || url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('/'))) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = url;
+      }
+    });
   }
 
   /**
@@ -4991,9 +5113,9 @@
   }
 
   /**
-   * Loads a Scene into View
+   * Updates HUD titles, location tags, action buttons, and room selector pills for the active scene.
    */
-  function loadScene(index) {
+  function updateTourSceneHud(index) {
     if (!activeSceneList || activeSceneList.length === 0) return;
     if (index < 0) index = 0;
     if (index >= activeSceneList.length) index = activeSceneList.length - 1;
@@ -5007,14 +5129,6 @@
     const badgeEl = document.getElementById('tourTypeBadge');
     const ctaEl = document.getElementById('tourCtaBtn');
     const externalLaunchBtn = document.getElementById('tourExternalLaunchBtn');
-    const loader = document.getElementById('tourLoader');
-    const loaderTitle = document.getElementById('tourLoaderTitle');
-    const loaderSub = document.getElementById('tourLoaderSub');
-    const compassEl = document.getElementById('tourCompass');
-    const zoomPill = document.getElementById('tourZoomPill');
-    const gestureHint = document.getElementById('tourGestureHint');
-    const embedFrame = document.getElementById('tourEmbedFrame');
-    const canvasEl = document.getElementById('tour3dCanvas');
 
     const norm = normalize3dTourUrl(scene.tourUrl || scene.panoUrl || currentTourData?.tourUrl || currentTourData?.panoUrl || '');
 
@@ -5044,6 +5158,32 @@
     }
 
     renderSceneSelector();
+  }
+
+  /**
+   * Loads a Scene into View
+   */
+  function loadScene(index, options = {}) {
+    if (!activeSceneList || activeSceneList.length === 0) return;
+    if (index < 0) index = 0;
+    if (index >= activeSceneList.length) index = activeSceneList.length - 1;
+
+    activeSceneIndex = index;
+    const scene = activeSceneList[index];
+    if (!scene) return;
+
+    updateTourSceneHud(index);
+
+    const loader = document.getElementById('tourLoader');
+    const loaderTitle = document.getElementById('tourLoaderTitle');
+    const loaderSub = document.getElementById('tourLoaderSub');
+    const compassEl = document.getElementById('tourCompass');
+    const zoomPill = document.getElementById('tourZoomPill');
+    const gestureHint = document.getElementById('tourGestureHint');
+    const embedFrame = document.getElementById('tourEmbedFrame');
+    const canvasEl = document.getElementById('tour3dCanvas');
+
+    const norm = normalize3dTourUrl(scene.tourUrl || scene.panoUrl || currentTourData?.tourUrl || currentTourData?.panoUrl || '');
 
     if (norm.isEmbed) {
       // 1. External Embed (Kuula, ThingLink, Matterport, 360Cities, Momento360, YouTube VR)
@@ -5112,10 +5252,10 @@
     const targetUrl = norm.isImage ? norm.url : (scene.panoUrl || currentTourData?.panoUrl);
     if (targetUrl && (targetUrl.startsWith('http') || targetUrl.startsWith('data:') || targetUrl.startsWith('blob:') || targetUrl.startsWith('/'))) {
       currentPanoUrl = targetUrl;
-      loadThreePanoTexture(targetUrl);
+      loadThreePanoTexture(targetUrl, scene, options);
     } else {
       const procCanvas = getSceneProceduralCanvas(scene.id);
-      loadThreePanoTexture(procCanvas);
+      loadThreePanoTexture(procCanvas, scene, options);
     }
 
     syncHotspotsDom();
@@ -9625,6 +9765,7 @@
     isAutoRotating = false;
 
     loadScene(0);
+    preloadTourPanoramas();
 
     const autoRotateBtn = document.getElementById('tourAutoRotateBtn');
     if (autoRotateBtn) autoRotateBtn.classList.remove('active');
@@ -9785,34 +9926,54 @@
 
     requestAnimationFrame(() => {
       overlay.style.opacity = '1';
-      overlay.style.backdropFilter = 'blur(1.5px)';
-      overlay.style.webkitBackdropFilter = 'blur(1.5px)';
+      overlay.style.backdropFilter = 'blur(1.8px)';
+      overlay.style.webkitBackdropFilter = 'blur(1.8px)';
       setTourTravelVisual(1, true);
     });
 
-    // 3. Peak travel step: switch room at 240ms
-    setTimeout(() => {
-      loadScene(targetIndex);
+    // 3. Resolve next panorama URL and ensure texture is fully loaded before switching
+    const nextNorm = normalize3dTourUrl(nextScene.tourUrl || nextScene.panoUrl || currentTourData?.tourUrl || currentTourData?.panoUrl || '');
+    const nextTargetUrl = nextNorm.isImage ? nextNorm.url : (nextScene.panoUrl || currentTourData?.panoUrl);
+
+    const loadPromise = (nextNorm.isEmbed || !nextTargetUrl)
+      ? Promise.resolve()
+      : preparePanoTextureAsync(nextTargetUrl, nextScene);
+
+    // Natural stepping motion minimum timing (240ms) paired with a safety timeout (7000ms)
+    const minStepDelay = new Promise(resolve => setTimeout(resolve, 240));
+    const safetyTimeout = new Promise(resolve => setTimeout(resolve, 7000));
+
+    Promise.race([
+      Promise.all([loadPromise, minStepDelay]),
+      safetyTimeout
+    ]).then(() => {
+      // 4. Now that the next room texture is 100% loaded and ready in memory:
+      loadScene(targetIndex, { suppressLoader: true });
 
       // Destination arrival: start with camera opening up into the new room
       fov = Math.max(48, (nextScene.startFov || 65) - 10);
       targetFov = nextScene.startFov || 65;
 
-      setTimeout(() => {
-        overlay.style.opacity = '0';
-        overlay.style.backdropFilter = 'blur(0px)';
-        overlay.style.webkitBackdropFilter = 'blur(0px)';
-        setTourTravelVisual(1, false);
-
+      // Ensure Three.js renders at least one frame of the new texture before lifting the curtain
+      requestAnimationFrame(() => {
         setTimeout(() => {
-          resetTourTravelVisual();
-          tourSceneTransitionActive = false;
-          if (typeof showToast === 'function' && nextScene.name) {
-            showToast(`🚶 Stepped into ${nextScene.name}`);
-          }
-        }, 280);
-      }, 160);
-    }, 240);
+          overlay.style.opacity = '0';
+          overlay.style.backdropFilter = 'blur(0px)';
+          overlay.style.webkitBackdropFilter = 'blur(0px)';
+          setTourTravelVisual(1, false);
+
+          setTimeout(() => {
+            resetTourTravelVisual();
+            tourSceneTransitionActive = false;
+            if (typeof showToast === 'function' && nextScene.name) {
+              showToast(`🚶 Stepped into ${nextScene.name}`);
+            }
+            // Preload remaining scenes in background for 0ms round trips
+            preloadTourPanoramas();
+          }, 300);
+        }, 120);
+      });
+    });
   };
 
   window.switchTourSceneIndex = function (idx) {
