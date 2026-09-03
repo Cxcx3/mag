@@ -155,8 +155,68 @@
       panoUrl: 'https://pannellum.org/images/alma.jpg',
       blurb: 'Exterior entrance to SpotLIGHT Salt Lake City. Look toward the doorway marker to step inside.',
       hotspots: [
-        { pitch: -3, yaw: -85, label: '🚪 Step Inside Studio', targetScene: 'slc-studio' },
-        { pitch: 4, yaw: 65, label: '🌴 Wasatch Sky Patio', targetScene: 'slc-patio' }
+        { pitch: -10, yaw: -85, label: '🚪 Step Inside Studio', targetScene: 'slc-studio', icon: 'chevron-floor', color: '#FFD23F', placement: 'floor', rotation: 0, size: 105, opacity: 100, labelDisplay: 'always', actionType: 'scene' },
+        { pitch: 4, yaw: 65, label: '🌴 Wasatch Sky Patio', targetScene: 'slc-patio', icon: 'chevron-up', color: '#3FDDE0', placement: 'wall', rotation: 0, size: 100, opacity: 100, labelDisplay: 'always', actionType: 'scene' },
+        {
+          pitch: -18,
+          yaw: -20,
+          label: '🧗 Utah Climbing Gear (3D Model)',
+          actionType: 'info',
+          mediaType: 'model3d',
+          model3dPreset: 'climbing-gear',
+          itemTitle: '🧗 Black Diamond Quickdraw Carabiner',
+          itemPrice: '$24.95 · IN STOCK',
+          infoText: 'Hot-forged aerospace aluminum quickdraw with snag-free keylock nose and dual-density nylon dogbone. Click and drag in 3D to rotate and inspect from every angle!',
+          itemCtaText: 'Order Gear ↗',
+          itemCtaUrl: 'https://www.blackdiamondequipment.com',
+          icon: 'bag',
+          color: '#06D6A0',
+          placement: 'floor',
+          rotation: 0,
+          size: 110,
+          opacity: 100,
+          labelDisplay: 'always'
+        },
+        {
+          pitch: -3,
+          yaw: 25,
+          label: '📸 Vintage Camera (Close-Up Photo)',
+          actionType: 'info',
+          mediaType: 'photo',
+          photoUrl: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=1200&q=80',
+          itemTitle: '📷 Leica M3 Classic Rangefinder Camera',
+          itemPrice: '$1,850.00 · COLLECTOR PIECE',
+          infoText: 'Mechanical precision 35mm rangefinder with coated Summicron f/2 lens, brass gearing, and silent cloth shutter. Click the photo to enlarge in full lightbox!',
+          itemCtaText: 'View Gallery ↗',
+          itemCtaUrl: 'https://unsplash.com/photos/1516035069371-29a1b244cc32',
+          icon: 'camera',
+          color: '#FFD23F',
+          placement: '2d',
+          rotation: 0,
+          size: 105,
+          opacity: 100,
+          labelDisplay: 'always'
+        },
+        {
+          pitch: 8,
+          yaw: -150,
+          label: '🎥 Space Walkthrough (4K Video)',
+          actionType: 'info',
+          mediaType: 'video',
+          videoUrl: 'https://www.youtube.com/watch?v=ScMzIvxBSi4',
+          itemTitle: '🎥 Cinematic Studio Architectural Film',
+          itemPrice: '4K ULTRA HD',
+          infoText: 'Watch the high-definition architectural walkthrough showing morning daylight shifting through the clerestory glass windows.',
+          itemCtaText: 'Watch Fullscreen ↗',
+          itemCtaUrl: 'https://www.youtube.com/watch?v=ScMzIvxBSi4',
+          icon: 'video',
+          color: '#FF4D6D',
+          placement: 'wall',
+          rotation: 0,
+          size: 105,
+          opacity: 100,
+          labelDisplay: 'always'
+        }
       ]
     },
     {
@@ -167,8 +227,8 @@
       panoUrl: 'https://pannellum.org/images/bma-0.jpg',
       blurb: 'Creative production floor, high ceilings, desks, and gallery walls.',
       hotspots: [
-        { pitch: -2, yaw: 175, label: '🚪 Walk Back to Street', targetScene: 'slc-entrance' },
-        { pitch: -1, yaw: 75, label: '🍸 VIP Speakeasy & Lounge', targetScene: 'slc-lounge' }
+        { pitch: -10, yaw: 175, label: '🚪 Walk Back to Street', targetScene: 'slc-entrance', icon: 'chevron-floor', color: '#FFD23F', placement: 'floor', rotation: 0, size: 105, opacity: 100, labelDisplay: 'always', actionType: 'scene' },
+        { pitch: -1, yaw: 75, label: '🍸 VIP Speakeasy & Lounge', targetScene: 'slc-lounge', icon: 'star', color: '#FF4D6D', placement: 'wall', rotation: 0, size: 105, opacity: 100, labelDisplay: 'always', actionType: 'scene' }
       ]
     },
     {
@@ -179,7 +239,7 @@
       panoUrl: 'https://pannellum.org/images/cerro-toco-0.jpg',
       blurb: 'Craft mixology, leather booths, and curated ambient lighting.',
       hotspots: [
-        { pitch: 0, yaw: -85, label: '📍 Back to Main Studio', targetScene: 'slc-studio' }
+        { pitch: -8, yaw: -85, label: '📍 Back to Main Studio', targetScene: 'slc-studio', icon: 'chevron-floor', color: '#FFD23F', placement: 'floor', rotation: 0, size: 105, opacity: 100, labelDisplay: 'always', actionType: 'scene' }
       ]
     },
     {
@@ -190,10 +250,303 @@
       panoUrl: 'https://pannellum.org/images/jfk.jpg',
       blurb: 'Panoramic open-air terrace with views of the Wasatch Front peaks.',
       hotspots: [
-        { pitch: 0, yaw: 110, label: '🚪 Step Inside Studio', targetScene: 'slc-studio' }
+        { pitch: -8, yaw: 110, label: '🚪 Step Inside Studio', targetScene: 'slc-studio', icon: 'chevron-floor', color: '#06D6A0', placement: 'floor', rotation: 0, size: 105, opacity: 100, labelDisplay: 'always', actionType: 'scene' }
       ]
     }
   ];
+
+  // ==========================================
+  // KUULA 360 ICON REGISTRY & PALETTE
+  // Authentic vectors inspired by Kuula Pin System
+  // ==========================================
+  const KUULA_ICONS = {
+    // Navigation
+    'chevron-floor': {
+      name: 'Floor Walking Chevron',
+      category: 'Navigation',
+      defaultColor: '#FFFFFF',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none"><polygon points="12,3.5 21.5,13.5 17.5,17.5 12,11.8 6.5,17.5 2.5,13.5" fill="${c || '#FFFFFF'}" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.6))"/><polyline points="2.5 13.5 12 3.5 21.5 13.5" stroke="rgba(0,0,0,0.4)" stroke-width="1.2" fill="none"/></svg>`
+    },
+    'chevron-up': {
+      name: 'Forward Chevron',
+      category: 'Navigation',
+      defaultColor: '#3FDDE0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#3FDDE0'}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" stroke="${c || '#3FDDE0'}"/></svg>`
+    },
+    'chevron-double': {
+      name: 'Double Chevron',
+      category: 'Navigation',
+      defaultColor: '#3FDDE0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#3FDDE0'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11" stroke="${c || '#3FDDE0'}"/><polyline points="17 18 12 13 7 18" stroke="${c || '#3FDDE0'}"/></svg>`
+    },
+    'chevron-circle': {
+      name: 'Enclosed Chevron',
+      category: 'Navigation',
+      defaultColor: '#06D6A0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#06D6A0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5" stroke="${c || '#06D6A0'}"/><polyline points="16 14 12 10 8 14" stroke="${c || '#06D6A0'}" stroke-width="2.5"/></svg>`
+    },
+    'chevron-outline': {
+      name: 'Chevron Outline',
+      category: 'Navigation',
+      defaultColor: '#FFFFFF',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FFFFFF'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15l8-8 8 8" stroke="${c || '#FFFFFF'}"/></svg>`
+    },
+    'footsteps': {
+      name: 'Walking Footsteps',
+      category: 'Navigation',
+      defaultColor: '#FFD23F',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="${c || '#FFD23F'}"><ellipse cx="7.5" cy="8" rx="2.5" ry="3.5" fill="${c || '#FFD23F'}"/><ellipse cx="7.5" cy="16.5" rx="2" ry="2.2" fill="${c || '#FFD23F'}"/><ellipse cx="16.5" cy="11.5" rx="2.5" ry="3.5" fill="${c || '#FFD23F'}"/><ellipse cx="16.5" cy="19.5" rx="2" ry="2.2" fill="${c || '#FFD23F'}"/></svg>`
+    },
+    'door': {
+      name: 'Walk Through Door',
+      category: 'Navigation',
+      defaultColor: '#06D6A0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#06D6A0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17" stroke="${c || '#06D6A0'}"/><path d="M9 21V5h6v16" stroke="${c || '#06D6A0'}"/><circle cx="13.5" cy="13" r="1.2" fill="${c || '#06D6A0'}" stroke="none"/></svg>`
+    },
+    'stairs-up': {
+      name: 'Stairs Up',
+      category: 'Navigation',
+      defaultColor: '#3FDDE0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#3FDDE0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4v-4h4v-4h4V8h4" stroke="${c || '#3FDDE0'}"/><polyline points="16 4 20 4 20 8" stroke="${c || '#3FDDE0'}"/><line x1="20" y1="4" x2="14" y2="10" stroke="${c || '#3FDDE0'}" stroke-width="1.8"/></svg>`
+    },
+    'stairs-down': {
+      name: 'Stairs Down',
+      category: 'Navigation',
+      defaultColor: '#3FDDE0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#3FDDE0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h4v4h4v4h4v4" stroke="${c || '#3FDDE0'}"/><polyline points="16 20 20 20 20 16" stroke="${c || '#3FDDE0'}"/><line x1="20" y1="20" x2="14" y2="14" stroke="${c || '#3FDDE0'}" stroke-width="1.8"/></svg>`
+    },
+    'arrow-up': {
+      name: 'Straight Arrow',
+      category: 'Navigation',
+      defaultColor: '#FFFFFF',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FFFFFF'}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5" stroke="${c || '#FFFFFF'}"/><polyline points="5 12 12 5 19 12" stroke="${c || '#FFFFFF'}"/></svg>`
+    },
+    'turn-360': {
+      name: '360 Rotate Look',
+      category: 'Navigation',
+      defaultColor: '#3FDDE0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#3FDDE0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 1-2.3-5.7L20 7" stroke="${c || '#3FDDE0'}"/><polyline points="20 3 20 7 16 7" stroke="${c || '#3FDDE0'}"/></svg>`
+    },
+    'target': {
+      name: 'Double Target Ring',
+      category: 'Navigation',
+      defaultColor: '#06D6A0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#06D6A0'}" stroke-width="2"><circle cx="12" cy="12" r="9" stroke="${c || '#06D6A0'}"/><circle cx="12" cy="12" r="4.5" stroke="${c || '#06D6A0'}" stroke-width="1.8"/><circle cx="12" cy="12" r="2" fill="${c || '#06D6A0'}" stroke="none"/></svg>`
+    },
+    'portal': {
+      name: 'Floor Portal Puck',
+      category: 'Navigation',
+      defaultColor: '#06D6A0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#06D6A0'}" stroke-width="2.2"><ellipse cx="12" cy="12" rx="9" ry="6" stroke="${c || '#06D6A0'}" stroke-width="2.2"/><ellipse cx="12" cy="12" rx="4.5" ry="3" fill="${c || '#06D6A0'}" stroke="none"/></svg>`
+    },
+    'diamond': {
+      name: 'Diamond Marker',
+      category: 'Navigation',
+      defaultColor: '#FFD23F',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FFD23F'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 3 21 12 12 21 3 12" stroke="${c || '#FFD23F'}"/><circle cx="12" cy="12" r="2.5" fill="${c || '#FFD23F'}" stroke="none"/></svg>`
+    },
+    'map-pin': {
+      name: 'Map Location Pin',
+      category: 'Navigation',
+      defaultColor: '#FF4D6D',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FF4D6D'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="${c || '#FF4D6D'}" fill="${c || '#FF4D6D'}" fill-opacity="0.25"/><circle cx="12" cy="10" r="3" fill="${c || '#FF4D6D'}" stroke="none"/></svg>`
+    },
+
+    // Points of Interest
+    'star': {
+      name: 'Featured Star',
+      category: 'Interest',
+      defaultColor: '#FFD23F',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="${c || '#FFD23F'}" stroke="${c || '#FFD23F'}" stroke-width="1.5" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="${c || '#FFD23F'}"/></svg>`
+    },
+    'heart': {
+      name: 'Favorite / Love',
+      category: 'Interest',
+      defaultColor: '#FF4D6D',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="${c || '#FF4D6D'}" stroke="${c || '#FF4D6D'}" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill="${c || '#FF4D6D'}"/></svg>`
+    },
+    'eye': {
+      name: 'View / Look Point',
+      category: 'Interest',
+      defaultColor: '#06D6A0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#06D6A0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="${c || '#06D6A0'}"/><circle cx="12" cy="12" r="3.5" fill="${c || '#06D6A0'}" stroke="none"/></svg>`
+    },
+    'gem': {
+      name: 'Gem / Jewel',
+      category: 'Interest',
+      defaultColor: '#3FDDE0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#3FDDE0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 18 3 22 9 12 22 2 9 6 3" stroke="${c || '#3FDDE0'}"/><polyline points="2 9 12 22 22 9" stroke="${c || '#3FDDE0'}"/><polyline points="6 3 12 9 18 3" stroke="${c || '#3FDDE0'}" stroke-width="1.5"/></svg>`
+    },
+    'fire': {
+      name: 'Hotspot / Fire',
+      category: 'Interest',
+      defaultColor: '#FF9F1C',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="${c || '#FF9F1C'}" stroke="${c || '#FF9F1C'}" stroke-width="1"><path d="M12 2c1 3.5 3.5 5.5 5 8a8 8 0 1 1-13-1c.5-2 1.5-4 3.5-5.5.5 1.5 1.5 2.5 2.5 3 0-2 1-3.5 2-4.5z" fill="${c || '#FF9F1C'}"/></svg>`
+    },
+
+    // Info
+    'info': {
+      name: 'Information Point',
+      category: 'Info',
+      defaultColor: '#3FDDE0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#3FDDE0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5" stroke="${c || '#3FDDE0'}"/><line x1="12" y1="16" x2="12" y2="11" stroke="${c || '#3FDDE0'}" stroke-width="2.5"/><circle cx="12" cy="7.5" r="1.3" fill="${c || '#3FDDE0'}" stroke="none"/></svg>`
+    },
+    'question': {
+      name: 'Question / Help',
+      category: 'Info',
+      defaultColor: '#FFD23F',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FFD23F'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5" stroke="${c || '#FFD23F'}"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke="${c || '#FFD23F'}"/><circle cx="12" cy="17" r="1.2" fill="${c || '#FFD23F'}" stroke="none"/></svg>`
+    },
+    'chat': {
+      name: 'Comment / Note',
+      category: 'Info',
+      defaultColor: '#A0E7E5',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#A0E7E5'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="${c || '#A0E7E5'}"/></svg>`
+    },
+    'book': {
+      name: 'Guide / Book',
+      category: 'Info',
+      defaultColor: '#FFFFFF',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FFFFFF'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="${c || '#FFFFFF'}"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="${c || '#FFFFFF'}"/><line x1="6" y1="6" x2="16" y2="6" stroke="${c || '#FFFFFF'}" stroke-width="1.8"/><line x1="6" y1="10" x2="16" y2="10" stroke="${c || '#FFFFFF'}" stroke-width="1.8"/></svg>`
+    },
+
+    // Media
+    'camera': {
+      name: 'Photo Camera',
+      category: 'Media',
+      defaultColor: '#FF5E7E',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FF5E7E'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="${c || '#FF5E7E'}"/><circle cx="12" cy="13" r="4" stroke="${c || '#FF5E7E'}"/><circle cx="12" cy="13" r="1.5" fill="${c || '#FF5E7E'}" stroke="none"/></svg>`
+    },
+    'video': {
+      name: 'Video / Play',
+      category: 'Media',
+      defaultColor: '#FF4D6D',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FF4D6D'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="13" height="14" rx="2" stroke="${c || '#FF4D6D'}"/><polygon points="15 10 22 6 22 18 15 14" fill="${c || '#FF4D6D'}" stroke="none"/><polygon points="6.5 9 11.5 12 6.5 15" fill="${c || '#FF4D6D'}" stroke="none"/></svg>`
+    },
+    'vr': {
+      name: 'VR Goggles / Tour',
+      category: 'Media',
+      defaultColor: '#3FDDE0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#3FDDE0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="3" stroke="${c || '#3FDDE0'}"/><circle cx="8" cy="12" r="2.5" fill="${c || '#3FDDE0'}" stroke="none"/><circle cx="16" cy="12" r="2.5" fill="${c || '#3FDDE0'}" stroke="none"/><path d="M10 14.5a2 2 0 0 0 4 0" stroke="${c || '#3FDDE0'}" stroke-width="1.8"/></svg>`
+    },
+    'drone': {
+      name: 'Aerial Drone',
+      category: 'Media',
+      defaultColor: '#06D6A0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#06D6A0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18" stroke="${c || '#06D6A0'}"/><line x1="18" y1="6" x2="6" y2="18" stroke="${c || '#06D6A0'}"/><circle cx="12" cy="12" r="3" fill="${c || '#06D6A0'}" stroke="none"/><circle cx="6" cy="6" r="2.2" stroke="${c || '#06D6A0'}" stroke-width="1.8"/><circle cx="18" cy="6" r="2.2" stroke="${c || '#06D6A0'}" stroke-width="1.8"/><circle cx="6" cy="18" r="2.2" stroke="${c || '#06D6A0'}" stroke-width="1.8"/><circle cx="18" cy="18" r="2.2" stroke="${c || '#06D6A0'}" stroke-width="1.8"/></svg>`
+    },
+
+    // Action & Shop
+    'link': {
+      name: 'External Web Link',
+      category: 'Action',
+      defaultColor: '#06D6A0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#06D6A0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="${c || '#06D6A0'}"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="${c || '#06D6A0'}"/></svg>`
+    },
+    'plus': {
+      name: 'Inspect / Plus',
+      category: 'Action',
+      defaultColor: '#FFD23F',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FFD23F'}" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="9.5" stroke="${c || '#FFD23F'}" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="16" stroke="${c || '#FFD23F'}"/><line x1="8" y1="12" x2="16" y2="12" stroke="${c || '#FFD23F'}"/></svg>`
+    },
+    'cart': {
+      name: 'Shopping Cart',
+      category: 'Action',
+      defaultColor: '#FF9F1C',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FF9F1C'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="19.5" r="1.5" fill="${c || '#FF9F1C'}" stroke="none"/><circle cx="19" cy="19.5" r="1.5" fill="${c || '#FF9F1C'}" stroke="none"/><path d="M2 3h3.5l2.4 11.5a2 2 0 0 0 2 1.5h9.2a2 2 0 0 0 2-1.5L22 7H6" stroke="${c || '#FF9F1C'}"/></svg>`
+    },
+    'tag': {
+      name: 'Price Tag / Sale',
+      category: 'Action',
+      defaultColor: '#FF4D6D',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FF4D6D'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12.5l-6.5 6.5a2 2 0 0 1-2.8 0L3 12V4h8l8.5 8.5z" stroke="${c || '#FF4D6D'}"/><circle cx="7.5" cy="7.5" r="1.5" fill="${c || '#FF4D6D'}" stroke="none"/></svg>`
+    },
+    'phone': {
+      name: 'Phone / Call',
+      category: 'Action',
+      defaultColor: '#25D366',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#25D366'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="${c || '#25D366'}"/></svg>`
+    },
+    'mail': {
+      name: 'Email / Contact',
+      category: 'Action',
+      defaultColor: '#3FDDE0',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#3FDDE0'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" stroke="${c || '#3FDDE0'}"/><polyline points="22 6 12 13 2 6" stroke="${c || '#3FDDE0'}"/></svg>`
+    },
+
+    // Audio
+    'music': {
+      name: 'Music Note',
+      category: 'Audio',
+      defaultColor: '#B388FF',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#B388FF'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17V5l11-2v12" stroke="${c || '#B388FF'}"/><circle cx="6" cy="17" r="3" fill="${c || '#B388FF'}" stroke="none"/><circle cx="17" cy="15" r="3" fill="${c || '#B388FF'}" stroke="none"/></svg>`
+    },
+    'sound': {
+      name: 'Audio Speaker',
+      category: 'Audio',
+      defaultColor: '#FFD23F',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#FFD23F'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="${c || '#FFD23F'}" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="${c || '#FFD23F'}"/><path d="M19 5a9.5 9.5 0 0 1 0 14" stroke="${c || '#FFD23F'}"/></svg>`
+    },
+
+    // Social
+    'social-x': {
+      name: 'Twitter / X',
+      category: 'Social',
+      defaultColor: '#FFFFFF',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="${c || '#FFFFFF'}"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" fill="${c || '#FFFFFF'}"/></svg>`
+    },
+    'social-fb': {
+      name: 'Facebook',
+      category: 'Social',
+      defaultColor: '#1877F2',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%"><circle cx="12" cy="12" r="10" fill="${c || '#1877F2'}"/><path d="M13.5 8.5H15V6h-2c-2.2 0-3 1.3-3 3v2H8v2.5h2V21h3v-7.5h2.2l.3-2.5H13V9.3c0-.6.3-.8.5-.8z" fill="#ffffff"/></svg>`
+    },
+    'social-ig': {
+      name: 'Instagram',
+      category: 'Social',
+      defaultColor: '#E1306C',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c || '#E1306C'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" stroke="${c || '#E1306C'}"/><circle cx="12" cy="12" r="4" stroke="${c || '#E1306C'}"/><circle cx="17.5" cy="6.5" r="1.5" fill="${c || '#E1306C'}" stroke="none"/></svg>`
+    },
+    'social-yt': {
+      name: 'YouTube',
+      category: 'Social',
+      defaultColor: '#FF0000',
+      svg: (c) => `<svg viewBox="0 0 24 24" width="100%" height="100%"><rect x="2" y="4" width="20" height="16" rx="4.5" fill="${c || '#FF0000'}"/><polygon points="10 8.5 16 12 10 15.5" fill="#ffffff"/></svg>`
+    }
+  };
+
+  /**
+   * Helper function to cleanly return rendered SVG string or custom image for any Kuula icon key
+   */
+  function getKuulaSvg(iconKeyOrDef, color) {
+    if (!iconKeyOrDef) return '';
+    let def = null;
+    if (typeof iconKeyOrDef === 'string') {
+      if (iconKeyOrDef.startsWith('data:image') || iconKeyOrDef.startsWith('http')) {
+        return `<img src="${iconKeyOrDef}" alt="icon" style="width:100%;height:100%;object-fit:contain;border-radius:50%;">`;
+      }
+      def = (typeof KUULA_ICONS !== 'undefined' && KUULA_ICONS[iconKeyOrDef])
+        ? KUULA_ICONS[iconKeyOrDef]
+        : (typeof KUULA_ICONS !== 'undefined' ? (KUULA_ICONS['chevron-floor'] || KUULA_ICONS['chevron-up']) : null);
+    } else if (typeof iconKeyOrDef === 'object') {
+      def = iconKeyOrDef;
+    }
+
+    let c = color;
+    if (!c || c === '#000000' || c === '#14121a' || c === '#111111') {
+      c = def?.defaultColor || '#FFD23F';
+    }
+
+    if (!def) {
+      return `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6" stroke="${c}"/></svg>`;
+    }
+    if (typeof def.svg === 'function') {
+      return def.svg(c);
+    } else if (typeof def.svg === 'string') {
+      return def.svg;
+    }
+    return '';
+  }
 
   // Preset 360 equirectangular photospheres for quick selection in modal
   const PRESET_360_PANOS = [
@@ -1075,7 +1428,7 @@
         transition: transform 0.1s linear;
       }
 
-      /* Hotspots in 3D Scene */
+      /* Hotspots in 3D Scene - Kuula & Matterport Engine */
       .tour-hotspots-layer {
         position: absolute;
         inset: 0;
@@ -1088,31 +1441,162 @@
         pointer-events: auto;
         cursor: pointer;
         display: inline-flex;
+        flex-direction: column;
         align-items: center;
-        gap: 6px;
-        background: rgba(14, 12, 19, 0.92);
-        border: 2px solid #FFD23F;
-        color: #fff;
-        padding: 6px 12px;
-        border-radius: 999px;
-        font-size: 11px;
-        font-weight: 800;
-        letter-spacing: 0.03em;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75), 0 0 14px rgba(255, 210, 63, 0.4);
-        transition: transform 0.12s ease, background 0.12s ease;
-        white-space: nowrap;
+        justify-content: center;
+        user-select: none;
+        transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.15s ease;
+        will-change: transform, left, top;
       }
       .tour-hotspot-pin:hover {
-        transform: translate(-50%, -50%) scale(1.08);
-        background: #FFD23F;
-        color: #14121A;
+        z-index: 25;
       }
-      .tour-hotspot-pin.editor-pin {
-        border-color: #06D6A0;
-        background: rgba(6, 214, 160, 0.25);
+      .tour-hotspot-pin.kuula-pin-2d:hover .kuula-pin-disc,
+      .tour-hotspot-pin.kuula-pin-wall:hover .kuula-pin-disc {
+        transform: scale(calc(var(--pin-scale, 1) * 1.12));
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85), 0 0 18px var(--pin-glow, rgba(255, 210, 63, 0.7));
+      }
+      .tour-hotspot-pin:hover .kuula-pin-label {
+        opacity: 1;
+        transform: translateY(-2px);
+      }
+      .kuula-pin-disc {
+        position: relative;
+        width: var(--pin-size, 42px);
+        height: var(--pin-size, 42px);
+        border-radius: 50%;
+        background: rgba(18, 16, 24, 0.94);
+        border: 2px solid var(--pin-color, #FFD23F);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.75), 0 0 10px var(--pin-glow, rgba(255, 210, 63, 0.35));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.18s ease;
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+      }
+      .kuula-beacon-pulse {
+        position: absolute;
+        inset: -5px;
+        border-radius: 50%;
+        border: 1.5px solid var(--pin-color, #FFD23F);
+        opacity: 0.8;
+        pointer-events: none;
+        animation: kuulaBeacon 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+      }
+      @keyframes kuulaBeacon {
+        0% { transform: scale(0.9); opacity: 0.85; }
+        60% { transform: scale(1.55); opacity: 0; }
+        100% { transform: scale(1.55); opacity: 0; }
+      }
+      .kuula-pin-icon-inner {
+        width: 60%;
+        height: 60%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.15s ease;
+        pointer-events: none;
+      }
+      .kuula-pin-icon-inner svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .kuula-pin-icon-inner img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border-radius: 50%;
+      }
+      .kuula-pin-label,
+      .kuula-pin-caption {
+        margin-top: 6px;
+        background: rgba(14, 12, 19, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         color: #fff;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+        pointer-events: none;
+        transition: opacity 0.18s ease, transform 0.18s ease;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      .kuula-pin-label.label-hover,
+      .kuula-tooltip-hover .kuula-pin-caption,
+      .kuula-tooltip-hover .kuula-pin-label {
+        opacity: 0;
+        transform: translateY(2px);
+      }
+      .tour-hotspot-pin.kuula-tooltip-hover:hover .kuula-pin-caption,
+      .tour-hotspot-pin.kuula-tooltip-hover:hover .kuula-pin-label,
+      .tour-hotspot-pin:hover .kuula-pin-label.label-hover {
+        opacity: 1;
+        transform: translateY(-2px);
+      }
+      .kuula-pin-label.label-always,
+      .kuula-pin-caption {
+        opacity: 1;
+      }
+      .kuula-pin-label.label-none,
+      .kuula-label-none .kuula-pin-caption,
+      .kuula-label-none .kuula-pin-label {
+        display: none !important;
+      }
+      /* Placement: Floor (3D perspective tilt flat onto ground like Kuula) */
+      .placement-floor,
+      .kuula-pin-floor {
+        perspective: 900px;
+        transform-style: preserve-3d;
+      }
+      .placement-floor .kuula-pin-disc,
+      .kuula-pin-floor .kuula-pin-disc {
+        transform: perspective(600px) rotateX(var(--floor-tilt, 68deg)) rotateZ(var(--floor-rot, 0deg)) scale(var(--pin-scale, 1));
+        transform-origin: 50% 50%;
+        background: radial-gradient(circle at 50% 50%, rgba(20, 18, 28, 0.45) 0%, rgba(10, 8, 16, 0.75) 100%);
+        border: 1.5px dashed var(--pin-color, #3FDDE0);
+        border-radius: 50%;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65), 0 0 16px var(--pin-glow, rgba(63, 221, 224, 0.4));
+      }
+      .tour-hotspot-pin.placement-floor:hover .kuula-pin-disc,
+      .tour-hotspot-pin.kuula-pin-floor:hover .kuula-pin-disc {
+        transform: perspective(600px) rotateX(var(--floor-tilt, 68deg)) rotateZ(var(--floor-rot, 0deg)) scale(calc(var(--pin-scale, 1) * 1.18));
+        border-style: solid;
+        box-shadow: 0 14px 34px rgba(0, 0, 0, 0.85), 0 0 24px var(--pin-glow, rgba(63, 221, 224, 0.75));
+      }
+      .placement-floor .kuula-beacon-pulse,
+      .kuula-pin-floor .kuula-beacon-pulse {
+        border-style: dashed;
+        border-width: 1.5px;
+      }
+      .placement-floor .kuula-pin-icon-inner,
+      .kuula-pin-floor .kuula-pin-icon-inner {
+        transform: none !important;
+      }
+      /* Placement: Wall & 2D */
+      .placement-wall .kuula-pin-disc,
+      .kuula-pin-wall .kuula-pin-disc,
+      .kuula-pin-2d .kuula-pin-disc {
+        transform: scale(var(--pin-scale, 1));
+      }
+      .tour-hotspot-pin.kuula-pin-2d:hover .kuula-pin-disc,
+      .tour-hotspot-pin.kuula-pin-wall:hover .kuula-pin-disc {
+        transform: scale(calc(var(--pin-scale, 1) * 1.12));
+      }
+      /* Editor Mode handles */
+      .tour-hotspot-pin.editor-pin .kuula-pin-disc {
+        border-color: #06D6A0 !important;
+        box-shadow: 0 4px 18px rgba(6, 214, 160, 0.5) !important;
       }
       .hotspot-del-btn {
+        position: absolute;
+        top: -6px;
+        right: -6px;
         background: #FF4D6D;
         color: #fff;
         border: none;
@@ -1125,24 +1609,163 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        margin-left: 4px;
         transition: background 0.15s, transform 0.15s;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+        z-index: 5;
       }
       .hotspot-del-btn:hover {
         background: #ff1c45;
-        transform: scale(1.15);
+        transform: scale(1.2);
       }
-      .tour-hotspot-pulse {
-        width: 8px;
-        height: 8px;
+
+      /* Kuula Checkerboard & Inspector Controls */
+      .kuula-checkerboard {
+        background-color: #1a1820;
+        background-image: 
+          linear-gradient(45deg, #25222e 25%, transparent 25%), 
+          linear-gradient(-45deg, #25222e 25%, transparent 25%), 
+          linear-gradient(45deg, transparent 75%, #25222e 75%), 
+          linear-gradient(-45deg, transparent 75%, #25222e 75%);
+        background-size: 14px 14px;
+        background-position: 0 0, 0 7px, 7px -7px, -7px 0px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .kuula-inspector-section {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+      .kuula-inspector-title {
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #FFD23F;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .kuula-tint-swatch {
+        width: 22px;
+        height: 22px;
         border-radius: 50%;
-        background: #FFD23F;
-        box-shadow: 0 0 8px #FFD23F;
-        animation: hsPulse 1.5s infinite;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        cursor: pointer;
+        transition: transform 0.15s, border-color 0.15s;
       }
-      @keyframes hsPulse {
-        0%, 100% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.4); opacity: 0.6; }
+      .kuula-tint-swatch:hover {
+        transform: scale(1.2);
+        border-color: #fff;
+      }
+      .kuula-tint-swatch.active {
+        border-color: #fff;
+        box-shadow: 0 0 8px #fff;
+      }
+      .kuula-pill-group {
+        display: flex;
+        gap: 6px;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 3px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .kuula-pill-btn {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: #aaa;
+        padding: 6px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-align: center;
+      }
+      .kuula-pill-btn:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .kuula-pill-btn.active {
+        background: #FFD23F;
+        color: #14121A;
+        font-weight: 800;
+      }
+      .kuula-icons-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 8px;
+        max-height: 280px;
+        overflow-y: auto;
+        padding: 10px;
+        background: rgba(14, 12, 19, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+      }
+      .kuula-icon-card,
+      .kuula-icon-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1.5px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        padding: 8px 4px;
+        min-height: 72px;
+        color: #ffffff;
+        outline: none;
+        user-select: none;
+      }
+      .kuula-icon-card:hover,
+      .kuula-icon-item:hover {
+        background: rgba(255, 210, 63, 0.15);
+        border-color: #FFD23F;
+        transform: translateY(-2px);
+      }
+      .kuula-icon-card.active,
+      .kuula-icon-item.selected {
+        background: rgba(255, 210, 63, 0.25);
+        border-color: #FFD23F;
+        box-shadow: 0 0 10px rgba(255, 210, 63, 0.4);
+      }
+      .kuula-icon-card-preview {
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
+      .kuula-icon-card-preview svg {
+        width: 24px;
+        height: 24px;
+        display: block;
+      }
+      .kuula-icon-card-preview img {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+      }
+      .kuula-icon-card-name {
+        font-size: 10px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.85);
+        text-align: center;
+        line-height: 1.2;
+        margin-top: 5px;
+        pointer-events: none;
+        white-space: normal;
+        word-break: break-word;
       }
 
       /* Editor Tool Bar Overlay */
@@ -2786,20 +3409,118 @@
           <div class="tour-loader-sub" id="tourLoaderSub">Rendering realistic spherical photosphere</div>
         </div>
 
-        <!-- 1. PLACE HOTSPOT DIALOG -->
-        <div class="tour-dialog-overlay" id="tourPlaceHotspotModal" style="display:none;">
-          <div class="tour-dialog-card">
+        <!-- 1. PLACE HOTSPOT DIALOG (Kuula Style Pin Inspector) -->
+        <div class="tour-dialog-overlay" id="tourPlaceHotspotModal" style="display:none; z-index: 100;">
+          <div class="tour-dialog-card" style="max-width: 480px; max-height: 90vh; overflow-y: auto;">
             <div class="tour-dialog-header">
               <span class="tour-dialog-title">📍 Place Interactive Hotspot</span>
               <button type="button" class="tour-dialog-close" onclick="window.closePlaceHotspotDialog()">✕</button>
             </div>
-            <div class="tour-dialog-body">
-              <div class="tour-dialog-info" id="placeHsAngleInfo">
+            <div class="tour-dialog-body" style="padding: 14px;">
+              <div class="tour-dialog-info" id="placeHsAngleInfo" style="margin-bottom: 12px;">
                 📐 Targeting Camera: Yaw 0°, Pitch 0°
               </div>
-              <div class="tour-field-group">
-                <label class="tour-field-label">Hotspot Label (Text shown on marker)</label>
-                <input type="text" class="tour-dialog-input" id="newHsLabelInput" placeholder="e.g., 🚪 Step Inside Studio" value="🚪 Step Inside Space">
+
+              <!-- 1. ICON & TINT SECTION (KUULA STYLE) -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">
+                  <span>Icon</span>
+                  <span id="placeHsIconCategory" style="color:rgba(255,255,255,0.4);font-size:10px;text-transform:none;">Floor Walking Chevron</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:14px;">
+                  <!-- Checkerboard Preview Box -->
+                  <div class="kuula-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;">
+                    <div id="placeHsIconPreviewInner" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;transition:transform 0.15s ease;">
+                      <!-- SVG icon injected here -->
+                    </div>
+                  </div>
+                  <!-- Icon Controls -->
+                  <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+                    <div style="display:flex;gap:8px;">
+                      <button type="button" class="tour-dialog-btn" onclick="window.openIconPickerModal('place')" style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:11px;padding:6px 10px;font-weight:700;">
+                        🎨 Change icon
+                      </button>
+                      <label class="tour-dialog-btn" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:11px;padding:6px 10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;" title="Upload custom image/PNG/SVG">
+                        📁 Custom
+                        <input type="file" accept="image/*" style="display:none;" onchange="window.handleUploadCustomIcon(event, 'place')">
+                      </label>
+                    </div>
+                    <!-- Set Tint -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                      <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:11px;color:#aaa;font-weight:700;">Set tint:</span>
+                        <input type="color" id="placeHsColorPicker" value="#FFD23F" style="width:26px;height:26px;border:none;border-radius:4px;cursor:pointer;background:transparent;" onchange="window.setHotspotTint(this.value, 'place')">
+                      </div>
+                      <!-- Preset Swatches -->
+                      <div style="display:flex;gap:5px;">
+                        <div class="kuula-tint-swatch active" style="background:#FFD23F;" onclick="window.setHotspotTint('#FFD23F', 'place')" title="Gold"></div>
+                        <div class="kuula-tint-swatch" style="background:#06D6A0;" onclick="window.setHotspotTint('#06D6A0', 'place')" title="Emerald"></div>
+                        <div class="kuula-tint-swatch" style="background:#3FDDE0;" onclick="window.setHotspotTint('#3FDDE0', 'place')" title="Cyan"></div>
+                        <div class="kuula-tint-swatch" style="background:#FF4D6D;" onclick="window.setHotspotTint('#FF4D6D', 'place')" title="Coral"></div>
+                        <div class="kuula-tint-swatch" style="background:#FFFFFF;" onclick="window.setHotspotTint('#FFFFFF', 'place')" title="White"></div>
+                        <div class="kuula-tint-swatch" style="background:#1877F2;" onclick="window.setHotspotTint('#1877F2', 'place')" title="Blue"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. APPEARANCE SECTION -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">Appearance</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:#aaa;margin-bottom:4px;">
+                      <span>Size (Width)</span>
+                      <span id="placeHsSizeVal" style="color:#FFD23F;">100%</span>
+                    </div>
+                    <input type="range" id="placeHsSizeSlider" min="50" max="180" value="100" class="prop-range-slider" oninput="window.updateHsAppearance('size', this.value, 'place')">
+                  </div>
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:#aaa;margin-bottom:4px;">
+                      <span>Opacity</span>
+                      <span id="placeHsOpacityVal" style="color:#FFD23F;">100%</span>
+                    </div>
+                    <input type="range" id="placeHsOpacitySlider" min="15" max="100" value="100" class="prop-range-slider" oninput="window.updateHsAppearance('opacity', this.value, 'place')">
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. ROTATION SECTION -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">
+                  <span>Rotation</span>
+                  <button type="button" onclick="window.resetHotspotRotation('place')" style="background:none;border:none;color:#3FDDE0;cursor:pointer;font-size:10px;font-weight:700;text-decoration:underline;">Reset</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <input type="range" id="placeHsRotationSlider" min="-180" max="180" value="0" class="prop-range-slider" style="flex:1;" oninput="window.updateHsAppearance('rotation', this.value, 'place')">
+                  <span id="placeHsRotationVal" style="min-width:40px;text-align:right;font-family:monospace;font-size:11px;color:#FFD23F;font-weight:800;">0°</span>
+                </div>
+              </div>
+
+              <!-- 4. POSITION / PLACEMENT -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">Position & Orientation</div>
+                <div class="kuula-pill-group" style="margin-bottom:8px;">
+                  <button type="button" class="kuula-pill-btn" id="placePlacement2d" onclick="window.setHotspotPlacement('2d', 'place')">2D (Billboard)</button>
+                  <button type="button" class="kuula-pill-btn active" id="placePlacementFloor" onclick="window.setHotspotPlacement('floor', 'place')">Floor (3D Walk Puck)</button>
+                  <button type="button" class="kuula-pill-btn" id="placePlacementWall" onclick="window.setHotspotPlacement('wall', 'place')">Wall (Vertical)</button>
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:11px;color:#ccc;cursor:pointer;user-select:none;">
+                  <input type="checkbox" id="placeHsScaleOnZoom" checked style="accent-color:#FFD23F;">
+                  <span>Scale on zoom</span>
+                </label>
+              </div>
+
+              <!-- 5. LABEL & TOOLTIP -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">Label & Tooltip</div>
+                <input type="text" class="tour-dialog-input" id="newHsLabelInput" placeholder="e.g. 🚪 Step Inside Studio" value="🚪 Step Inside Space" style="margin-bottom:8px;">
+                <div class="kuula-pill-group" style="margin-bottom:8px;">
+                  <button type="button" class="kuula-pill-btn active" id="placeLabelAlways" onclick="window.setHotspotLabelMode('always', 'place')">Always Show</button>
+                  <button type="button" class="kuula-pill-btn" id="placeLabelHover" onclick="window.setHotspotLabelMode('hover', 'place')">Hover Tooltip</button>
+                  <button type="button" class="kuula-pill-btn" id="placeLabelNone" onclick="window.setHotspotLabelMode('none', 'place')">Icon Only</button>
+                </div>
                 <div class="tour-quick-chips">
                   <span class="tour-chip" onclick="window.setQuickHsLabel('🚪 Step Inside Studio')">🚪 Step Inside</span>
                   <span class="tour-chip" onclick="window.setQuickHsLabel('☕ Espresso Bar')">☕ Coffee Bar</span>
@@ -2808,15 +3529,242 @@
                   <span class="tour-chip" onclick="window.setQuickHsLabel('🚪 Walk Back Outside')">🚪 Walk Back</span>
                 </div>
               </div>
-              <div class="tour-field-group">
-                <label class="tour-field-label">Destination (Which 360 Room does this open?)</label>
-                <select class="tour-dialog-select" id="newHsTargetSceneSelect"></select>
+
+              <!-- 6. ACTION / TARGET -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">Click Action</div>
+                <div class="kuula-pill-group" style="margin-bottom:10px;">
+                  <button type="button" class="kuula-pill-btn active" id="placeActionScene" onclick="window.setHotspotActionType('scene', 'place')">🚪 Walk to Room</button>
+                  <button type="button" class="kuula-pill-btn" id="placeActionInfo" onclick="window.setHotspotActionType('info', 'place')">ℹ️ Info Card</button>
+                  <button type="button" class="kuula-pill-btn" id="placeActionUrl" onclick="window.setHotspotActionType('url', 'place')">🔗 Web Link</button>
+                </div>
+
+                <div id="placeActionSceneGroup" class="tour-field-group">
+                  <label class="tour-field-label">Destination (Which 360 Room does this open?)</label>
+                  <select class="tour-dialog-select" id="newHsTargetSceneSelect"></select>
+                </div>
+
+                <div id="placeActionInfoGroup" class="tour-field-group" style="display:none;background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+                  <div style="font-size:11px;font-weight:800;color:#3FDDE0;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em;">
+                    ✨ Item Showcase & Media Window
+                  </div>
+
+                  <!-- Item Title & Price/Badge -->
+                  <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <div style="flex:2;">
+                      <label class="tour-field-label" style="font-size:10px;">Item Title / Name</label>
+                      <input type="text" class="tour-dialog-input" id="newHsItemTitleInput" placeholder="e.g. Vintage Camera, Climbing Gear...">
+                    </div>
+                    <div style="flex:1;">
+                      <label class="tour-field-label" style="font-size:10px;">Price / Badge</label>
+                      <input type="text" class="tour-dialog-input" id="newHsItemPriceInput" placeholder="e.g. $ BUY $, $49.99">
+                    </div>
+                  </div>
+
+                  <!-- Media Type Selector Pills -->
+                  <label class="tour-field-label" style="font-size:10px;">Media to Display on Click</label>
+                  <div class="kuula-pill-group" style="margin-bottom:8px;">
+                    <button type="button" class="kuula-pill-btn active" id="placeMediaNone" onclick="window.setHotspotMediaType('none', 'place')">Icon Only</button>
+                    <button type="button" class="kuula-pill-btn" id="placeMediaPhoto" onclick="window.setHotspotMediaType('photo', 'place')">📸 Photo</button>
+                    <button type="button" class="kuula-pill-btn" id="placeMediaVideo" onclick="window.setHotspotMediaType('video', 'place')">🎥 Video</button>
+                    <button type="button" class="kuula-pill-btn" id="placeMediaModel3d" onclick="window.setHotspotMediaType('model3d', 'place')">🧊 3D Model</button>
+                  </div>
+
+                  <!-- Photo Options Container -->
+                  <div id="placePhotoControls" style="display:none;margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid rgba(255,255,255,0.05);">
+                    <label class="tour-field-label" style="font-size:10px;">Close-Up Photo of Item</label>
+                    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+                      <input type="url" class="tour-dialog-input" id="placeHsPhotoUrlInput" placeholder="Paste image URL (https://...)" style="flex:1;" oninput="window.updateMediaFromInput('photo', this.value, 'place')">
+                      <label class="tour-dialog-btn" style="cursor:pointer;padding:6px 10px;font-size:10px;white-space:nowrap;background:rgba(63,221,224,0.15);border:1px solid #3FDDE0;color:#3FDDE0;">
+                        📁 Upload
+                        <input type="file" accept="image/*" style="display:none;" onchange="window.handleMediaFileUpload(this, 'photo', 'place')">
+                      </label>
+                    </div>
+                    <div id="placePhotoThumbPreview" style="display:none;width:100%;height:70px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);position:relative;">
+                      <img id="placePhotoThumbImg" src="" alt="Thumbnail" style="width:100%;height:100%;object-fit:cover;">
+                      <button type="button" onclick="window.clearHotspotMedia('photo', 'place')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);color:#ff4d6d;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;">✕</button>
+                    </div>
+                  </div>
+
+                  <!-- Video Options Container -->
+                  <div id="placeVideoControls" style="display:none;margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid rgba(255,255,255,0.05);">
+                    <label class="tour-field-label" style="font-size:10px;">Video of Item (YouTube, Vimeo, or MP4)</label>
+                    <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                      <input type="url" class="tour-dialog-input" id="placeHsVideoUrlInput" placeholder="Paste YouTube, Vimeo, or MP4 URL..." style="flex:1;" oninput="window.updateMediaFromInput('video', this.value, 'place')">
+                      <label class="tour-dialog-btn" style="cursor:pointer;padding:6px 10px;font-size:10px;white-space:nowrap;background:rgba(255,77,109,0.15);border:1px solid #FF4D6D;color:#FF4D6D;">
+                        📁 MP4
+                        <input type="file" accept="video/mp4,video/webm" style="display:none;" onchange="window.handleMediaFileUpload(this, 'video', 'place')">
+                      </label>
+                    </div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.5);">Supports YouTube, Vimeo, or direct MP4 video files.</div>
+                  </div>
+
+                  <!-- 3D Model Options Container -->
+                  <div id="placeModel3dControls" style="display:none;margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid rgba(255,255,255,0.05);">
+                    <label class="tour-field-label" style="font-size:10px;">3D Interactive Model</label>
+                    <div style="margin-bottom:6px;">
+                      <select class="tour-dialog-select" id="placeHsModelPresetSelect" onchange="window.setHotspot3dPreset(this.value, 'place')" style="margin-bottom:6px;">
+                        <option value="climbing-gear">🧗 Utah Climbing Gear & Carabiner (Metallic PBR)</option>
+                        <option value="vintage-camera">📷 Retro 3D Camera with Brass Lens</option>
+                        <option value="sneaker">👟 Athletic Street Sneaker / Shoe</option>
+                        <option value="smartwatch">⌚ Luxury Smartwatch with Digital Dial</option>
+                        <option value="diamond-gem">💎 Sparkling Faceted Diamond Gemstone</option>
+                        <option value="drone">🚁 High-Performance Aerial Drone</option>
+                        <option value="custom">🌐 Custom .GLB / .GLTF 3D File</option>
+                      </select>
+                    </div>
+                    <div id="placeCustomGlbGroup" style="display:none;">
+                      <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                        <input type="url" class="tour-dialog-input" id="placeHsModel3dUrlInput" placeholder="Paste .glb / .gltf URL..." style="flex:1;" oninput="window.updateMediaFromInput('model3d', this.value, 'place')">
+                        <label class="tour-dialog-btn" style="cursor:pointer;padding:6px 10px;font-size:10px;white-space:nowrap;background:rgba(6,214,160,0.15);border:1px solid #06D6A0;color:#06D6A0;">
+                          📁 .GLB
+                          <input type="file" accept=".glb,.gltf" style="display:none;" onchange="window.handleMediaFileUpload(this, 'model3d', 'place')">
+                        </label>
+                      </div>
+                    </div>
+                    <!-- Mini 3D Preview inside inspector -->
+                    <div id="place3dMiniPreviewBox" style="width:100%;height:110px;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0c0a12 100%);border-radius:6px;border:1px solid rgba(63,221,224,0.3);position:relative;overflow:hidden;margin-top:6px;">
+                      <div id="place3dMiniMount" style="width:100%;height:100%;cursor:grab;"></div>
+                      <span style="position:absolute;bottom:4px;left:6px;font-size:9px;color:#3FDDE0;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:4px;pointer-events:none;">🧊 Drag to test 3D spin</span>
+                    </div>
+                  </div>
+
+                  <!-- Description -->
+                  <label class="tour-field-label" style="font-size:10px;">Item Description / Story</label>
+                  <textarea class="tour-dialog-input" id="newHsInfoTextInput" rows="2" placeholder="Item details, specs, story, or description..."></textarea>
+
+                  <!-- CTA Button -->
+                  <div style="display:flex;gap:8px;margin-top:8px;">
+                    <div style="flex:1;">
+                      <label class="tour-field-label" style="font-size:10px;">Button Text</label>
+                      <input type="text" class="tour-dialog-input" id="newHsCtaTextInput" placeholder="e.g. Buy Now ↗, Order Online">
+                    </div>
+                    <div style="flex:1.5;">
+                      <label class="tour-field-label" style="font-size:10px;">Button Link (URL)</label>
+                      <input type="url" class="tour-dialog-input" id="newHsCtaUrlInput" placeholder="https://...">
+                    </div>
+                  </div>
+                </div>
+
+                <div id="placeActionUrlGroup" class="tour-field-group" style="display:none;">
+                  <label class="tour-field-label">External Website Link (URL)</label>
+                  <input type="url" class="tour-dialog-input" id="newHsUrlInput" placeholder="https://example.com">
+                </div>
               </div>
+
             </div>
             <div class="tour-dialog-footer">
               <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closePlaceHotspotDialog()">CANCEL</button>
               <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.confirmPlaceHotspot()">📍 DROP PIN HERE</button>
             </div>
+          </div>
+        </div>
+
+        <!-- KUULA ICON PICKER DIALOG (Full Palette from Kuula) -->
+        <div class="tour-dialog-overlay" id="tourIconPickerModal" style="display:none; z-index:110;">
+          <div class="tour-dialog-card" style="max-width:520px; max-height:88vh; overflow-y:auto;">
+            <div class="tour-dialog-header">
+              <span class="tour-dialog-title">🎨 Choose Kuula Pin Icon</span>
+              <button type="button" class="tour-dialog-close" onclick="window.closeIconPickerModal()">✕</button>
+            </div>
+            <div class="tour-dialog-body" style="padding:14px;">
+              <!-- Category Filter Chips -->
+              <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+                <button type="button" class="tour-chip active" id="filterChipAll" onclick="window.filterIconPickerCategory('All', this)">All Icons</button>
+                <button type="button" class="tour-chip" onclick="window.filterIconPickerCategory('Navigation', this)">Navigation</button>
+                <button type="button" class="tour-chip" onclick="window.filterIconPickerCategory('Interest', this)">Interest</button>
+                <button type="button" class="tour-chip" onclick="window.filterIconPickerCategory('Info', this)">Info</button>
+                <button type="button" class="tour-chip" onclick="window.filterIconPickerCategory('Media', this)">Media</button>
+                <button type="button" class="tour-chip" onclick="window.filterIconPickerCategory('Action', this)">Action & Shop</button>
+                <button type="button" class="tour-chip" onclick="window.filterIconPickerCategory('Audio', this)">Audio</button>
+                <button type="button" class="tour-chip" onclick="window.filterIconPickerCategory('Social', this)">Social</button>
+              </div>
+
+              <!-- Grid of authentic Kuula icons -->
+              <div class="kuula-icons-grid" id="kuulaIconsGridContainer">
+                <!-- Dynamically populated by JS -->
+              </div>
+
+              <!-- Custom Icon Upload option -->
+              <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                <div style="font-size:11px;color:#aaa;">Or upload your own custom PNG, SVG, or photo icon:</div>
+                <label class="tour-dialog-btn" style="background:#FFD23F;color:#14121A;font-weight:800;font-size:11px;padding:6px 12px;cursor:pointer;">
+                  📁 Upload Custom
+                  <input type="file" accept="image/*" style="display:none;" onchange="window.handleUploadCustomIcon(event, window.currentIconPickerTarget || 'place')">
+                </label>
+              </div>
+            </div>
+            <div class="tour-dialog-footer">
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.closeIconPickerModal()">DONE</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- HOTSPOT INFO & ITEM SHOWCASE POPUP (3D Model / Close-Up Photo / Video) -->
+        <div class="tour-dialog-overlay" id="tourHotspotInfoModal" style="display:none; z-index:95;">
+          <div class="tour-dialog-card" id="tourHotspotInfoCard" style="max-width:460px;width:92%;text-align:center;border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.85);border:1.5px solid rgba(63,221,224,0.35);padding:0;background:rgba(18,16,26,0.96);">
+            <div class="tour-dialog-header" style="justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);padding:10px 16px;background:rgba(255,255,255,0.02);">
+              <div id="tourInfoModalHeaderTag" style="font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#3FDDE0;display:flex;align-items:center;gap:6px;">
+                <span>✨ ITEM SHOWCASE</span>
+              </div>
+              <button type="button" class="tour-dialog-close" onclick="window.closeHotspotInfoModal()">✕</button>
+            </div>
+            
+            <!-- MEDIA CONTAINER: 3D MODEL / PHOTO / VIDEO -->
+            <div id="tourInfoMediaWrapper" style="position:relative;width:100%;background:#09080e;border-bottom:1px solid rgba(255,255,255,0.08);overflow:hidden;display:none;">
+              <!-- 1. 3D Model Viewer container -->
+              <div id="tourInfoModal3dContainer" style="display:none;width:100%;height:270px;position:relative;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);">
+                <div id="tourInfoModal3dCanvasMount" style="width:100%;height:100%;cursor:grab;"></div>
+                <div style="position:absolute;bottom:10px;left:12px;background:rgba(0,0,0,0.65);backdrop-filter:blur(6px);color:#3FDDE0;font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;border:1px solid rgba(63,221,224,0.3);display:flex;align-items:center;gap:5px;pointer-events:none;user-select:none;">
+                  <span>🧊 Drag to rotate 3D · Scroll to zoom</span>
+                </div>
+                <div style="position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:2;">
+                  <button type="button" class="tour-dialog-btn" id="tour3dAutoRotateBtn" onclick="window.toggle3dModalAutoRotate()" style="padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Toggle 3D auto rotation">⟳ Auto-Rotate</button>
+                  <button type="button" class="tour-dialog-btn" onclick="window.reset3dModalCamera()" style="padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Reset 3D camera angle">⌖ Reset</button>
+                </div>
+              </div>
+
+              <!-- 2. Close-up Photo container -->
+              <div id="tourInfoModalPhotoContainer" style="display:none;width:100%;max-height:300px;overflow:hidden;position:relative;background:#050408;">
+                <img id="tourInfoModalImg" src="" alt="Item Close-up" style="width:100%;height:auto;max-height:280px;object-fit:cover;display:block;cursor:zoom-in;transition:transform 0.3s ease;" onclick="window.openHotspotPhotoLightbox(this.src)">
+                <div style="position:absolute;bottom:8px;right:10px;background:rgba(0,0,0,0.7);color:#fff;font-size:10px;padding:3px 8px;border-radius:12px;pointer-events:none;">🔍 Click photo to expand</div>
+              </div>
+
+              <!-- 3. Video Player container -->
+              <div id="tourInfoModalVideoContainer" style="display:none;width:100%;aspect-ratio:16/9;background:#000;position:relative;">
+                <iframe id="tourInfoModalIframe" style="width:100%;height:100%;border:none;display:none;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                <video id="tourInfoModalNativeVideo" controls playsinline style="width:100%;height:100%;display:none;background:#000;"></video>
+              </div>
+            </div>
+
+            <div class="tour-dialog-body" style="padding:16px 20px 20px;">
+              <!-- Default Icon Wrapper if no media attached -->
+              <div id="tourInfoModalIconWrapper" style="width:54px;height:54px;margin:0 auto 12px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.06);border:2px solid #FFD23F;"></div>
+              
+              <!-- Price / Subtitle Badge -->
+              <div id="tourInfoModalPriceBadge" style="display:none;font-size:13px;font-weight:900;color:#06D6A0;letter-spacing:0.04em;margin-bottom:8px;background:rgba(6,214,160,0.12);padding:3px 14px;border-radius:999px;border:1px solid rgba(6,214,160,0.35);"></div>
+
+              <h3 id="tourInfoModalTitle" style="font-size:18px;font-weight:800;color:#fff;margin:0 0 8px 0;"></h3>
+              <p id="tourInfoModalDesc" style="font-size:13px;color:rgba(255,255,255,0.85);line-height:1.6;margin:0 0 16px 0;word-break:break-word;"></p>
+              
+              <!-- Action & CTA buttons -->
+              <div id="tourInfoModalActionWrapper" style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;"></div>
+
+              <!-- Quick Customize button in Editor Mode -->
+              <div id="tourInfoModalEditBar" style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);display:none;">
+                <button type="button" class="tour-dialog-btn" style="width:100%;font-size:11px;padding:7px 12px;background:rgba(255,210,63,0.15);border:1px solid #FFD23F;color:#FFD23F;font-weight:800;" onclick="window.customizeHotspotFromModal()">
+                  ✏️ Customize Item (3D Model / Close-Up Photo / Video)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FULLSCREEN PHOTO LIGHTBOX POPUP -->
+        <div class="tour-dialog-overlay" id="tourPhotoLightboxModal" style="display:none; z-index:98; background:rgba(0,0,0,0.92);" onclick="window.closeHotspotPhotoLightbox()">
+          <div style="position:relative;max-width:90vw;max-height:90vh;display:flex;align-items:center;justify-content:center;" onclick="event.stopPropagation()">
+            <button type="button" class="tour-dialog-close" onclick="window.closeHotspotPhotoLightbox()" style="position:absolute;top:-40px;right:0;font-size:24px;color:#fff;">✕</button>
+            <img id="tourPhotoLightboxImg" src="" alt="Full view" style="max-width:90vw;max-height:85vh;object-fit:contain;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.9);border:1px solid rgba(255,255,255,0.15);">
           </div>
         </div>
 
@@ -3044,26 +3992,243 @@
           </div>
         </div>
 
-        <!-- 6. EDIT / DELETE HOTSPOT MODAL -->
-        <div class="tour-dialog-overlay" id="tourEditHotspotModal" style="display:none;">
-          <div class="tour-dialog-card">
+        <!-- 6. EDIT / DELETE HOTSPOT MODAL (Kuula Style Pin Inspector) -->
+        <div class="tour-dialog-overlay" id="tourEditHotspotModal" style="display:none; z-index:100;">
+          <div class="tour-dialog-card" style="max-width:480px; max-height:90vh; overflow-y:auto;">
             <div class="tour-dialog-header">
-              <span class="tour-dialog-title">✏️ Edit Hotspot Pin</span>
+              <span class="tour-dialog-title">✏️ Edit Hotspot Pin (Kuula Inspector)</span>
               <button type="button" class="tour-dialog-close" onclick="window.closeEditHotspotDialog()">✕</button>
             </div>
-            <div class="tour-dialog-body">
+            <div class="tour-dialog-body" style="padding:14px;">
               <input type="hidden" id="editHsIndex" value="-1">
-              <div class="tour-field-group">
-                <label class="tour-field-label">Label</label>
-                <input type="text" class="tour-dialog-input" id="editHsLabelInput">
+
+              <!-- 1. ICON & TINT SECTION -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">
+                  <span>Icon</span>
+                  <span id="editHsIconCategory" style="color:rgba(255,255,255,0.4);font-size:10px;text-transform:none;">Navigation</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:14px;">
+                  <!-- Checkerboard Preview Box -->
+                  <div class="kuula-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;">
+                    <div id="editHsIconPreviewInner" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;transition:transform 0.15s ease;">
+                      <!-- SVG icon injected here -->
+                    </div>
+                  </div>
+                  <!-- Icon Controls -->
+                  <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+                    <div style="display:flex;gap:8px;">
+                      <button type="button" class="tour-dialog-btn" onclick="window.openIconPickerModal('edit')" style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:11px;padding:6px 10px;font-weight:700;">
+                        🎨 Change icon
+                      </button>
+                      <label class="tour-dialog-btn" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:11px;padding:6px 10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;" title="Upload custom image/PNG/SVG">
+                        📁 Custom
+                        <input type="file" accept="image/*" style="display:none;" onchange="window.handleUploadCustomIcon(event, 'edit')">
+                      </label>
+                    </div>
+                    <!-- Set Tint -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                      <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:11px;color:#aaa;font-weight:700;">Set tint:</span>
+                        <input type="color" id="editHsColorPicker" value="#FFD23F" style="width:26px;height:26px;border:none;border-radius:4px;cursor:pointer;background:transparent;" onchange="window.setHotspotTint(this.value, 'edit')">
+                      </div>
+                      <!-- Preset Swatches -->
+                      <div style="display:flex;gap:5px;">
+                        <div class="kuula-tint-swatch" style="background:#FFD23F;" onclick="window.setHotspotTint('#FFD23F', 'edit')" title="Gold"></div>
+                        <div class="kuula-tint-swatch" style="background:#06D6A0;" onclick="window.setHotspotTint('#06D6A0', 'edit')" title="Emerald"></div>
+                        <div class="kuula-tint-swatch" style="background:#3FDDE0;" onclick="window.setHotspotTint('#3FDDE0', 'edit')" title="Cyan"></div>
+                        <div class="kuula-tint-swatch" style="background:#FF4D6D;" onclick="window.setHotspotTint('#FF4D6D', 'edit')" title="Coral"></div>
+                        <div class="kuula-tint-swatch" style="background:#FFFFFF;" onclick="window.setHotspotTint('#FFFFFF', 'edit')" title="White"></div>
+                        <div class="kuula-tint-swatch" style="background:#1877F2;" onclick="window.setHotspotTint('#1877F2', 'edit')" title="Blue"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="tour-field-group">
-                <label class="tour-field-label">Target Room</label>
-                <select class="tour-dialog-select" id="editHsTargetSceneSelect"></select>
+
+              <!-- 2. APPEARANCE SECTION -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">Appearance</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:#aaa;margin-bottom:4px;">
+                      <span>Size (Width)</span>
+                      <span id="editHsSizeVal" style="color:#FFD23F;">100%</span>
+                    </div>
+                    <input type="range" id="editHsSizeSlider" min="50" max="180" value="100" class="prop-range-slider" oninput="window.updateHsAppearance('size', this.value, 'edit')">
+                  </div>
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:#aaa;margin-bottom:4px;">
+                      <span>Opacity</span>
+                      <span id="editHsOpacityVal" style="color:#FFD23F;">100%</span>
+                    </div>
+                    <input type="range" id="editHsOpacitySlider" min="15" max="100" value="100" class="prop-range-slider" oninput="window.updateHsAppearance('opacity', this.value, 'edit')">
+                  </div>
+                </div>
               </div>
-              <button type="button" class="tour-dialog-btn tour-dialog-btn-secondary" onclick="window.realignHotspotToCurrentCamera()">
-                🎯 Re-Align to Current View Angle
-              </button>
+
+              <!-- 3. ROTATION SECTION -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">
+                  <span>Rotation</span>
+                  <button type="button" onclick="window.resetHotspotRotation('edit')" style="background:none;border:none;color:#3FDDE0;cursor:pointer;font-size:10px;font-weight:700;text-decoration:underline;">Reset</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <input type="range" id="editHsRotationSlider" min="-180" max="180" value="0" class="prop-range-slider" style="flex:1;" oninput="window.updateHsAppearance('rotation', this.value, 'edit')">
+                  <span id="editHsRotationVal" style="min-width:40px;text-align:right;font-family:monospace;font-size:11px;color:#FFD23F;font-weight:800;">0°</span>
+                </div>
+              </div>
+
+              <!-- 4. POSITION / PLACEMENT -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">Position & Orientation</div>
+                <div class="kuula-pill-group" style="margin-bottom:8px;">
+                  <button type="button" class="kuula-pill-btn" id="editPlacement2d" onclick="window.setHotspotPlacement('2d', 'edit')">2D (Billboard)</button>
+                  <button type="button" class="kuula-pill-btn" id="editPlacementFloor" onclick="window.setHotspotPlacement('floor', 'edit')">Floor (3D Walk Puck)</button>
+                  <button type="button" class="kuula-pill-btn" id="editPlacementWall" onclick="window.setHotspotPlacement('wall', 'edit')">Wall (Vertical)</button>
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:11px;color:#ccc;cursor:pointer;user-select:none;margin-bottom:8px;">
+                  <input type="checkbox" id="editHsScaleOnZoom" checked style="accent-color:#FFD23F;">
+                  <span>Scale on zoom</span>
+                </label>
+                <button type="button" class="tour-dialog-btn tour-dialog-btn-secondary" style="width:100%;font-size:11px;padding:6px;" onclick="window.realignHotspotToCurrentCamera()">
+                  🎯 Re-Align Hotspot to Current Camera Angle
+                </button>
+              </div>
+
+              <!-- 5. LABEL & TOOLTIP -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">Label & Tooltip</div>
+                <input type="text" class="tour-dialog-input" id="editHsLabelInput" placeholder="Hotspot Label..." style="margin-bottom:8px;">
+                <div class="kuula-pill-group">
+                  <button type="button" class="kuula-pill-btn active" id="editLabelAlways" onclick="window.setHotspotLabelMode('always', 'edit')">Always Show</button>
+                  <button type="button" class="kuula-pill-btn" id="editLabelHover" onclick="window.setHotspotLabelMode('hover', 'edit')">Hover Tooltip</button>
+                  <button type="button" class="kuula-pill-btn" id="editLabelNone" onclick="window.setHotspotLabelMode('none', 'edit')">Icon Only</button>
+                </div>
+              </div>
+
+              <!-- 6. ACTION / TARGET -->
+              <div class="kuula-inspector-section">
+                <div class="kuula-inspector-title">Click Action</div>
+                <div class="kuula-pill-group" style="margin-bottom:10px;">
+                  <button type="button" class="kuula-pill-btn active" id="editActionScene" onclick="window.setHotspotActionType('scene', 'edit')">🚪 Walk to Room</button>
+                  <button type="button" class="kuula-pill-btn" id="editActionInfo" onclick="window.setHotspotActionType('info', 'edit')">ℹ️ Info Card</button>
+                  <button type="button" class="kuula-pill-btn" id="editActionUrl" onclick="window.setHotspotActionType('url', 'edit')">🔗 Web Link</button>
+                </div>
+
+                <div id="editActionSceneGroup" class="tour-field-group">
+                  <label class="tour-field-label">Target Destination Room</label>
+                  <select class="tour-dialog-select" id="editHsTargetSceneSelect"></select>
+                </div>
+
+                <div id="editActionInfoGroup" class="tour-field-group" style="display:none;background:rgba(255,255,255,0.02);padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+                  <div style="font-size:11px;font-weight:800;color:#3FDDE0;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em;">
+                    ✨ Item Showcase & Media Window
+                  </div>
+
+                  <!-- Item Title & Price/Badge -->
+                  <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <div style="flex:2;">
+                      <label class="tour-field-label" style="font-size:10px;">Item Title / Name</label>
+                      <input type="text" class="tour-dialog-input" id="editHsItemTitleInput" placeholder="e.g. Vintage Camera, Climbing Gear...">
+                    </div>
+                    <div style="flex:1;">
+                      <label class="tour-field-label" style="font-size:10px;">Price / Badge</label>
+                      <input type="text" class="tour-dialog-input" id="editHsItemPriceInput" placeholder="e.g. $ BUY $, $49.99">
+                    </div>
+                  </div>
+
+                  <!-- Media Type Selector Pills -->
+                  <label class="tour-field-label" style="font-size:10px;">Media to Display on Click</label>
+                  <div class="kuula-pill-group" style="margin-bottom:8px;">
+                    <button type="button" class="kuula-pill-btn active" id="editMediaNone" onclick="window.setHotspotMediaType('none', 'edit')">Icon Only</button>
+                    <button type="button" class="kuula-pill-btn" id="editMediaPhoto" onclick="window.setHotspotMediaType('photo', 'edit')">📸 Photo</button>
+                    <button type="button" class="kuula-pill-btn" id="editMediaVideo" onclick="window.setHotspotMediaType('video', 'edit')">🎥 Video</button>
+                    <button type="button" class="kuula-pill-btn" id="editMediaModel3d" onclick="window.setHotspotMediaType('model3d', 'edit')">🧊 3D Model</button>
+                  </div>
+
+                  <!-- Photo Options Container -->
+                  <div id="editPhotoControls" style="display:none;margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid rgba(255,255,255,0.05);">
+                    <label class="tour-field-label" style="font-size:10px;">Close-Up Photo of Item</label>
+                    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+                      <input type="url" class="tour-dialog-input" id="editHsPhotoUrlInput" placeholder="Paste image URL (https://...)" style="flex:1;" oninput="window.updateMediaFromInput('photo', this.value, 'edit')">
+                      <label class="tour-dialog-btn" style="cursor:pointer;padding:6px 10px;font-size:10px;white-space:nowrap;background:rgba(63,221,224,0.15);border:1px solid #3FDDE0;color:#3FDDE0;">
+                        📁 Upload
+                        <input type="file" accept="image/*" style="display:none;" onchange="window.handleMediaFileUpload(this, 'photo', 'edit')">
+                      </label>
+                    </div>
+                    <div id="editPhotoThumbPreview" style="display:none;width:100%;height:70px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);position:relative;">
+                      <img id="editPhotoThumbImg" src="" alt="Thumbnail" style="width:100%;height:100%;object-fit:cover;">
+                      <button type="button" onclick="window.clearHotspotMedia('photo', 'edit')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.7);color:#ff4d6d;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;">✕</button>
+                    </div>
+                  </div>
+
+                  <!-- Video Options Container -->
+                  <div id="editVideoControls" style="display:none;margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid rgba(255,255,255,0.05);">
+                    <label class="tour-field-label" style="font-size:10px;">Video of Item (YouTube, Vimeo, or MP4)</label>
+                    <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                      <input type="url" class="tour-dialog-input" id="editHsVideoUrlInput" placeholder="Paste YouTube, Vimeo, or MP4 URL..." style="flex:1;" oninput="window.updateMediaFromInput('video', this.value, 'edit')">
+                      <label class="tour-dialog-btn" style="cursor:pointer;padding:6px 10px;font-size:10px;white-space:nowrap;background:rgba(255,77,109,0.15);border:1px solid #FF4D6D;color:#FF4D6D;">
+                        📁 MP4
+                        <input type="file" accept="video/mp4,video/webm" style="display:none;" onchange="window.handleMediaFileUpload(this, 'video', 'edit')">
+                      </label>
+                    </div>
+                    <div style="font-size:10px;color:rgba(255,255,255,0.5);">Supports YouTube, Vimeo, or direct MP4 video files.</div>
+                  </div>
+
+                  <!-- 3D Model Options Container -->
+                  <div id="editModel3dControls" style="display:none;margin-bottom:8px;padding:8px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid rgba(255,255,255,0.05);">
+                    <label class="tour-field-label" style="font-size:10px;">3D Interactive Model</label>
+                    <div style="margin-bottom:6px;">
+                      <select class="tour-dialog-select" id="editHsModelPresetSelect" onchange="window.setHotspot3dPreset(this.value, 'edit')" style="margin-bottom:6px;">
+                        <option value="climbing-gear">🧗 Utah Climbing Gear & Carabiner (Metallic PBR)</option>
+                        <option value="vintage-camera">📷 Retro 3D Camera with Brass Lens</option>
+                        <option value="sneaker">👟 Athletic Street Sneaker / Shoe</option>
+                        <option value="smartwatch">⌚ Luxury Smartwatch with Digital Dial</option>
+                        <option value="diamond-gem">💎 Sparkling Faceted Diamond Gemstone</option>
+                        <option value="drone">🚁 High-Performance Aerial Drone</option>
+                        <option value="custom">🌐 Custom .GLB / .GLTF 3D File</option>
+                      </select>
+                    </div>
+                    <div id="editCustomGlbGroup" style="display:none;">
+                      <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                        <input type="url" class="tour-dialog-input" id="editHsModel3dUrlInput" placeholder="Paste .glb / .gltf URL..." style="flex:1;" oninput="window.updateMediaFromInput('model3d', this.value, 'edit')">
+                        <label class="tour-dialog-btn" style="cursor:pointer;padding:6px 10px;font-size:10px;white-space:nowrap;background:rgba(6,214,160,0.15);border:1px solid #06D6A0;color:#06D6A0;">
+                          📁 .GLB
+                          <input type="file" accept=".glb,.gltf" style="display:none;" onchange="window.handleMediaFileUpload(this, 'model3d', 'edit')">
+                        </label>
+                      </div>
+                    </div>
+                    <!-- Mini 3D Preview inside inspector -->
+                    <div id="edit3dMiniPreviewBox" style="width:100%;height:110px;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0c0a12 100%);border-radius:6px;border:1px solid rgba(63,221,224,0.3);position:relative;overflow:hidden;margin-top:6px;">
+                      <div id="edit3dMiniMount" style="width:100%;height:100%;cursor:grab;"></div>
+                      <span style="position:absolute;bottom:4px;left:6px;font-size:9px;color:#3FDDE0;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:4px;pointer-events:none;">🧊 Drag to test 3D spin</span>
+                    </div>
+                  </div>
+
+                  <!-- Description -->
+                  <label class="tour-field-label" style="font-size:10px;">Item Description / Story</label>
+                  <textarea class="tour-dialog-input" id="editHsInfoTextInput" rows="2" placeholder="Item details, specs, story, or description..."></textarea>
+
+                  <!-- CTA Button -->
+                  <div style="display:flex;gap:8px;margin-top:8px;">
+                    <div style="flex:1;">
+                      <label class="tour-field-label" style="font-size:10px;">Button Text</label>
+                      <input type="text" class="tour-dialog-input" id="editHsCtaTextInput" placeholder="e.g. Buy Now ↗, Order Online">
+                    </div>
+                    <div style="flex:1.5;">
+                      <label class="tour-field-label" style="font-size:10px;">Button Link (URL)</label>
+                      <input type="url" class="tour-dialog-input" id="editHsCtaUrlInput" placeholder="https://...">
+                    </div>
+                  </div>
+                </div>
+
+                <div id="editActionUrlGroup" class="tour-field-group" style="display:none;">
+                  <label class="tour-field-label">External Website Link (URL)</label>
+                  <input type="url" class="tour-dialog-input" id="editHsUrlInput" placeholder="https://example.com">
+                </div>
+              </div>
+
             </div>
             <div class="tour-dialog-footer" style="justify-content:space-between;">
               <button type="button" class="tour-dialog-btn tour-dialog-btn-danger" onclick="window.confirmDeleteHotspot()">🗑️ DELETE HOTSPOT</button>
@@ -3652,7 +4817,7 @@
   }
 
   /**
-   * Synchronizes Persistent Hotspot DOM Nodes (Called on Scene Load / Edit)
+   * Synchronizes Persistent Hotspot DOM Nodes with Kuula Icons and Disc Beacons
    */
   function syncHotspotsDom() {
     const layer = document.getElementById('tourHotspotsLayer');
@@ -3664,18 +4829,53 @@
 
     curScene.hotspots.forEach((hs, idx) => {
       const pin = document.createElement('div');
-      pin.className = 'tour-hotspot-pin' + (isEditorMode ? ' editor-pin' : '');
+      const placement = hs.placement || ((hs.icon === 'chevron-floor' || hs.icon === 'footsteps' || hs.pitch < -20) ? 'floor' : '2d');
+      const labelMode = hs.labelMode || 'always';
+      const color = hs.color || '#FFD23F';
+      const sizePct = (hs.size != null ? hs.size : 100) / 100;
+      const opacityVal = (hs.opacity != null ? hs.opacity : 100) / 100;
+      const rotationDeg = hs.rotation || 0;
+
+      const placementClass = (placement === 'floor') ? 'kuula-pin-floor' : ((placement === 'wall') ? 'kuula-pin-wall' : 'kuula-pin-2d');
+      const labelClass = (labelMode === 'hover') ? 'kuula-tooltip-hover' : ((labelMode === 'none') ? 'kuula-label-none' : '');
+      pin.className = `tour-hotspot-pin ${placementClass} ${labelClass} ${isEditorMode ? 'editor-pin' : ''}`;
       pin.dataset.hsIndex = idx;
       pin.style.display = 'none';
+      pin.style.setProperty('--pin-color', color);
+      pin.style.setProperty('--pin-scale', sizePct);
+      pin.style.opacity = opacityVal;
 
-      const pulse = document.createElement('span');
-      pulse.className = 'tour-hotspot-pulse';
-      pin.appendChild(pulse);
+      // 1. Disc container
+      const disc = document.createElement('div');
+      disc.className = 'kuula-pin-disc';
 
-      const lbl = document.createElement('span');
-      lbl.textContent = hs.label;
-      pin.appendChild(lbl);
+      // 2. Ripple Beacon ring
+      const beacon = document.createElement('div');
+      beacon.className = 'kuula-beacon-pulse';
+      disc.appendChild(beacon);
 
+      // 3. Icon Inner container
+      const iconWrapper = document.createElement('div');
+      iconWrapper.className = 'kuula-pin-icon-inner';
+      if (placement !== 'floor') {
+        iconWrapper.style.transform = `rotate(${rotationDeg}deg)`;
+      }
+
+      // Render Kuula Icon SVG or uploaded custom icon
+      const iconKey = hs.icon || 'chevron-floor';
+      iconWrapper.innerHTML = getKuulaSvg(iconKey, color);
+      disc.appendChild(iconWrapper);
+      pin.appendChild(disc);
+
+      // 4. Label / Tooltip Caption
+      if (labelMode !== 'none' && hs.label) {
+        const lbl = document.createElement('span');
+        lbl.className = 'kuula-pin-caption';
+        lbl.textContent = hs.label;
+        pin.appendChild(lbl);
+      }
+
+      // 5. Interaction: Edit Mode vs Visitor Mode
       if (isEditorMode) {
         const delBtn = document.createElement('button');
         delBtn.type = 'button';
@@ -3696,7 +4896,14 @@
       } else {
         pin.onclick = (e) => {
           e.stopPropagation();
-          window.switchTourScene(hs.targetScene);
+          const action = hs.actionType || 'scene';
+          if (action === 'info' || (hs.mediaType && hs.mediaType !== 'none')) {
+            window.showHotspotInfoCard(hs, idx);
+          } else if (action === 'url' && hs.url) {
+            window.open(hs.url, '_blank');
+          } else {
+            window.switchTourScene(hs.targetScene, hs);
+          }
         };
       }
 
@@ -3705,7 +4912,7 @@
   }
 
   /**
-   * Updates Hotspot Screen Coordinates with 3D Vector Math
+   * Updates Hotspot Screen Coordinates with 3D Vector Math & Kuula Perspective Scaling
    */
   function updateHotspotPositions3D(camera) {
     const layer = document.getElementById('tourHotspotsLayer');
@@ -3741,10 +4948,39 @@
         const screenX = (v.x * 0.5 + 0.5) * w;
         const screenY = (-v.y * 0.5 + 0.5) * h;
 
-        if (screenX >= -80 && screenX <= w + 80 && screenY >= -80 && screenY <= h + 80) {
+        if (screenX >= -120 && screenX <= w + 120 && screenY >= -120 && screenY <= h + 120) {
           pin.style.display = 'inline-flex';
           pin.style.left = `${screenX}px`;
           pin.style.top = `${screenY}px`;
+
+          // Scale with zoom if enabled (default true)
+          const scaleOnZoom = hs.scaleOnZoom !== false;
+          const zoomMultiplier = (scaleOnZoom && fov) ? Math.max(0.7, Math.min(1.35, 75 / fov)) : 1;
+          const sizePct = (hs.size != null ? hs.size : 100) / 100;
+          const finalScale = sizePct * zoomMultiplier;
+          pin.style.setProperty('--pin-scale', finalScale.toFixed(3));
+
+          // Real 3D Floor Perspective Flip Down calculation
+          const isFloor = (hs.placement === 'floor') || (!hs.placement && (hs.icon === 'chevron-floor' || hs.icon === 'footsteps' || hs.pitch < -20));
+          if (isFloor) {
+            // Camera pitch angle relative to floor: pitch < 0 means looking down at floor
+            const camPitch = typeof pitch === 'number' ? pitch : 0;
+            // When looking horizontal (pitch = 0), ground tilts away ~76deg
+            // When looking straight down (pitch = -90), ground is flat (~0-10deg)
+            const floorTilt = Math.max(20, Math.min(82, 85 + camPitch));
+
+            // Camera yaw angle relative to hotspot yaw
+            const camYaw = typeof yaw === 'number' ? yaw : 0;
+            let relYaw = (hs.yaw - camYaw);
+            while (relYaw > 180) relYaw -= 360;
+            while (relYaw < -180) relYaw += 360;
+
+            const userRot = hs.rotation || 0;
+            const floorRot = relYaw + userRot;
+
+            pin.style.setProperty('--floor-tilt', `${floorTilt.toFixed(1)}deg`);
+            pin.style.setProperty('--floor-rot', `${floorRot.toFixed(1)}deg`);
+          }
         } else {
           pin.style.display = 'none';
         }
@@ -3952,6 +5188,1229 @@
     }
   };
 
+  // ==========================================
+  // KUULA-STYLE HOTSPOT INSPECTOR & ICON SYSTEM
+  // ==========================================
+  const placeHsState = {
+    icon: 'chevron-up',
+    color: '#FFD23F',
+    size: 100,
+    opacity: 100,
+    rotation: 0,
+    placement: 'floor',
+    scaleOnZoom: true,
+    labelMode: 'always',
+    actionType: 'scene',
+    infoText: '',
+    url: '',
+    // Item Showcase & Media Extensions
+    mediaType: 'none', // 'none' | 'photo' | 'video' | 'model3d'
+    photoUrl: '',
+    videoUrl: '',
+    model3dPreset: 'climbing-gear', // 'climbing-gear' | 'vintage-camera' | 'sneaker' | 'smartwatch' | 'diamond-gem' | 'drone' | 'custom'
+    model3dUrl: '',
+    itemTitle: '',
+    itemPrice: '',
+    itemCtaText: '',
+    itemCtaUrl: ''
+  };
+
+  const editHsState = {
+    icon: 'chevron-up',
+    color: '#FFD23F',
+    size: 100,
+    opacity: 100,
+    rotation: 0,
+    placement: 'floor',
+    scaleOnZoom: true,
+    labelMode: 'always',
+    actionType: 'scene',
+    infoText: '',
+    url: '',
+    // Item Showcase & Media Extensions
+    mediaType: 'none',
+    photoUrl: '',
+    videoUrl: '',
+    model3dPreset: 'climbing-gear',
+    model3dUrl: '',
+    itemTitle: '',
+    itemPrice: '',
+    itemCtaText: '',
+    itemCtaUrl: ''
+  };
+
+  window.currentIconPickerTarget = 'place';
+  window.currentIconPickerCategory = 'All';
+
+  /**
+   * Synchronizes inspector preview box, sliders, labels, and pill switches with state
+   */
+  function syncInspectorUI(target) {
+    const isPlace = (target === 'place');
+    const state = isPlace ? placeHsState : editHsState;
+    const prefix = isPlace ? 'place' : 'edit';
+
+    // 1. Preview Icon Box
+    const previewInner = document.getElementById(`${prefix}HsIconPreviewInner`);
+    const categoryLabel = document.getElementById(`${prefix}HsIconCategory`);
+    if (previewInner) {
+      previewInner.style.transform = `rotate(${state.rotation}deg) scale(${state.size / 100})`;
+      previewInner.style.opacity = state.opacity / 100;
+      previewInner.style.color = state.color;
+
+      const iconKey = state.icon || 'chevron-floor';
+      previewInner.innerHTML = getKuulaSvg(iconKey, state.color || '#FFD23F');
+      if (categoryLabel) {
+        if (typeof iconKey === 'string' && (iconKey.startsWith('data:image') || iconKey.startsWith('http'))) {
+          categoryLabel.textContent = 'Custom Upload';
+        } else {
+          const iconDef = (typeof KUULA_ICONS !== 'undefined' && KUULA_ICONS[iconKey]) ? KUULA_ICONS[iconKey] : null;
+          categoryLabel.textContent = iconDef ? `${iconDef.name} (${iconDef.category})` : 'Floor Chevron (Navigation)';
+        }
+      }
+    }
+
+    // 2. Color picker & swatches
+    const colorPicker = document.getElementById(`${prefix}HsColorPicker`);
+    if (colorPicker) colorPicker.value = state.color || '#FFD23F';
+
+    // 3. Sliders & text values
+    const sizeSlider = document.getElementById(`${prefix}HsSizeSlider`);
+    const sizeVal = document.getElementById(`${prefix}HsSizeVal`);
+    if (sizeSlider) sizeSlider.value = state.size;
+    if (sizeVal) sizeVal.textContent = `${state.size}%`;
+
+    const opacitySlider = document.getElementById(`${prefix}HsOpacitySlider`);
+    const opacityVal = document.getElementById(`${prefix}HsOpacityVal`);
+    if (opacitySlider) opacitySlider.value = state.opacity;
+    if (opacityVal) opacityVal.textContent = `${state.opacity}%`;
+
+    const rotationSlider = document.getElementById(`${prefix}HsRotationSlider`);
+    const rotationVal = document.getElementById(`${prefix}HsRotationVal`);
+    if (rotationSlider) rotationSlider.value = state.rotation;
+    if (rotationVal) rotationVal.textContent = `${state.rotation}°`;
+
+    // 4. Placement pills
+    ['2d', 'floor', 'wall'].forEach(mode => {
+      const btn = document.getElementById(`${prefix}Placement${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+      if (btn) btn.classList.toggle('active', state.placement === mode);
+    });
+
+    // 5. Label mode pills
+    ['always', 'hover', 'none'].forEach(mode => {
+      const btn = document.getElementById(`${prefix}Label${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+      if (btn) btn.classList.toggle('active', state.labelMode === mode);
+    });
+
+    // 6. Action type pills & groups
+    ['scene', 'info', 'url'].forEach(type => {
+      const btn = document.getElementById(`${prefix}Action${type.charAt(0).toUpperCase() + type.slice(1)}`);
+      if (btn) btn.classList.toggle('active', state.actionType === type);
+
+      const grp = document.getElementById(`${prefix}Action${type.charAt(0).toUpperCase() + type.slice(1)}Group`);
+      if (grp) grp.style.display = (state.actionType === type) ? 'block' : 'none';
+    });
+
+    // 7. Scale on zoom checkbox
+    const zoomChk = document.getElementById(`${prefix}HsScaleOnZoom`);
+    if (zoomChk) zoomChk.checked = state.scaleOnZoom !== false;
+
+    // 8. ITEM SHOWCASE & MEDIA SECTION SYNC
+    const mediaPills = [
+      { id: 'none', label: 'None' },
+      { id: 'photo', label: 'Photo' },
+      { id: 'video', label: 'Video' },
+      { id: 'model3d', label: 'Model3d' }
+    ];
+    mediaPills.forEach(m => {
+      const pillBtn = document.getElementById(`${prefix}Media${m.label}`);
+      if (pillBtn) pillBtn.classList.toggle('active', state.mediaType === m.id);
+    });
+
+    // Toggle Media Sub-panels
+    const photoCtrl = document.getElementById(`${prefix}PhotoControls`);
+    const videoCtrl = document.getElementById(`${prefix}VideoControls`);
+    const modelCtrl = document.getElementById(`${prefix}Model3dControls`);
+    if (photoCtrl) photoCtrl.style.display = (state.mediaType === 'photo') ? 'block' : 'none';
+    if (videoCtrl) videoCtrl.style.display = (state.mediaType === 'video') ? 'block' : 'none';
+    if (modelCtrl) modelCtrl.style.display = (state.mediaType === 'model3d') ? 'block' : 'none';
+
+    // Photo input & thumbnail preview
+    const photoInp = document.getElementById(`${prefix}HsPhotoUrlInput`);
+    const photoThumb = document.getElementById(`${prefix}PhotoThumbPreview`);
+    const photoImg = document.getElementById(`${prefix}PhotoThumbImg`);
+    if (photoInp && photoInp.value !== state.photoUrl) photoInp.value = state.photoUrl || '';
+    if (photoThumb && photoImg) {
+      if (state.photoUrl) {
+        photoImg.src = state.photoUrl;
+        photoThumb.style.display = 'block';
+      } else {
+        photoThumb.style.display = 'none';
+      }
+    }
+
+    // Video input
+    const videoInp = document.getElementById(`${prefix}HsVideoUrlInput`);
+    if (videoInp && videoInp.value !== state.videoUrl) videoInp.value = state.videoUrl || '';
+
+    // 3D Model Preset & URL
+    const modelPresetSel = document.getElementById(`${prefix}HsModelPresetSelect`);
+    const customGlbGrp = document.getElementById(`${prefix}CustomGlbGroup`);
+    const model3dUrlInp = document.getElementById(`${prefix}HsModel3dUrlInput`);
+    if (modelPresetSel) modelPresetSel.value = state.model3dPreset || 'climbing-gear';
+    if (customGlbGrp) customGlbGrp.style.display = (state.model3dPreset === 'custom') ? 'block' : 'none';
+    if (model3dUrlInp && model3dUrlInp.value !== state.model3dUrl) model3dUrlInp.value = state.model3dUrl || '';
+
+    // Mini 3D Inspector Preview Canvas
+    if (state.mediaType === 'model3d') {
+      const miniMount = document.getElementById(`${prefix}3dMiniMount`);
+      if (miniMount) {
+        initMini3dInspector(miniMount, state.model3dPreset === 'custom' ? (state.model3dUrl || 'climbing-gear') : (state.model3dPreset || 'climbing-gear'));
+      }
+    }
+
+    // Item Title & Price inputs
+    const titleInp = document.getElementById(isPlace ? 'newHsItemTitleInput' : 'editHsItemTitleInput');
+    const priceInp = document.getElementById(isPlace ? 'newHsItemPriceInput' : 'editHsItemPriceInput');
+    const ctaTextInp = document.getElementById(isPlace ? 'newHsCtaTextInput' : 'editHsCtaTextInput');
+    const ctaUrlInp = document.getElementById(isPlace ? 'newHsCtaUrlInput' : 'editHsCtaUrlInput');
+
+    if (titleInp && titleInp.value !== (state.itemTitle || '')) titleInp.value = state.itemTitle || '';
+    if (priceInp && priceInp.value !== (state.itemPrice || '')) priceInp.value = state.itemPrice || '';
+    if (ctaTextInp && ctaTextInp.value !== (state.itemCtaText || '')) ctaTextInp.value = state.itemCtaText || '';
+    if (ctaUrlInp && ctaUrlInp.value !== (state.itemCtaUrl || '')) ctaUrlInp.value = state.itemCtaUrl || '';
+  }
+
+  // Tint picker
+  window.setHotspotTint = function (hexColor, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    state.color = hexColor;
+    syncInspectorUI(target);
+  };
+
+  // Appearance sliders
+  window.updateHsAppearance = function (prop, value, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    state[prop] = parseFloat(value);
+    syncInspectorUI(target);
+  };
+
+  // Rotation reset
+  window.resetHotspotRotation = function (target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    state.rotation = 0;
+    syncInspectorUI(target);
+  };
+
+  // Placement mode
+  window.setHotspotPlacement = function (mode, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    state.placement = mode;
+    syncInspectorUI(target);
+  };
+
+  // Label mode
+  window.setHotspotLabelMode = function (mode, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    state.labelMode = mode;
+    syncInspectorUI(target);
+  };
+
+  // Action type
+  window.setHotspotActionType = function (actionType, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    state.actionType = actionType;
+    syncInspectorUI(target);
+  };
+
+  // ==========================================
+  // ITEM SHOWCASE & MEDIA CUSTOMIZATION HANDLERS
+  // ==========================================
+  window.setHotspotMediaType = function (mediaType, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    state.mediaType = mediaType;
+    // When adding media, automatically switch actionType to info card
+    if (mediaType !== 'none') {
+      state.actionType = 'info';
+    }
+    syncInspectorUI(target);
+  };
+
+  window.updateMediaFromInput = function (type, val, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    if (type === 'photo') {
+      state.photoUrl = val.trim();
+    } else if (type === 'video') {
+      state.videoUrl = val.trim();
+    } else if (type === 'model3d') {
+      state.model3dUrl = val.trim();
+    }
+    syncInspectorUI(target);
+  };
+
+  window.setHotspot3dPreset = function (presetVal, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    state.model3dPreset = presetVal;
+    syncInspectorUI(target);
+  };
+
+  window.handleMediaFileUpload = function (inputEl, type, target) {
+    const file = inputEl?.files?.[0];
+    if (!file) return;
+
+    const state = (target === 'place') ? placeHsState : editHsState;
+    const reader = new FileReader();
+
+    if (type === 'model3d') {
+      reader.onload = function (e) {
+        state.model3dUrl = e.target.result;
+        state.model3dPreset = 'custom';
+        syncInspectorUI(target);
+        if (typeof showToast === 'function') {
+          showToast(`🧊 3D model "${file.name}" loaded!`);
+        }
+      };
+      reader.readAsDataURL(file);
+    } else if (type === 'photo') {
+      reader.onload = function (e) {
+        state.photoUrl = e.target.result;
+        syncInspectorUI(target);
+        if (typeof showToast === 'function') {
+          showToast(`📸 Item photo "${file.name}" loaded!`);
+        }
+      };
+      reader.readAsDataURL(file);
+    } else if (type === 'video') {
+      const blobUrl = URL.createObjectURL(file);
+      state.videoUrl = blobUrl;
+      syncInspectorUI(target);
+      if (typeof showToast === 'function') {
+        showToast(`🎥 Item video "${file.name}" ready to play!`);
+      }
+    }
+  };
+
+  window.clearHotspotMedia = function (type, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    if (type === 'photo') state.photoUrl = '';
+    if (type === 'video') state.videoUrl = '';
+    if (type === 'model3d') state.model3dUrl = '';
+    syncInspectorUI(target);
+  };
+
+  // Custom icon upload
+  window.handleUploadCustomIcon = function (event, target) {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const dataUrl = e.target.result;
+      const state = (target === 'place') ? placeHsState : editHsState;
+      state.icon = dataUrl;
+      syncInspectorUI(target);
+      window.closeIconPickerModal();
+      if (typeof showToast === 'function') {
+        showToast('📁 Custom icon image loaded!');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // ==========================================
+  // KUULA ICON PICKER MODAL
+  // ==========================================
+  window.openIconPickerModal = function (target) {
+    window.currentIconPickerTarget = target || 'place';
+    const modal = document.getElementById('tourIconPickerModal');
+    if (!modal) return;
+
+    window.populateIconPickerGrid();
+    modal.style.display = 'flex';
+  };
+
+  window.closeIconPickerModal = function () {
+    const modal = document.getElementById('tourIconPickerModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.filterIconPickerCategory = function (category, btnEl) {
+    window.currentIconPickerCategory = category;
+    if (btnEl) {
+      const parent = btnEl.parentElement;
+      if (parent) {
+        parent.querySelectorAll('.tour-chip').forEach(c => c.classList.remove('active'));
+      }
+      btnEl.classList.add('active');
+    }
+    window.populateIconPickerGrid();
+  };
+
+  window.populateIconPickerGrid = function () {
+    const grid = document.getElementById('kuulaIconsGridContainer');
+    if (!grid || typeof KUULA_ICONS === 'undefined') return;
+
+    const target = window.currentIconPickerTarget || 'place';
+    const state = (target === 'place') ? placeHsState : editHsState;
+    const curCat = window.currentIconPickerCategory || 'All';
+
+    grid.innerHTML = '';
+
+    Object.entries(KUULA_ICONS).forEach(([key, item]) => {
+      if (curCat !== 'All' && item.category !== curCat) return;
+
+      const isSelected = (state.icon === key);
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = `kuula-icon-card ${isSelected ? 'active' : ''}`;
+      card.title = item.name;
+      card.onclick = () => {
+        state.icon = key;
+        syncInspectorUI(target);
+        window.closeIconPickerModal();
+      };
+
+      const preview = document.createElement('div');
+      preview.className = 'kuula-icon-card-preview';
+      preview.innerHTML = getKuulaSvg(key, isSelected ? '#FFD23F' : (item.defaultColor || '#FFFFFF'));
+      card.appendChild(preview);
+
+      const name = document.createElement('div');
+      name.className = 'kuula-icon-card-name';
+      name.textContent = item.name;
+      card.appendChild(name);
+
+      grid.appendChild(card);
+    });
+  };
+
+  // ==========================================
+  // PROCEDURAL 3D ITEM MESH GENERATORS
+  // Studio-grade Three.js models rendered instantly with high-fidelity PBR materials
+  // ==========================================
+
+  function createProceduralClimbingGear() {
+    const group = new THREE.Group();
+
+    // Materials
+    const goldMetalMat = new THREE.MeshStandardMaterial({
+      color: 0xFFA000,
+      metalness: 0.88,
+      roughness: 0.22
+    });
+    const silverSteelMat = new THREE.MeshStandardMaterial({
+      color: 0xDDDFE5,
+      metalness: 0.95,
+      roughness: 0.15
+    });
+    const darkKnurlMat = new THREE.MeshStandardMaterial({
+      color: 0x303238,
+      metalness: 0.75,
+      roughness: 0.35
+    });
+    const nylonWebMat = new THREE.MeshStandardMaterial({
+      color: 0x06D6A0,
+      roughness: 0.85,
+      metalness: 0.05
+    });
+
+    // 1. Carabiner curved D-body (Torus arc)
+    const spineGeom = new THREE.TorusGeometry(0.9, 0.14, 20, 50, Math.PI * 1.55);
+    const spineMesh = new THREE.Mesh(spineGeom, goldMetalMat);
+    spineMesh.rotation.z = Math.PI * 0.75;
+    group.appendChild ? null : group.add(spineMesh);
+
+    // Straight back spine
+    const backGeom = new THREE.CylinderGeometry(0.14, 0.14, 1.35, 20);
+    const backMesh = new THREE.Mesh(backGeom, goldMetalMat);
+    backMesh.position.set(-0.9, 0.05, 0);
+    group.add(backMesh);
+
+    // 2. Spring Gate (Straight silver bar across opening)
+    const gateGeom = new THREE.CylinderGeometry(0.11, 0.11, 1.25, 20);
+    const gateMesh = new THREE.Mesh(gateGeom, silverSteelMat);
+    gateMesh.position.set(0.68, 0.05, 0);
+    group.add(gateMesh);
+
+    // Locking screw sleeve
+    const sleeveGeom = new THREE.CylinderGeometry(0.19, 0.19, 0.5, 24);
+    const sleeveMesh = new THREE.Mesh(sleeveGeom, darkKnurlMat);
+    sleeveMesh.position.set(0.68, 0.05, 0);
+    group.add(sleeveMesh);
+
+    // 3. Hanging Nylon Quickdraw Dogbone Sling
+    const slingGeom = new THREE.BoxGeometry(0.24, 1.6, 0.08);
+    const slingMesh = new THREE.Mesh(slingGeom, nylonWebMat);
+    slingMesh.position.set(0, -1.6, 0);
+    group.add(slingMesh);
+
+    // Lower Rope Carabiner
+    const lowerCarabiner = spineMesh.clone();
+    lowerCarabiner.position.set(0, -2.4, 0);
+    lowerCarabiner.rotation.y = Math.PI;
+    group.add(lowerCarabiner);
+
+    group.position.y = 0.8;
+    group.scale.set(0.75, 0.75, 0.75);
+    return group;
+  }
+
+  function createProceduralVintageCamera() {
+    const group = new THREE.Group();
+
+    // Materials
+    const leatherMat = new THREE.MeshStandardMaterial({
+      color: 0x1A1A1E,
+      roughness: 0.85,
+      metalness: 0.1
+    });
+    const chromeMat = new THREE.MeshStandardMaterial({
+      color: 0xE8ECF0,
+      metalness: 0.95,
+      roughness: 0.12
+    });
+    const brassMat = new THREE.MeshStandardMaterial({
+      color: 0xD4AF37,
+      metalness: 0.85,
+      roughness: 0.25
+    });
+    const glassLensMat = new THREE.MeshPhysicalMaterial({
+      color: 0x113366,
+      metalness: 0.1,
+      roughness: 0.02,
+      transmission: 0.8,
+      ior: 1.52,
+      clearcoat: 1.0
+    });
+
+    // 1. Camera Body (Leatherette base)
+    const bodyGeom = new THREE.BoxGeometry(2.4, 1.3, 0.9);
+    const bodyMesh = new THREE.Mesh(bodyGeom, leatherMat);
+    group.add(bodyMesh);
+
+    // 2. Top Chrome Plate
+    const topPlateGeom = new THREE.BoxGeometry(2.42, 0.35, 0.92);
+    const topPlate = new THREE.Mesh(topPlateGeom, chromeMat);
+    topPlate.position.set(0, 0.8, 0);
+    group.add(topPlate);
+
+    // Bottom Chrome Plate
+    const botPlateGeom = new THREE.BoxGeometry(2.42, 0.12, 0.92);
+    const botPlate = new THREE.Mesh(botPlateGeom, chromeMat);
+    botPlate.position.set(0, -0.7, 0);
+    group.add(botPlate);
+
+    // 3. Multi-Stage Lens Barrel
+    const lensBaseGeom = new THREE.CylinderGeometry(0.72, 0.78, 0.45, 36);
+    const lensBase = new THREE.Mesh(lensBaseGeom, chromeMat);
+    lensBase.rotation.x = Math.PI / 2;
+    lensBase.position.set(0, 0.05, 0.65);
+    group.add(lensBase);
+
+    // Aperture Knurled Ring (Brass)
+    const apertureRingGeom = new THREE.CylinderGeometry(0.68, 0.68, 0.25, 36);
+    const apertureRing = new THREE.Mesh(apertureRingGeom, brassMat);
+    apertureRing.rotation.x = Math.PI / 2;
+    apertureRing.position.set(0, 0.05, 0.92);
+    group.add(apertureRing);
+
+    // Lens Element (Curved glass front)
+    const glassGeom = new THREE.SphereGeometry(0.58, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.4);
+    const glassMesh = new THREE.Mesh(glassGeom, glassLensMat);
+    glassMesh.rotation.x = Math.PI / 2;
+    glassMesh.position.set(0, 0.05, 1.0);
+    group.add(glassMesh);
+
+    // 4. Dials & Controls
+    const shutterBtnGeom = new THREE.CylinderGeometry(0.14, 0.14, 0.18, 20);
+    const shutterBtn = new THREE.Mesh(shutterBtnGeom, chromeMat);
+    shutterBtn.position.set(0.85, 1.04, 0.05);
+    group.add(shutterBtn);
+
+    const shutterCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 16), new THREE.MeshStandardMaterial({ color: 0xFF4D6D }));
+    shutterCollar.position.set(0.85, 1.15, 0.05);
+    group.add(shutterCollar);
+
+    const dialGeom = new THREE.CylinderGeometry(0.24, 0.24, 0.16, 24);
+    const dialMesh = new THREE.Mesh(dialGeom, chromeMat);
+    dialMesh.position.set(-0.8, 1.02, 0.05);
+    group.add(dialMesh);
+
+    // Viewfinder window
+    const vfGeom = new THREE.BoxGeometry(0.35, 0.25, 0.2);
+    const vfMesh = new THREE.Mesh(vfGeom, glassLensMat);
+    vfMesh.position.set(0.6, 0.8, 0.45);
+    group.add(vfMesh);
+
+    group.scale.set(0.9, 0.9, 0.9);
+    return group;
+  }
+
+  function createProceduralSneaker() {
+    const group = new THREE.Group();
+
+    const rubberMat = new THREE.MeshStandardMaterial({ color: 0xF0F0F2, roughness: 0.65 });
+    const upperMat = new THREE.MeshStandardMaterial({ color: 0x1E2229, roughness: 0.7 });
+    const tealMat = new THREE.MeshStandardMaterial({ color: 0x3FDDE0, roughness: 0.4, metalness: 0.2 });
+    const laceMat = new THREE.MeshStandardMaterial({ color: 0xFFD23F, roughness: 0.9 });
+
+    // Outsole (Rubber sole base)
+    const soleGeom = new THREE.BoxGeometry(1.2, 0.35, 2.8);
+    const soleMesh = new THREE.Mesh(soleGeom, rubberMat);
+    soleMesh.position.set(0, -0.6, 0);
+    group.add(soleMesh);
+
+    // Upper shoe profile
+    const upperGeom = new THREE.BoxGeometry(1.15, 0.85, 2.7);
+    const upperMesh = new THREE.Mesh(upperGeom, upperMat);
+    upperMesh.position.set(0, -0.1, 0);
+    group.add(upperMesh);
+
+    // Ankle Collar
+    const collarGeom = new THREE.CylinderGeometry(0.55, 0.55, 0.7, 24);
+    const collarMesh = new THREE.Mesh(collarGeom, upperMat);
+    collarMesh.position.set(0, 0.4, -0.4);
+    group.add(collarMesh);
+
+    // Toe Cap
+    const toeGeom = new THREE.SphereGeometry(0.58, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
+    const toeMesh = new THREE.Mesh(toeGeom, tealMat);
+    toeMesh.position.set(0, -0.1, 0.85);
+    group.add(toeMesh);
+
+    // Athletic Swoop Accent Stripe
+    const stripeGeom = new THREE.BoxGeometry(1.22, 0.16, 1.4);
+    const stripeMesh = new THREE.Mesh(stripeGeom, tealMat);
+    stripeMesh.position.set(0, 0, 0);
+    stripeMesh.rotation.x = 0.2;
+    group.add(stripeMesh);
+
+    // Laces
+    for (let i = 0; i < 4; i++) {
+      const laceBar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8, 12), laceMat);
+      laceBar.rotation.z = Math.PI / 2;
+      laceBar.position.set(0, 0.38 + i * 0.05, 0.1 + i * 0.24);
+      group.add(laceBar);
+    }
+
+    group.scale.set(0.9, 0.9, 0.9);
+    return group;
+  }
+
+  function createProceduralSmartwatch() {
+    const group = new THREE.Group();
+
+    const caseMat = new THREE.MeshStandardMaterial({ color: 0x22242A, metalness: 0.85, roughness: 0.25 });
+    const screenGlassMat = new THREE.MeshPhysicalMaterial({ color: 0x050A14, roughness: 0.05, clearcoat: 1.0 });
+    const strapMat = new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.8 });
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0xDDDFE5, metalness: 0.9, roughness: 0.2 });
+
+    // Watch Case (Chamfered pebble body)
+    const caseGeom = new THREE.BoxGeometry(1.5, 1.8, 0.45);
+    const caseMesh = new THREE.Mesh(caseGeom, caseMat);
+    group.add(caseMesh);
+
+    // Curved Glossy Glass Screen
+    const screenGeom = new THREE.BoxGeometry(1.42, 1.72, 0.08);
+    const screenMesh = new THREE.Mesh(screenGeom, screenGlassMat);
+    screenMesh.position.set(0, 0, 0.22);
+    group.add(screenMesh);
+
+    // Digital UI Glow Element inside watch face
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#060A14';
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#3FDDE0';
+      ctx.font = 'bold 54px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('10:09', 128, 120);
+      ctx.fillStyle = '#06D6A0';
+      ctx.font = '22px sans-serif';
+      ctx.fillText('72 BPM · 640 KCAL', 128, 160);
+      ctx.strokeStyle = '#FFD23F';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(128, 128, 105, -Math.PI / 2, Math.PI * 0.9);
+      ctx.stroke();
+    }
+    const dialTexture = new THREE.CanvasTexture(canvas);
+    const dialPlate = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.3, 1.5),
+      new THREE.MeshBasicMaterial({ map: dialTexture, transparent: true })
+    );
+    dialPlate.position.set(0, 0, 0.24);
+    group.add(dialPlate);
+
+    // Digital Crown Knob
+    const crownGeom = new THREE.CylinderGeometry(0.16, 0.16, 0.2, 24);
+    const crownMesh = new THREE.Mesh(crownGeom, crownMat);
+    crownMesh.rotation.z = Math.PI / 2;
+    crownMesh.position.set(0.85, 0.4, 0);
+    group.add(crownMesh);
+
+    // Top & Bottom Silicone Straps
+    const topStrapGeom = new THREE.BoxGeometry(1.2, 1.4, 0.16);
+    const topStrap = new THREE.Mesh(topStrapGeom, strapMat);
+    topStrap.position.set(0, 1.5, -0.05);
+    group.add(topStrap);
+
+    const botStrapGeom = new THREE.BoxGeometry(1.2, 1.4, 0.16);
+    const botStrap = new THREE.Mesh(botStrapGeom, strapMat);
+    botStrap.position.set(0, -1.5, -0.05);
+    group.add(botStrap);
+
+    return group;
+  }
+
+  function createProceduralDiamondGem() {
+    const group = new THREE.Group();
+
+    // Brilliant Faceted Gemstone Geometry
+    const gemGeom = new THREE.IcosahedronGeometry(1.4, 0);
+    const gemMat = new THREE.MeshPhysicalMaterial({
+      color: 0xE8F8FF,
+      roughness: 0.02,
+      transmission: 0.95,
+      ior: 2.417, // Pure diamond refractive index
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.05,
+      transparent: true,
+      opacity: 0.92,
+      flatShading: true
+    });
+    const gemMesh = new THREE.Mesh(gemGeom, gemMat);
+    group.add(gemMesh);
+
+    // Internal Sparkle Core
+    const innerLight = new THREE.PointLight(0x3FDDE0, 1.5, 3);
+    group.add(innerLight);
+
+    return group;
+  }
+
+  function createProceduralDrone() {
+    const group = new THREE.Group();
+
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1E2026, metalness: 0.8, roughness: 0.25 });
+    const armMat = new THREE.MeshStandardMaterial({ color: 0x111215, roughness: 0.7 });
+    const rotorMat = new THREE.MeshStandardMaterial({ color: 0x3FDDE0, roughness: 0.3, transparent: true, opacity: 0.85 });
+    const cameraMat = new THREE.MeshStandardMaterial({ color: 0x0A0A0E, metalness: 0.95, roughness: 0.1 });
+
+    // Central Pod
+    const podGeom = new THREE.CylinderGeometry(0.45, 0.55, 0.3, 24);
+    const podMesh = new THREE.Mesh(podGeom, bodyMat);
+    group.add(podMesh);
+
+    // 4 Diagonal Motor Arms
+    const angles = [Math.PI / 4, 3 * Math.PI / 4, 5 * Math.PI / 4, 7 * Math.PI / 4];
+    angles.forEach(ang => {
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.6, 12), armMat);
+      arm.rotation.z = Math.PI / 2;
+      arm.rotation.y = ang;
+      group.add(arm);
+
+      // Motor Hub
+      const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.2, 16), bodyMat);
+      motor.position.set(Math.cos(ang) * 0.8, 0.1, Math.sin(ang) * 0.8);
+      group.add(motor);
+
+      // Spinning Propeller blades
+      const prop = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.02, 0.08), rotorMat);
+      prop.position.set(Math.cos(ang) * 0.8, 0.22, Math.sin(ang) * 0.8);
+      group.add(prop);
+    });
+
+    // 4K Camera Gimbal underneath
+    const camSphere = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 16), cameraMat);
+    camSphere.position.set(0, -0.22, 0.2);
+    group.add(camSphere);
+
+    return group;
+  }
+
+  // ==========================================
+  // ACTIVE 3D ITEM VIEWER INSTANCE (Three.js WebGL)
+  // ==========================================
+  let active3dViewer = {
+    renderer: null,
+    scene: null,
+    camera: null,
+    animId: null,
+    mountEl: null,
+    modelMesh: null,
+    autoRotate: true,
+    isDragging: false,
+    prevMouse: { x: 0, y: 0 },
+    rotation: { x: 0.2, y: 0 },
+    distance: 4.5
+  };
+
+  let miniInspector3dViewer = {
+    renderer: null,
+    scene: null,
+    camera: null,
+    animId: null,
+    mountEl: null,
+    modelMesh: null
+  };
+
+  function dispose3dViewer(viewerInstance) {
+    if (!viewerInstance) return;
+    if (viewerInstance.animId) {
+      cancelAnimationFrame(viewerInstance.animId);
+      viewerInstance.animId = null;
+    }
+    if (viewerInstance.renderer) {
+      if (viewerInstance.renderer.domElement && viewerInstance.renderer.domElement.parentNode) {
+        viewerInstance.renderer.domElement.parentNode.removeChild(viewerInstance.renderer.domElement);
+      }
+      viewerInstance.renderer.dispose();
+      viewerInstance.renderer = null;
+    }
+    viewerInstance.scene = null;
+    viewerInstance.camera = null;
+    viewerInstance.modelMesh = null;
+  }
+
+  function get3dModelMeshBySrc(modelSrc) {
+    const key = (typeof modelSrc === 'string') ? modelSrc.toLowerCase() : 'climbing-gear';
+    if (key.includes('camera')) return createProceduralVintageCamera();
+    if (key.includes('sneaker') || key.includes('shoe')) return createProceduralSneaker();
+    if (key.includes('watch')) return createProceduralSmartwatch();
+    if (key.includes('diamond') || key.includes('gem')) return createProceduralDiamondGem();
+    if (key.includes('drone')) return createProceduralDrone();
+    return createProceduralClimbingGear();
+  }
+
+  function init3dItemViewer(mountEl, modelSrc, isInteractive) {
+    if (!mountEl) return;
+    dispose3dViewer(active3dViewer);
+
+    const width = mountEl.clientWidth || 420;
+    const height = mountEl.clientHeight || 270;
+
+    // Scene
+    const scene = new THREE.Scene();
+
+    // Camera
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+    camera.position.set(0, 1.2, 4.5);
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
+    mountEl.innerHTML = '';
+    mountEl.appendChild(renderer.domElement);
+
+    // Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.1);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    keyLight.position.set(5, 7, 5);
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x3FDDE0, 0.7);
+    fillLight.position.set(-5, -2, -3);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.PointLight(0xFFD23F, 1.2, 12);
+    rimLight.position.set(0, 4, -4);
+    scene.add(rimLight);
+
+    // Model Mesh Root
+    const modelRoot = new THREE.Group();
+    scene.add(modelRoot);
+
+    // Check if custom .glb / .gltf URL
+    const isUrl = (typeof modelSrc === 'string') && (modelSrc.startsWith('http') || modelSrc.startsWith('data:') || modelSrc.startsWith('blob:'));
+    if (isUrl && typeof THREE.GLTFLoader !== 'undefined') {
+      const loader = new THREE.GLTFLoader();
+      loader.load(
+        modelSrc,
+        (gltf) => {
+          const loadedMesh = gltf.scene;
+          // Center and auto-scale model
+          const box = new THREE.Box3().setFromObject(loadedMesh);
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z) || 1;
+          const scale = 2.4 / maxDim;
+          loadedMesh.scale.set(scale, scale, scale);
+          const center = box.getCenter(new THREE.Vector3());
+          loadedMesh.position.sub(center.multiplyScalar(scale));
+          modelRoot.add(loadedMesh);
+        },
+        undefined,
+        (err) => {
+          console.warn('GLTFLoader error, falling back to procedural climbing gear:', err);
+          modelRoot.add(createProceduralClimbingGear());
+        }
+      );
+    } else {
+      modelRoot.add(get3dModelMeshBySrc(modelSrc));
+    }
+
+    active3dViewer = {
+      renderer,
+      scene,
+      camera,
+      mountEl,
+      modelMesh: modelRoot,
+      autoRotate: true,
+      isDragging: false,
+      prevMouse: { x: 0, y: 0 },
+      rotation: { x: 0.2, y: 0 },
+      distance: 4.5,
+      animId: null
+    };
+
+    // Pointer Interaction (Orbit & Spin)
+    if (isInteractive) {
+      const dom = renderer.domElement;
+
+      const onPointerDown = (e) => {
+        active3dViewer.isDragging = true;
+        active3dViewer.autoRotate = false; // Pause auto rotate on manual touch
+        active3dViewer.prevMouse = {
+          x: e.clientX || (e.touches && e.touches[0]?.clientX) || 0,
+          y: e.clientY || (e.touches && e.touches[0]?.clientY) || 0
+        };
+      };
+
+      const onPointerMove = (e) => {
+        if (!active3dViewer.isDragging) return;
+        const curX = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;
+        const curY = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;
+        const deltaX = curX - active3dViewer.prevMouse.x;
+        const deltaY = curY - active3dViewer.prevMouse.y;
+
+        active3dViewer.rotation.y += deltaX * 0.012;
+        active3dViewer.rotation.x = Math.max(-1.1, Math.min(1.1, active3dViewer.rotation.x + deltaY * 0.012));
+
+        active3dViewer.prevMouse = { x: curX, y: curY };
+      };
+
+      const onPointerUp = () => {
+        active3dViewer.isDragging = false;
+      };
+
+      const onWheel = (e) => {
+        e.preventDefault();
+        const delta = Math.sign(e.deltaY) * 0.35;
+        active3dViewer.distance = Math.max(1.8, Math.min(8.0, active3dViewer.distance + delta));
+      };
+
+      dom.addEventListener('mousedown', onPointerDown);
+      window.addEventListener('mousemove', onPointerMove);
+      window.addEventListener('mouseup', onPointerUp);
+
+      dom.addEventListener('touchstart', onPointerDown, { passive: true });
+      window.addEventListener('touchmove', onPointerMove, { passive: true });
+      window.addEventListener('touchend', onPointerUp);
+
+      dom.addEventListener('wheel', onWheel, { passive: false });
+    }
+
+    // Animation Render Loop
+    function animate() {
+      active3dViewer.animId = requestAnimationFrame(animate);
+
+      if (active3dViewer.autoRotate && !active3dViewer.isDragging) {
+        active3dViewer.rotation.y += 0.015;
+      }
+
+      // Smooth camera position from orbit coordinates
+      const cam = active3dViewer.camera;
+      const dist = active3dViewer.distance;
+      const rotY = active3dViewer.rotation.y;
+      const rotX = active3dViewer.rotation.x;
+
+      cam.position.x = dist * Math.sin(rotY) * Math.cos(rotX);
+      cam.position.y = dist * Math.sin(rotX) + 0.4;
+      cam.position.z = dist * Math.cos(rotY) * Math.cos(rotX);
+      cam.lookAt(0, 0.2, 0);
+
+      active3dViewer.renderer.render(active3dViewer.scene, active3dViewer.camera);
+    }
+    animate();
+  }
+
+  window.toggle3dModalAutoRotate = function () {
+    active3dViewer.autoRotate = !active3dViewer.autoRotate;
+    const btn = document.getElementById('tour3dAutoRotateBtn');
+    if (btn) {
+      btn.style.color = active3dViewer.autoRotate ? '#3FDDE0' : '#fff';
+      btn.textContent = active3dViewer.autoRotate ? '⟳ Rotating' : '⏸ Paused';
+    }
+  };
+
+  window.reset3dModalCamera = function () {
+    active3dViewer.rotation = { x: 0.2, y: 0 };
+    active3dViewer.distance = 4.5;
+    active3dViewer.autoRotate = true;
+    const btn = document.getElementById('tour3dAutoRotateBtn');
+    if (btn) {
+      btn.style.color = '#fff';
+      btn.textContent = '⟳ Auto-Rotate';
+    }
+  };
+
+  // Mini inspector 3D Preview (inside the hotspot inspector)
+  function initMini3dInspector(mountEl, modelSrc) {
+    if (!mountEl) return;
+    dispose3dViewer(miniInspector3dViewer);
+
+    const width = mountEl.clientWidth || 320;
+    const height = mountEl.clientHeight || 110;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 50);
+    camera.position.set(0, 0.8, 3.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    mountEl.innerHTML = '';
+    mountEl.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    dirLight.position.set(3, 5, 4);
+    scene.add(dirLight);
+
+    const modelRoot = new THREE.Group();
+    scene.add(modelRoot);
+    modelRoot.add(get3dModelMeshBySrc(modelSrc));
+
+    miniInspector3dViewer = {
+      renderer,
+      scene,
+      camera,
+      mountEl,
+      modelMesh: modelRoot,
+      animId: null
+    };
+
+    function animMini() {
+      miniInspector3dViewer.animId = requestAnimationFrame(animMini);
+      modelRoot.rotation.y += 0.02;
+      renderer.render(scene, camera);
+    }
+    animMini();
+  }
+
+  // ==========================================
+  // VIDEO & PHOTO LIGHTBOX HELPERS
+  // ==========================================
+  function getEmbedVideoInfo(rawUrl) {
+    if (!rawUrl) return { type: 'none', url: '' };
+    const str = rawUrl.trim();
+
+    // YouTube
+    const ytMatch = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
+    if (ytMatch && ytMatch[1]) {
+      return { type: 'iframe', url: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=1&rel=0` };
+    }
+    // Vimeo
+    const vimeoMatch = str.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|video\/|)(\d+)/i);
+    if (vimeoMatch && vimeoMatch[3]) {
+      return { type: 'iframe', url: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1` };
+    }
+    // Direct Video (MP4, WebM, blob)
+    return { type: 'video', url: str };
+  }
+
+  function setupHotspotVideoPlayer(rawUrl) {
+    const iframe = document.getElementById('tourInfoModalIframe');
+    const nativeVideo = document.getElementById('tourInfoModalNativeVideo');
+    if (!iframe || !nativeVideo) return;
+
+    const info = getEmbedVideoInfo(rawUrl);
+    if (info.type === 'iframe') {
+      nativeVideo.pause();
+      nativeVideo.style.display = 'none';
+      iframe.style.display = 'block';
+      iframe.src = info.url;
+    } else if (info.type === 'video') {
+      iframe.src = 'about:blank';
+      iframe.style.display = 'none';
+      nativeVideo.style.display = 'block';
+      nativeVideo.src = info.url;
+      nativeVideo.play().catch(() => {});
+    } else {
+      iframe.src = 'about:blank';
+      iframe.style.display = 'none';
+      nativeVideo.pause();
+      nativeVideo.style.display = 'none';
+    }
+  }
+
+  window.openHotspotPhotoLightbox = function (imgSrc) {
+    const modal = document.getElementById('tourPhotoLightboxModal');
+    const img = document.getElementById('tourPhotoLightboxImg');
+    if (!modal || !img || !imgSrc) return;
+    img.src = imgSrc;
+    modal.style.display = 'flex';
+  };
+
+  window.closeHotspotPhotoLightbox = function () {
+    const modal = document.getElementById('tourPhotoLightboxModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  // ==========================================
+  // HOTSPOT INFO CARD POPUP & ITEM SHOWCASE
+  // ==========================================
+  window.showHotspotInfoCard = function (hs, hsIndex) {
+    const modal = document.getElementById('tourHotspotInfoModal');
+    if (!modal || !hs) return;
+
+    window._currentlyViewingHotspot = hs;
+    window._currentlyViewingHotspotIndex = (typeof hsIndex === 'number') ? hsIndex : -1;
+
+    const titleEl = document.getElementById('tourInfoModalTitle');
+    const descEl = document.getElementById('tourInfoModalDesc');
+    const iconWrap = document.getElementById('tourInfoModalIconWrapper');
+    const priceBadge = document.getElementById('tourInfoModalPriceBadge');
+    const mediaWrap = document.getElementById('tourInfoMediaWrapper');
+    const container3d = document.getElementById('tourInfoModal3dContainer');
+    const containerPhoto = document.getElementById('tourInfoModalPhotoContainer');
+    const containerVideo = document.getElementById('tourInfoModalVideoContainer');
+    const actionWrap = document.getElementById('tourInfoModalActionWrapper');
+    const editBar = document.getElementById('tourInfoModalEditBar');
+
+    const title = hs.itemTitle || hs.label || 'SpotLIGHT Feature Item';
+    const desc = hs.infoText || 'Explore details, interactive 3D perspectives, and features inside this 360 space.';
+    const price = hs.itemPrice || '';
+    const mediaType = hs.mediaType || (hs.model3dUrl || hs.model3dPreset ? 'model3d' : (hs.photoUrl ? 'photo' : (hs.videoUrl ? 'video' : 'none')));
+
+    if (titleEl) titleEl.textContent = title;
+    if (descEl) descEl.textContent = desc;
+
+    // Price Badge
+    if (priceBadge) {
+      if (price) {
+        priceBadge.textContent = price;
+        priceBadge.style.display = 'inline-block';
+      } else {
+        priceBadge.style.display = 'none';
+      }
+    }
+
+    // Media Display Logic
+    if (mediaWrap) {
+      if (container3d) container3d.style.display = 'none';
+      if (containerPhoto) containerPhoto.style.display = 'none';
+      if (containerVideo) containerVideo.style.display = 'none';
+
+      if (mediaType === 'model3d') {
+        mediaWrap.style.display = 'block';
+        if (iconWrap) iconWrap.style.display = 'none';
+        if (container3d) {
+          container3d.style.display = 'block';
+          const mount = document.getElementById('tourInfoModal3dCanvasMount');
+          const modelSrc = hs.model3dUrl || hs.model3dPreset || 'climbing-gear';
+          init3dItemViewer(mount, modelSrc, true);
+        }
+      } else if (mediaType === 'photo' && (hs.photoUrl || hs.url)) {
+        mediaWrap.style.display = 'block';
+        if (iconWrap) iconWrap.style.display = 'none';
+        if (containerPhoto) {
+          containerPhoto.style.display = 'block';
+          const img = document.getElementById('tourInfoModalImg');
+          if (img) img.src = hs.photoUrl || hs.url;
+        }
+      } else if (mediaType === 'video' && (hs.videoUrl || hs.url)) {
+        mediaWrap.style.display = 'block';
+        if (iconWrap) iconWrap.style.display = 'none';
+        if (containerVideo) {
+          containerVideo.style.display = 'block';
+          setupHotspotVideoPlayer(hs.videoUrl || hs.url);
+        }
+      } else {
+        // None / Default icon badge
+        mediaWrap.style.display = 'none';
+        if (iconWrap) {
+          iconWrap.style.display = 'flex';
+          iconWrap.style.borderColor = hs.color || '#FFD23F';
+          const iconKey = hs.icon || 'info';
+          iconWrap.innerHTML = getKuulaSvg(iconKey, hs.color || '#FFD23F');
+        }
+      }
+    }
+
+    // Action and CTA Buttons
+    if (actionWrap) {
+      actionWrap.innerHTML = '';
+      const ctaUrl = hs.itemCtaUrl || hs.url;
+      const ctaText = hs.itemCtaText || (ctaUrl ? 'Buy Item ↗' : '');
+
+      if (ctaUrl) {
+        const linkBtn = document.createElement('a');
+        linkBtn.href = ctaUrl;
+        linkBtn.target = '_blank';
+        linkBtn.className = 'tour-dialog-btn tour-dialog-btn-confirm';
+        linkBtn.style.padding = '8px 20px';
+        linkBtn.style.fontWeight = '800';
+        linkBtn.textContent = ctaText || 'Buy Now ↗';
+        actionWrap.appendChild(linkBtn);
+      }
+
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'tour-dialog-btn tour-dialog-btn-cancel';
+      closeBtn.style.padding = '8px 18px';
+      closeBtn.textContent = 'Close';
+      closeBtn.onclick = () => window.closeHotspotInfoModal();
+      actionWrap.appendChild(closeBtn);
+    }
+
+    // Quick Customize button in Editor Mode
+    if (editBar) {
+      editBar.style.display = isEditorMode ? 'block' : 'none';
+    }
+
+    modal.style.display = 'flex';
+  };
+
+  window.closeHotspotInfoModal = function () {
+    const modal = document.getElementById('tourHotspotInfoModal');
+    if (modal) modal.style.display = 'none';
+
+    // Dispose active 3D viewer & stop video
+    dispose3dViewer(active3dViewer);
+    const iframe = document.getElementById('tourInfoModalIframe');
+    if (iframe) iframe.src = 'about:blank';
+    const video = document.getElementById('tourInfoModalNativeVideo');
+    if (video) video.pause();
+  };
+
+  window.customizeHotspotFromModal = function () {
+    const idx = window._currentlyViewingHotspotIndex;
+    window.closeHotspotInfoModal();
+    if (typeof idx === 'number' && idx >= 0) {
+      window.editHotspotDetails(idx);
+    } else {
+      const curScene = activeSceneList[activeSceneIndex];
+      if (curScene && curScene.hotspots && window._currentlyViewingHotspot) {
+        const foundIdx = curScene.hotspots.indexOf(window._currentlyViewingHotspot);
+        if (foundIdx >= 0) {
+          window.editHotspotDetails(foundIdx);
+          return;
+        }
+      }
+      if (typeof showToast === 'function') {
+        showToast('✏️ Turn on Editor Mode from the top bar to customize hotspots.');
+      }
+    }
+  };
+
   // 1. PLACE HOTSPOT
   window.openPlaceHotspotDialog = function () {
     const modal = document.getElementById('tourPlaceHotspotModal');
@@ -3971,6 +6430,7 @@
       `).join('');
     }
 
+    syncInspectorUI('place');
     modal.style.display = 'flex';
   };
 
@@ -3987,9 +6447,17 @@
   window.confirmPlaceHotspot = function () {
     const labelInp = document.getElementById('newHsLabelInput');
     const select = document.getElementById('newHsTargetSceneSelect');
+    const infoInp = document.getElementById('newHsInfoTextInput');
+    const urlInp = document.getElementById('newHsUrlInput');
+    const zoomChk = document.getElementById('placeHsScaleOnZoom');
 
     const label = (labelInp && labelInp.value.trim()) ? labelInp.value.trim() : '🚪 Step Inside Room';
     const targetScene = select ? select.value : (activeSceneList[0]?.id || 'slc-entrance');
+
+    const titleInp = document.getElementById('newHsItemTitleInput');
+    const priceInp = document.getElementById('newHsItemPriceInput');
+    const ctaTextInp = document.getElementById('newHsCtaTextInput');
+    const ctaUrlInp = document.getElementById('newHsCtaUrlInput');
 
     const curScene = activeSceneList[activeSceneIndex];
     if (!curScene) return;
@@ -4002,7 +6470,28 @@
       pitch: Math.round(pitch),
       yaw: Math.round(yaw),
       label: label,
-      targetScene: targetScene
+      targetScene: targetScene,
+      icon: placeHsState.icon || 'chevron-up',
+      color: placeHsState.color || '#FFD23F',
+      size: placeHsState.size != null ? placeHsState.size : 100,
+      opacity: placeHsState.opacity != null ? placeHsState.opacity : 100,
+      rotation: placeHsState.rotation || 0,
+      placement: placeHsState.placement || 'floor',
+      scaleOnZoom: zoomChk ? zoomChk.checked : true,
+      labelMode: placeHsState.labelMode || 'always',
+      actionType: placeHsState.actionType || 'scene',
+      infoText: infoInp ? infoInp.value.trim() : '',
+      url: urlInp ? urlInp.value.trim() : '',
+      // Showcase Media & Item Properties
+      mediaType: placeHsState.mediaType || 'none',
+      photoUrl: placeHsState.photoUrl || '',
+      videoUrl: placeHsState.videoUrl || '',
+      model3dPreset: placeHsState.model3dPreset || 'climbing-gear',
+      model3dUrl: placeHsState.model3dUrl || '',
+      itemTitle: titleInp ? titleInp.value.trim() : (placeHsState.itemTitle || ''),
+      itemPrice: priceInp ? priceInp.value.trim() : (placeHsState.itemPrice || ''),
+      itemCtaText: ctaTextInp ? ctaTextInp.value.trim() : (placeHsState.itemCtaText || ''),
+      itemCtaUrl: ctaUrlInp ? ctaUrlInp.value.trim() : (placeHsState.itemCtaUrl || '')
     });
 
     window.closePlaceHotspotDialog();
@@ -4010,7 +6499,7 @@
     window.saveTourChangesToMagazine();
 
     if (typeof showToast === 'function') {
-      showToast(`📍 Placed hotspot "${label}" at Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°!`);
+      showToast(`📍 Placed Kuula hotspot "${label}" at Yaw ${Math.round(yaw)}°, Pitch ${Math.round(pitch)}°!`);
     }
   };
 
@@ -5039,7 +7528,7 @@
   };
 
   // ==========================================
-  // 7. EDIT / DELETE HOTSPOT DIALOG
+  // 7. EDIT / DELETE HOTSPOT DIALOG (KUULA INSPECTOR)
   // ==========================================
   window.editHotspotDetails = function (index, event) {
     if (event) { event.stopPropagation(); event.preventDefault(); }
@@ -5053,9 +7542,36 @@
     const idxInp = document.getElementById('editHsIndex');
     const labelInp = document.getElementById('editHsLabelInput');
     const select = document.getElementById('editHsTargetSceneSelect');
+    const infoInp = document.getElementById('editHsInfoTextInput');
+    const urlInp = document.getElementById('editHsUrlInput');
 
     if (idxInp) idxInp.value = index;
-    if (labelInp) labelInp.value = hs.label;
+    if (labelInp) labelInp.value = hs.label || '';
+    if (infoInp) infoInp.value = hs.infoText || '';
+    if (urlInp) urlInp.value = hs.url || '';
+
+    // Populate state from hotspot object
+    editHsState.icon = hs.icon || 'chevron-up';
+    editHsState.color = hs.color || '#FFD23F';
+    editHsState.size = hs.size != null ? hs.size : 100;
+    editHsState.opacity = hs.opacity != null ? hs.opacity : 100;
+    editHsState.rotation = hs.rotation || 0;
+    editHsState.placement = hs.placement || 'floor';
+    editHsState.scaleOnZoom = hs.scaleOnZoom !== false;
+    editHsState.labelMode = hs.labelMode || 'always';
+    editHsState.actionType = hs.actionType || 'scene';
+    editHsState.infoText = hs.infoText || '';
+    editHsState.url = hs.url || '';
+    // Showcase Media & Item Properties
+    editHsState.mediaType = hs.mediaType || 'none';
+    editHsState.photoUrl = hs.photoUrl || '';
+    editHsState.videoUrl = hs.videoUrl || '';
+    editHsState.model3dPreset = hs.model3dPreset || 'climbing-gear';
+    editHsState.model3dUrl = hs.model3dUrl || '';
+    editHsState.itemTitle = hs.itemTitle || '';
+    editHsState.itemPrice = hs.itemPrice || '';
+    editHsState.itemCtaText = hs.itemCtaText || '';
+    editHsState.itemCtaUrl = hs.itemCtaUrl || '';
 
     if (select) {
       select.innerHTML = activeSceneList.map(sc => `
@@ -5065,6 +7581,7 @@
       `).join('');
     }
 
+    syncInspectorUI('edit');
     modal.style.display = 'flex';
   };
 
@@ -5092,6 +7609,13 @@
     const idxInp = document.getElementById('editHsIndex');
     const labelInp = document.getElementById('editHsLabelInput');
     const select = document.getElementById('editHsTargetSceneSelect');
+    const infoInp = document.getElementById('editHsInfoTextInput');
+    const urlInp = document.getElementById('editHsUrlInput');
+    const zoomChk = document.getElementById('editHsScaleOnZoom');
+    const editTitleInp = document.getElementById('editHsItemTitleInput');
+    const editPriceInp = document.getElementById('editHsItemPriceInput');
+    const editCtaTextInp = document.getElementById('editHsCtaTextInput');
+    const editCtaUrlInp = document.getElementById('editHsCtaUrlInput');
 
     const idx = parseInt(idxInp ? idxInp.value : '-1', 10);
     const curScene = activeSceneList[activeSceneIndex];
@@ -5100,13 +7624,36 @@
     const hs = curScene.hotspots[idx];
     if (labelInp) hs.label = labelInp.value.trim() || hs.label;
     if (select) hs.targetScene = select.value;
+    if (infoInp) hs.infoText = infoInp.value.trim();
+    if (urlInp) hs.url = urlInp.value.trim();
+
+    hs.icon = editHsState.icon || 'chevron-up';
+    hs.color = editHsState.color || '#FFD23F';
+    hs.size = editHsState.size != null ? editHsState.size : 100;
+    hs.opacity = editHsState.opacity != null ? editHsState.opacity : 100;
+    hs.rotation = editHsState.rotation || 0;
+    hs.placement = editHsState.placement || 'floor';
+    hs.scaleOnZoom = zoomChk ? zoomChk.checked : true;
+    hs.labelMode = editHsState.labelMode || 'always';
+    hs.actionType = editHsState.actionType || 'scene';
+
+    // Showcase Media & Item Properties
+    hs.mediaType = editHsState.mediaType || 'none';
+    hs.photoUrl = editHsState.photoUrl || '';
+    hs.videoUrl = editHsState.videoUrl || '';
+    hs.model3dPreset = editHsState.model3dPreset || 'climbing-gear';
+    hs.model3dUrl = editHsState.model3dUrl || '';
+    hs.itemTitle = editTitleInp ? editTitleInp.value.trim() : (editHsState.itemTitle || '');
+    hs.itemPrice = editPriceInp ? editPriceInp.value.trim() : (editHsState.itemPrice || '');
+    hs.itemCtaText = editCtaTextInp ? editCtaTextInp.value.trim() : (editHsState.itemCtaText || '');
+    hs.itemCtaUrl = editCtaUrlInp ? editCtaUrlInp.value.trim() : (editHsState.itemCtaUrl || '');
 
     window.closeEditHotspotDialog();
     syncHotspotsDom();
     window.saveTourChangesToMagazine();
 
     if (typeof showToast === 'function') {
-      showToast('✅ Hotspot updated!');
+      showToast('✅ Kuula Hotspot pin updated!');
     }
   };
 
@@ -7134,10 +9681,10 @@
         'z-index:19',
         'pointer-events:none',
         'opacity:0',
-        'background:radial-gradient(circle at 50% 52%, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0.32) 58%, rgba(0,0,0,0.72) 100%)',
+        'background:radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06) 0%, rgba(10,8,20,0.22) 45%, rgba(8,6,15,0.7) 100%)',
         'backdrop-filter:blur(0px)',
         '-webkit-backdrop-filter:blur(0px)',
-        'transition:opacity 220ms cubic-bezier(.22,.61,.36,1), backdrop-filter 220ms ease, -webkit-backdrop-filter 220ms ease',
+        'transition:opacity 280ms cubic-bezier(.16,1,.3,1), backdrop-filter 280ms ease, -webkit-backdrop-filter 280ms ease',
         'will-change:opacity,backdrop-filter'
       ].join(';');
       container.appendChild(tourSceneTransitionEl);
@@ -7149,17 +9696,19 @@
     const canvas = document.getElementById('tour3dCanvas');
     const hotspotLayer = document.getElementById('tourHotspotsLayer');
     const p = Math.max(0, Math.min(1, progress));
-    const zoom = entering ? (1 + p * 0.028) : (1.028 - p * 0.028);
-    const blur = entering ? p * 1.15 : (1 - p) * 1.15;
+    const zoom = entering ? (1 + p * 0.08) : (1.05 - p * 0.05);
+    const blur = entering ? p * 1.8 : (1 - p) * 1.2;
     if (canvas) {
-      canvas.style.transition = 'transform 220ms cubic-bezier(.22,.61,.36,1), filter 220ms ease';
+      canvas.style.transition = entering 
+        ? 'transform 260ms cubic-bezier(.16,1,.3,1), filter 260ms ease'
+        : 'transform 320ms cubic-bezier(.16,1,.3,1), filter 320ms ease';
       canvas.style.transformOrigin = '50% 50%';
       canvas.style.transform = `scale(${zoom.toFixed(4)})`;
-      canvas.style.filter = `blur(${blur.toFixed(2)}px)`;
+      canvas.style.filter = blur > 0.1 ? `blur(${blur.toFixed(2)}px)` : 'none';
     }
     if (hotspotLayer) {
-      hotspotLayer.style.transition = 'opacity 160ms ease, transform 220ms ease';
-      hotspotLayer.style.opacity = entering ? String(Math.max(0, 1 - p * 1.15)) : String(Math.min(1, p * 1.15));
+      hotspotLayer.style.transition = entering ? 'opacity 180ms ease, transform 260ms ease' : 'opacity 280ms ease, transform 320ms ease';
+      hotspotLayer.style.opacity = entering ? String(Math.max(0, 1 - p * 1.6)) : String(Math.min(1, p * 1.4));
       hotspotLayer.style.transform = `scale(${zoom.toFixed(4)})`;
       hotspotLayer.style.transformOrigin = '50% 50%';
     }
@@ -7170,7 +9719,7 @@
     const hotspotLayer = document.getElementById('tourHotspotsLayer');
     if (canvas) {
       canvas.style.transform = 'scale(1)';
-      canvas.style.filter = 'blur(0px)';
+      canvas.style.filter = 'none';
     }
     if (hotspotLayer) {
       hotspotLayer.style.opacity = '1';
@@ -7178,17 +9727,39 @@
     }
   }
 
-  window.switchTourScene = function (targetSceneId) {
+  window.switchTourScene = function (targetSceneId, clickedHs) {
     if (tourSceneTransitionActive) return;
+    if (!activeSceneList || activeSceneList.length === 0) return;
 
-    const targetIndex = activeSceneList.findIndex(sc => sc && sc.id === targetSceneId);
-    if (targetIndex < 0) {
-      console.warn('[SpotLIGHT 360] Hotspot target room not found:', targetSceneId);
-      if (typeof showToast === 'function') showToast('⚠️ This door is not connected to a room yet.');
-      return;
+    // Resilient target scene resolution: by ID, by name, or by numeric index
+    let targetIndex = -1;
+    if (typeof targetSceneId === 'number') {
+      targetIndex = targetSceneId;
+    } else if (typeof targetSceneId === 'string' && targetSceneId.trim()) {
+      const trimmed = targetSceneId.trim();
+      targetIndex = activeSceneList.findIndex(sc => sc && (sc.id === trimmed || sc.name === trimmed));
+      if (targetIndex < 0) {
+        const parsed = parseInt(trimmed, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed < activeSceneList.length) {
+          targetIndex = parsed;
+        }
+      }
     }
 
-    if (targetIndex === activeSceneIndex) return;
+    // Door hotspot fallback: if target room is missing or set to current room, walk to the next room
+    if (targetIndex < 0 || targetIndex === activeSceneIndex) {
+      if (activeSceneList.length > 1) {
+        targetIndex = (activeSceneIndex + 1) % activeSceneList.length;
+      } else {
+        if (typeof showToast === 'function') {
+          showToast('📍 You are at the current room. Add another room in Tour Builder to walk between spaces!');
+        }
+        return;
+      }
+    }
+
+    const nextScene = activeSceneList[targetIndex];
+    if (!nextScene) return;
 
     const overlay = ensureTourSceneTransition();
     if (!overlay) {
@@ -7200,16 +9771,32 @@
     isAutoRotating = false;
     gyroEnabled = false;
 
-    setTourTravelVisual(0, true);
+    // 1. Orient camera smoothly towards the doorway or hotspot for natural walking perspective
+    if (clickedHs && typeof clickedHs.yaw === 'number') {
+      targetYaw = clickedHs.yaw;
+      if (typeof clickedHs.pitch === 'number') {
+        targetPitch = Math.max(-40, Math.min(40, clickedHs.pitch));
+      }
+    }
+
+    // 2. Matterport forward push: tighten camera FOV (dolly-in) and scale canvas forward
+    const originalFov = targetFov || 65;
+    targetFov = Math.max(38, originalFov - 16);
+
     requestAnimationFrame(() => {
       overlay.style.opacity = '1';
-      overlay.style.backdropFilter = 'blur(2px)';
-      overlay.style.webkitBackdropFilter = 'blur(2px)';
+      overlay.style.backdropFilter = 'blur(1.5px)';
+      overlay.style.webkitBackdropFilter = 'blur(1.5px)';
       setTourTravelVisual(1, true);
     });
 
+    // 3. Peak travel step: switch room at 240ms
     setTimeout(() => {
       loadScene(targetIndex);
+
+      // Destination arrival: start with camera opening up into the new room
+      fov = Math.max(48, (nextScene.startFov || 65) - 10);
+      targetFov = nextScene.startFov || 65;
 
       setTimeout(() => {
         overlay.style.opacity = '0';
@@ -7220,9 +9807,12 @@
         setTimeout(() => {
           resetTourTravelVisual();
           tourSceneTransitionActive = false;
-        }, 260);
-      }, 220);
-    }, 230);
+          if (typeof showToast === 'function' && nextScene.name) {
+            showToast(`🚶 Stepped into ${nextScene.name}`);
+          }
+        }, 280);
+      }, 160);
+    }, 240);
   };
 
   window.switchTourSceneIndex = function (idx) {
@@ -7230,6 +9820,8 @@
       const scene = activeSceneList[idx];
       if (scene && scene.id) {
         window.switchTourScene(scene.id);
+      } else {
+        window.switchTourScene(idx);
       }
     }
   };
