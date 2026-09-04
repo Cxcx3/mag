@@ -1587,17 +1587,59 @@
       }
       .spotlight-beacon-pulse {
         position: absolute;
-        inset: -5px;
+        inset: -4px;
         border-radius: 50%;
         border: 1.5px solid var(--pin-color, #FFD23F);
+        box-shadow: 0 0 6px var(--pin-color, #FFD23F);
         opacity: 0.8;
         pointer-events: none;
         animation: spotlightBeacon 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
       }
+      .spotlight-beacon-pulse.pulse-ring-2 {
+        animation-delay: 1.1s;
+        opacity: 0.45;
+      }
       @keyframes spotlightBeacon {
-        0% { transform: scale(0.9); opacity: 0.85; }
-        60% { transform: scale(1.55); opacity: 0; }
-        100% { transform: scale(1.55); opacity: 0; }
+        0% {
+          transform: scale(0.95);
+          opacity: 0.85;
+          box-shadow: 0 0 4px var(--pin-color, #FFD23F);
+        }
+        60% {
+          transform: scale(1.38);
+          opacity: 0;
+          box-shadow: 0 0 6px var(--pin-color, #FFD23F);
+        }
+        100% {
+          transform: scale(1.38);
+          opacity: 0;
+          box-shadow: 0 0 6px var(--pin-color, #FFD23F);
+        }
+      }
+      /* Transparent background option: icon stands freely with glowing pulsing circles */
+      .spotlight-pin-disc.spotlight-pin-transparent {
+        background: transparent !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+      .spotlight-pin-disc.spotlight-pin-transparent .spotlight-pin-icon-inner {
+        filter: drop-shadow(0 2px 8px rgba(0,0,0,0.85)) drop-shadow(0 0 10px var(--pin-color, #FFD23F));
+      }
+      .tour-hotspot-pin:hover .spotlight-pin-disc.spotlight-pin-transparent .spotlight-pin-icon-inner {
+        transform: scale(1.15);
+        filter: drop-shadow(0 2px 10px rgba(0,0,0,0.95)) drop-shadow(0 0 16px var(--pin-color, #FFD23F));
+      }
+      .placement-floor .spotlight-pin-disc.spotlight-pin-transparent,
+      .spotlight-pin-floor .spotlight-pin-disc.spotlight-pin-transparent {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      .tour-hotspot-pin.editor-pin .spotlight-pin-disc.spotlight-pin-transparent {
+        outline: 1.5px dashed rgba(6, 214, 160, 0.7);
+        outline-offset: 4px;
       }
       .spotlight-pin-icon-inner {
         width: 60%;
@@ -3539,9 +3581,13 @@
                 </div>
                 <div style="display:flex;align-items:center;gap:14px;">
                   <!-- Checkerboard Preview Box -->
-                  <div class="spotlight-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;">
-                    <div id="placeHsIconPreviewInner" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;transition:transform 0.15s ease;">
-                      <!-- SVG icon injected here -->
+                  <div class="spotlight-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;border-radius:8px;overflow:hidden;">
+                    <div id="placeHsPreviewDisc" class="spotlight-pin-disc" style="width:42px;height:42px;position:relative;display:flex;align-items:center;justify-content:center;">
+                      <div class="spotlight-beacon-pulse" style="inset:-4px;"></div>
+                      <div class="spotlight-beacon-pulse pulse-ring-2" style="inset:-4px;"></div>
+                      <div id="placeHsIconPreviewInner" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;transition:transform 0.15s ease;">
+                        <!-- SVG icon injected here -->
+                      </div>
                     </div>
                   </div>
                   <!-- Icon Controls -->
@@ -3555,11 +3601,20 @@
                         <input type="file" accept="image/*" style="display:none;" onchange="window.handleUploadCustomIcon(event, 'place')">
                       </label>
                     </div>
-                    <!-- Set Tint -->
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                    <!-- Set Tint & Background Style -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">
                       <div style="display:flex;align-items:center;gap:6px;">
                         <span style="font-size:11px;color:#aaa;font-weight:700;">Set tint:</span>
                         <input type="color" id="placeHsColorPicker" value="#FFD23F" style="width:26px;height:26px;border:none;border-radius:4px;cursor:pointer;background:transparent;" onchange="window.setHotspotTint(this.value, 'place')">
+                        <!-- Style Toggle: Circle vs Transparent next to Set Tint -->
+                        <div class="spotlight-pill-group" style="display:inline-flex;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.18);border-radius:6px;padding:2px;gap:2px;">
+                          <button type="button" id="placeBgStyleCircle" onclick="window.setHotspotBgStyle('circle', 'place')" class="tour-chip active" style="font-size:10px;padding:3px 7px;border-radius:4px;border:none;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:3px;" title="Solid circular disc with pulsing glow">
+                            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;"></span> Circle
+                          </button>
+                          <button type="button" id="placeBgStyleTransparent" onclick="window.setHotspotBgStyle('transparent', 'place')" class="tour-chip" style="font-size:10px;padding:3px 7px;border-radius:4px;border:none;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:3px;" title="Transparent icon background with pulsing glow">
+                            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;border:1.5px dashed currentColor;"></span> Transparent
+                          </button>
+                        </div>
                       </div>
                       <!-- Preset Swatches -->
                       <div style="display:flex;gap:5px;">
@@ -4124,9 +4179,13 @@
                 </div>
                 <div style="display:flex;align-items:center;gap:14px;">
                   <!-- Checkerboard Preview Box -->
-                  <div class="spotlight-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;">
-                    <div id="editHsIconPreviewInner" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;transition:transform 0.15s ease;">
-                      <!-- SVG icon injected here -->
+                  <div class="spotlight-checkerboard" style="width:68px;height:68px;flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;border-radius:8px;overflow:hidden;">
+                    <div id="editHsPreviewDisc" class="spotlight-pin-disc" style="width:42px;height:42px;position:relative;display:flex;align-items:center;justify-content:center;">
+                      <div class="spotlight-beacon-pulse" style="inset:-4px;"></div>
+                      <div class="spotlight-beacon-pulse pulse-ring-2" style="inset:-4px;"></div>
+                      <div id="editHsIconPreviewInner" style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;transition:transform 0.15s ease;">
+                        <!-- SVG icon injected here -->
+                      </div>
                     </div>
                   </div>
                   <!-- Icon Controls -->
@@ -4140,11 +4199,20 @@
                         <input type="file" accept="image/*" style="display:none;" onchange="window.handleUploadCustomIcon(event, 'edit')">
                       </label>
                     </div>
-                    <!-- Set Tint -->
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                    <!-- Set Tint & Background Style -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">
                       <div style="display:flex;align-items:center;gap:6px;">
                         <span style="font-size:11px;color:#aaa;font-weight:700;">Set tint:</span>
                         <input type="color" id="editHsColorPicker" value="#FFD23F" style="width:26px;height:26px;border:none;border-radius:4px;cursor:pointer;background:transparent;" onchange="window.setHotspotTint(this.value, 'edit')">
+                        <!-- Style Toggle: Circle vs Transparent next to Set Tint -->
+                        <div class="spotlight-pill-group" style="display:inline-flex;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.18);border-radius:6px;padding:2px;gap:2px;">
+                          <button type="button" id="editBgStyleCircle" onclick="window.setHotspotBgStyle('circle', 'edit')" class="tour-chip active" style="font-size:10px;padding:3px 7px;border-radius:4px;border:none;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:3px;" title="Solid circular disc with pulsing glow">
+                            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;"></span> Circle
+                          </button>
+                          <button type="button" id="editBgStyleTransparent" onclick="window.setHotspotBgStyle('transparent', 'edit')" class="tour-chip" style="font-size:10px;padding:3px 7px;border-radius:4px;border:none;cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:3px;" title="Transparent icon background with pulsing glow">
+                            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;border:1.5px dashed currentColor;"></span> Transparent
+                          </button>
+                        </div>
                       </div>
                       <!-- Preset Swatches -->
                       <div style="display:flex;gap:5px;">
@@ -4957,17 +5025,24 @@
       pin.dataset.hsIndex = idx;
       pin.style.display = 'none';
       pin.style.setProperty('--pin-color', color);
+      pin.style.setProperty('--pin-glow', color);
       pin.style.setProperty('--pin-scale', sizePct);
       pin.style.opacity = opacityVal;
 
-      // 1. Disc container
+      // 1. Disc container (Circle or Transparent)
+      const bgStyle = hs.bgStyle || 'circle';
+      const isTransparent = (bgStyle === 'transparent');
       const disc = document.createElement('div');
-      disc.className = 'spotlight-pin-disc';
+      disc.className = `spotlight-pin-disc ${isTransparent ? 'spotlight-pin-transparent' : ''}`;
 
-      // 2. Ripple Beacon ring
-      const beacon = document.createElement('div');
-      beacon.className = 'spotlight-beacon-pulse';
-      disc.appendChild(beacon);
+      // 2. Ripple Beacon rings - 2 pulsing rings glowing in chosen tint color
+      const beacon1 = document.createElement('div');
+      beacon1.className = 'spotlight-beacon-pulse';
+      disc.appendChild(beacon1);
+
+      const beacon2 = document.createElement('div');
+      beacon2.className = 'spotlight-beacon-pulse pulse-ring-2';
+      disc.appendChild(beacon2);
 
       // 3. Icon Inner container
       const iconWrapper = document.createElement('div');
@@ -5327,6 +5402,7 @@
   const placeHsState = {
     icon: 'chevron-up',
     color: '#FFD23F',
+    bgStyle: 'circle', // 'circle' | 'transparent'
     size: 100,
     opacity: 100,
     rotation: 0,
@@ -5351,6 +5427,7 @@
   const editHsState = {
     icon: 'chevron-up',
     color: '#FFD23F',
+    bgStyle: 'circle', // 'circle' | 'transparent'
     size: 100,
     opacity: 100,
     rotation: 0,
@@ -5403,9 +5480,49 @@
       }
     }
 
-    // 2. Color picker & swatches
+    // 2. Color picker, background style (Circle vs Transparent), & swatches
     const colorPicker = document.getElementById(`${prefix}HsColorPicker`);
     if (colorPicker) colorPicker.value = state.color || '#FFD23F';
+
+    const isTrans = (state.bgStyle === 'transparent');
+    const activeColor = state.color || '#FFD23F';
+
+    // Style toggle buttons next to Set Tint
+    const circleBtn = document.getElementById(`${prefix}BgStyleCircle`);
+    const transBtn = document.getElementById(`${prefix}BgStyleTransparent`);
+    if (circleBtn) {
+      circleBtn.classList.toggle('active', !isTrans);
+      circleBtn.style.background = !isTrans ? activeColor : 'transparent';
+      circleBtn.style.color = !isTrans ? '#12101a' : '#aaa';
+      circleBtn.style.boxShadow = !isTrans ? `0 0 10px ${activeColor}66` : 'none';
+    }
+    if (transBtn) {
+      transBtn.classList.toggle('active', isTrans);
+      transBtn.style.background = isTrans ? activeColor : 'transparent';
+      transBtn.style.color = isTrans ? '#12101a' : '#aaa';
+      transBtn.style.boxShadow = isTrans ? `0 0 10px ${activeColor}66` : 'none';
+    }
+
+    // Synchronize live preview disc and beacon pulse
+    const previewDisc = document.getElementById(`${prefix}HsPreviewDisc`);
+    if (previewDisc) {
+      previewDisc.style.setProperty('--pin-color', activeColor);
+      previewDisc.style.setProperty('--pin-glow', activeColor);
+      if (isTrans) {
+        previewDisc.classList.add('spotlight-pin-transparent');
+      } else {
+        previewDisc.classList.remove('spotlight-pin-transparent');
+      }
+    }
+
+    // Highlight matching preset swatch
+    const inspectorModal = document.getElementById(isPlace ? 'tourPlaceHotspotModal' : 'tourEditHotspotModal');
+    if (inspectorModal) {
+      inspectorModal.querySelectorAll('.spotlight-tint-swatch').forEach(sw => {
+        const bg = (sw.getAttribute('style') || '').toLowerCase();
+        sw.classList.toggle('active', bg.includes(activeColor.toLowerCase()));
+      });
+    }
 
     // 3. Sliders & text values
     const sizeSlider = document.getElementById(`${prefix}HsSizeSlider`);
@@ -5518,6 +5635,13 @@
   window.setHotspotTint = function (hexColor, target) {
     const state = (target === 'place') ? placeHsState : editHsState;
     state.color = hexColor;
+    syncInspectorUI(target);
+  };
+
+  // Hotspot background style picker (circle vs transparent)
+  window.setHotspotBgStyle = function (style, target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    state.bgStyle = style;
     syncInspectorUI(target);
   };
 
@@ -6932,6 +7056,7 @@
       targetScene: targetScene,
       icon: placeHsState.icon || 'chevron-up',
       color: placeHsState.color || '#FFD23F',
+      bgStyle: placeHsState.bgStyle || 'circle',
       size: placeHsState.size != null ? placeHsState.size : 100,
       opacity: placeHsState.opacity != null ? placeHsState.opacity : 100,
       rotation: placeHsState.rotation || 0,
@@ -8012,6 +8137,7 @@
     // Populate state from hotspot object
     editHsState.icon = hs.icon || 'chevron-up';
     editHsState.color = hs.color || '#FFD23F';
+    editHsState.bgStyle = hs.bgStyle || 'circle';
     editHsState.size = hs.size != null ? hs.size : 100;
     editHsState.opacity = hs.opacity != null ? hs.opacity : 100;
     editHsState.rotation = hs.rotation || 0;
@@ -8088,6 +8214,7 @@
 
     hs.icon = editHsState.icon || 'chevron-up';
     hs.color = editHsState.color || '#FFD23F';
+    hs.bgStyle = editHsState.bgStyle || 'circle';
     hs.size = editHsState.size != null ? editHsState.size : 100;
     hs.opacity = editHsState.opacity != null ? editHsState.opacity : 100;
     hs.rotation = editHsState.rotation || 0;
