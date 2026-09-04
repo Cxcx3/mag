@@ -1,0 +1,220 @@
+name: Stabilize 3D Model Viewer
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch 3D viewer resource lifecycle
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('tour-3d.js')
+          s = p.read_text(encoding='utf-8')
+
+          old = '''  function dispose3dViewer(viewerInstance) {
+    if (!viewerInstance) return;
+    if (viewerInstance.animId) {
+      cancelAnimationFrame(viewerInstance.animId);
+      viewerInstance.animId = null;
+    }
+    if (viewerInstance.renderer) {
+      if (viewerInstance.renderer.domElement && viewerInstance.renderer.domElement.parentNode) {
+        viewerInstance.renderer.domElement.parentNode.removeChild(viewerInstance.renderer.domElement);
+      }
+      viewerInstance.renderer.dispose();
+      viewerInstance.renderer = null;
+    }
+    viewerInstance.scene = null;
+    viewerInstance.camera = null;
+    viewerInstance.modelMesh = null;
+  }
+'''
+
+          new = '''  // Release Three.js object resources without tearing down the parent WebGL
+  // context. Repeatedly creating/discarding WebGLRenderer instances can exhaust
+  // browser GPU contexts on long editor sessions and make the page appear to
+  // refresh back to the magazine cover. The model itself is disposable; the
+  // viewer canvas/context should remain stable while the user changes models.
+  function disposeObject3DResources(root) {
+    if (!root || typeof root.traverse !== 'function') return;
+    root.traverse((obj) => {
+      if (!obj) return;
+      if (obj.geometry && typeof obj.geometry.dispose === 'function') {
+        try { obj.geometry.dispose(); } catch (e) {}
+      }
+      if (obj.material) {
+        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+        materials.forEach((mat) => {
+          if (!mat) return;
+          // Textures owned by this model are safe to release here. Built-in
+          // procedural models create their textures locally.
+          Object.keys(mat).forEach((key) => {
+            const value = mat[key];
+            if (value && value.isTexture && typeof value.dispose === 'function') {
+              try { value.dispose(); } catch (e) {}
+            }
+          });
+          if (typeof mat.dispose === 'function') {
+            try { mat.dispose(); } catch (e) {}
+          }
+        });
+      }
+    });
+  }
+
+  function dispose3dViewer(viewerInstance, destroyRenderer = true) {
+    if (!viewerInstance) return;
+    if (viewerInstance.animId) {
+      cancelAnimationFrame(viewerInstance.animId);
+      viewerInstance.animId = null;
+    }
+    if (typeof viewerInstance.cleanup === 'function') {
+      try { viewerInstance.cleanup(); } catch (e) {}
+      viewerInstance.cleanup = null;
+    }
+    if (viewerInstance.modelMesh) {
+      disposeObject3DResources(viewerInstance.modelMesh);
+      if (viewerInstance.modelMesh.parent) {
+        try { viewerInstance.modelMesh.parent.remove(viewerInstance.modelMesh); } catch (e) {}
+      }
+    }
+    if (viewerInstance.scene && viewerInstance.scene.traverse) {
+      // Only dispose resources that are not part of the model root.
+      viewerInstance.scene.traverse((obj) => {
+        if (!obj || obj === viewerInstance.modelMesh) return;
+        if (obj.geometry && typeof obj.geometry.dispose === 'function') {
+          try { obj.geometry.dispose(); } catch (e) {}
+        }
+        if (obj.material) {
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach((mat) => { if (mat && typeof mat.dispose === 'function') { try { mat.dispose(); } catch (e) {} } });
+        }
+      });
+    }
+    if (viewerInstance.renderer && destroyRenderer) {
+      try { viewerInstance.renderer.renderLists?.dispose?.(); } catch (e) {}
+      try { viewerInstance.renderer.dispose(); } catch (e) {}
+      if (viewerInstance.renderer.domElement && viewerInstance.renderer.domElement.parentNode) {
+        try { viewerInstance.renderer.domElement.parentNode.removeChild(viewerInstance.renderer.domElement); } catch (e) {}
+      }
+      viewerInstance.renderer = null;
+    }
+    viewerInstance.scene = null;
+    viewerInstance.camera = null;
+    viewerInstance.modelMesh = null;
+    viewerInstance.mountEl = null;
+  }
+'''
+
+          if old not in s:
+              raise SystemExit('dispose3dViewer block not found; refusing to modify file')
+          s = s.replace(old, new, 1)
+
+          start = s.find('  function initMini3dInspector(mountEl, modelSrc) {')
+          end = s.find('\n  // ==========================================\n  // VIDEO & PHOTO LIGHTBOX HELPERS', start)
+          if start < 0 or end < 0:
+              raise SystemExit('mini viewer block not found; refusing to modify file')
+
+          new_mini = '''  // Mini inspector uses ONE persistent WebGLRenderer per mount. Changing a
+  // model now replaces only the model resources instead of creating another
+  // WebGL context. This is the important stability guard for long editing sessions.
+  function initMini3dInspector(mountEl, modelSrc) {
+    if (!mountEl || typeof THREE === 'undefined') return;
+
+    const width = mountEl.clientWidth || 320;
+    const height = mountEl.clientHeight || 110;
+    let viewer = miniInspector3dViewer;
+
+    // Reuse the existing renderer when the same inspector is being updated.
+    if (viewer && viewer.renderer && viewer.mountEl === mountEl && viewer.scene && viewer.camera && viewer.modelMesh) {
+      if (viewer.modelMesh) {
+        disposeObject3DResources(viewer.modelMesh);
+        viewer.scene.remove(viewer.modelMesh);
+      }
+      const modelRoot = new THREE.Group();
+      modelRoot.add(get3dModelMeshBySrc(modelSrc));
+      viewer.modelMesh = modelRoot;
+      viewer.scene.add(modelRoot);
+      viewer.renderer.setSize(width, height, false);
+      viewer.camera.aspect = width / height;
+      viewer.camera.updateProjectionMatrix();
+      return;
+    }
+
+    // First inspector open only: create its single renderer/context.
+    dispose3dViewer(miniInspector3dViewer, true);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 50);
+    camera.position.set(0, 0.8, 3.8);
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
+      renderer.setSize(width, height, false);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      mountEl.innerHTML = '';
+      mountEl.appendChild(renderer.domElement);
+    } catch (err) {
+      console.warn('[SpotLIGHT 3D] Mini viewer WebGL initialization failed:', err);
+      return;
+    }
+
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    dirLight.position.set(3, 5, 4);
+    scene.add(dirLight);
+
+    const modelRoot = new THREE.Group();
+    scene.add(modelRoot);
+    modelRoot.add(get3dModelMeshBySrc(modelSrc));
+
+    miniInspector3dViewer = {
+      renderer,
+      scene,
+      camera,
+      mountEl,
+      modelMesh: modelRoot,
+      animId: null,
+      cleanup: null
+    };
+
+    function animMini() {
+      if (!miniInspector3dViewer || miniInspector3dViewer.renderer !== renderer) return;
+      miniInspector3dViewer.animId = requestAnimationFrame(animMini);
+      modelRoot.rotation.y += 0.02;
+      renderer.render(scene, camera);
+    }
+    animMini();
+  }
+'''
+
+          s = s[:start] + new_mini + s[end:]
+          p.write_text(s, encoding='utf-8')
+          print('Patched tour-3d.js successfully')
+          PY
+
+      - name: Verify JavaScript syntax
+        run: node --check tour-3d.js
+
+      - name: Commit repaired viewer
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tour-3d.js
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix 3D model switching WebGL stability"
+          git push
