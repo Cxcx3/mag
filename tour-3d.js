@@ -767,13 +767,14 @@
       const height = Math.max(100, Math.floor(rect.height || window.innerHeight || 600));
 
       canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); console.warn('[SpotLIGHT 360] Panorama WebGL context loss prevented'); }, false);
+      const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       threeRenderer = new THREE.WebGLRenderer({
         canvas: canvas,
-        antialias: true,
+        antialias: !isMobileDevice,
         alpha: false,
-        powerPreference: 'high-performance'
+        powerPreference: isMobileDevice ? 'default' : 'high-performance'
       });
-      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
+      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileDevice ? 1.5 : 2.0));
       threeRenderer.setSize(width, height);
 
       threeScene = new THREE.Scene();
@@ -2316,6 +2317,10 @@
         padding: 16px;
         animation: fadeInDialog 0.2s ease-out;
       }
+      @keyframes tour3dSpin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
       @keyframes fadeInDialog {
         from { opacity: 0; transform: scale(0.96); }
         to { opacity: 1; transform: scale(1); }
@@ -3790,8 +3795,11 @@
                     <!-- Mini 3D Preview inside inspector -->
                     <div id="place3dMiniPreviewBox" style="width:100%;height:110px;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0c0a12 100%);border-radius:6px;border:1px solid rgba(63,221,224,0.3);position:relative;overflow:hidden;margin-top:6px;">
                       <div id="place3dMiniMount" style="width:100%;height:100%;cursor:grab;"></div>
-                      <span style="position:absolute;bottom:4px;left:6px;font-size:9px;color:#3FDDE0;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:4px;pointer-events:none;">🧊 Drag to test 3D spin</span>
+                      <span style="position:absolute;bottom:4px;left:6px;font-size:9px;color:#3FDDE0;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:4px;pointer-events:none;">🧊 3D Preview (Drag to spin)</span>
                     </div>
+                    <button type="button" class="tour-dialog-btn" style="width:100%;margin-top:6px;font-size:11px;padding:6px 12px;background:rgba(63,221,224,0.12);border:1px solid #3FDDE0;color:#3FDDE0;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="window.preview3dShowcaseFromInspector('place')">
+                      <span>👁️ Open Full 3D Interactive Showcase</span>
+                    </button>
                   </div>
 
                   <!-- Description -->
@@ -3880,6 +3888,14 @@
               <!-- 1. 3D Model Viewer container -->
               <div id="tourInfoModal3dContainer" style="display:none;width:min(100%,720px);height:auto;aspect-ratio:1/1;min-height:280px;max-height:78vh;position:relative;margin:0 auto;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);">
                 <div id="tourInfoModal3dCanvasMount" style="width:100%;height:100%;cursor:grab;"></div>
+                <!-- Bottom 3D Loading Indicator -->
+                <div id="tour3dBottomLoadingIndicator" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:24px;font-size:11px;font-weight:700;color:#fff;background:rgba(18,16,26,0.92);border:1px solid rgba(63,221,224,0.45);backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,0.6);display:none;align-items:center;gap:8px;z-index:6;pointer-events:none;transition:opacity 0.25s ease;">
+                  <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(63,221,224,0.25);border-top-color:#3FDDE0;border-radius:50%;animation:tour3dSpin 0.75s linear infinite;"></span>
+                  <span id="tour3dLoadingText" style="white-space:nowrap;letter-spacing:0.02em;">Loading 3D model...</span>
+                </div>
+                <div id="tour3dMobileGestureHint" style="position:absolute;top:10px;left:10px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;color:rgba(255,255,255,0.9);background:rgba(0,0,0,0.68);border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(6px);pointer-events:none;z-index:2;display:flex;align-items:center;gap:6px;">
+                  <span>👆 1 Finger: Rotate · ✌ 2 Fingers: Move & Zoom</span>
+                </div>
                 <div class="spotlight-3d-controls" style="position:absolute;left:14px;bottom:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-end;z-index:5;pointer-events:none;">
                   <button type="button" class="spotlight-3d-control-btn spotlight-3d-fullscreen-btn" onclick="window.toggle3dItemFullscreen()" title="Fullscreen 3D viewer" aria-label="Fullscreen 3D viewer" style="pointer-events:auto;width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;">⛶</button>
                   <div style="display:flex;flex-direction:column;gap:7px;pointer-events:auto;">
@@ -4384,8 +4400,11 @@
                     <!-- Mini 3D Preview inside inspector -->
                     <div id="edit3dMiniPreviewBox" style="width:100%;height:110px;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0c0a12 100%);border-radius:6px;border:1px solid rgba(63,221,224,0.3);position:relative;overflow:hidden;margin-top:6px;">
                       <div id="edit3dMiniMount" style="width:100%;height:100%;cursor:grab;"></div>
-                      <span style="position:absolute;bottom:4px;left:6px;font-size:9px;color:#3FDDE0;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:4px;pointer-events:none;">🧊 Drag to test 3D spin</span>
+                      <span style="position:absolute;bottom:4px;left:6px;font-size:9px;color:#3FDDE0;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:4px;pointer-events:none;">🧊 3D Preview (Drag to spin)</span>
                     </div>
+                    <button type="button" class="tour-dialog-btn" style="width:100%;margin-top:6px;font-size:11px;padding:6px 12px;background:rgba(63,221,224,0.12);border:1px solid #3FDDE0;color:#3FDDE0;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="window.preview3dShowcaseFromInspector('edit')">
+                      <span>👁️ Open Full 3D Interactive Showcase</span>
+                    </button>
                   </div>
 
                   <!-- Description -->
@@ -4909,6 +4928,14 @@
 
     const embedFrame = document.getElementById('tourEmbedFrame');
     if (embedFrame && embedFrame.style.display === 'block') {
+      animFrameId = requestAnimationFrame(renderFrame);
+      return;
+    }
+
+    // When 3D model showcase modal is open, pause heavy 360 panorama rendering
+    // to give mobile devices 100% GPU memory & frame budget, preventing WebGL crashes
+    const infoModal = document.getElementById('tourHotspotInfoModal');
+    if (infoModal && infoModal.style.display !== 'none' && infoModal.style.display !== '') {
       animFrameId = requestAnimationFrame(renderFrame);
       return;
     }
@@ -6220,6 +6247,8 @@
 
   // ==========================================
   // ACTIVE 3D ITEM VIEWER INSTANCE (Three.js WebGL)
+  // Fast launch, frame-0 rendering, bottom loading indicator,
+  // session safety, 1-finger orbit & 2-finger grab/move (pan) on mobile
   // ==========================================
   let active3dViewer = {
     renderer: null,
@@ -6230,9 +6259,14 @@
     modelMesh: null,
     autoRotate: true,
     isDragging: false,
+    dragMode: 'orbit',
     prevMouse: { x: 0, y: 0 },
     rotation: { x: 0.2, y: 0 },
-    distance: 4.5
+    distance: 4.5,
+    minDistance: 0.6,
+    maxDistance: 10.0,
+    target: { x: 0, y: 0.2, z: 0 },
+    cleanup: null
   };
 
   let miniInspector3dViewer = {
@@ -6241,10 +6275,34 @@
     camera: null,
     animId: null,
     mountEl: null,
-    modelMesh: null
+    modelMesh: null,
+    cleanup: null
   };
 
-  // Helper to dispose all Three.js geometries, materials, textures recursively
+  // Generation counter to immediately cancel stale animation loops when switching 3D models
+  let viewerSessionId = 0;
+  let miniSessionId = 0;
+
+  // Small bottom loading indicator helper
+  function set3dLoading(isLoading, text = 'Loading 3D model...') {
+    const el = document.getElementById('tour3dBottomLoadingIndicator');
+    const txt = document.getElementById('tour3dLoadingText');
+    if (!el) return;
+    if (isLoading) {
+      if (txt) txt.textContent = text;
+      el.style.display = 'flex';
+      requestAnimationFrame(() => {
+        if (el) el.style.opacity = '1';
+      });
+    } else {
+      el.style.opacity = '0';
+      setTimeout(() => {
+        if (el && el.style.opacity === '0') el.style.display = 'none';
+      }, 250);
+    }
+  }
+
+  // Helper to dispose all Three.js geometries, materials, textures recursively and release GPU memory
   function disposeObject3DResources(root) {
     if (!root || typeof root.traverse !== 'function') return;
     root.traverse((obj) => {
@@ -6256,10 +6314,20 @@
         const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
         materials.forEach((mat) => {
           if (!mat) return;
-          Object.keys(mat).forEach((key) => {
+          const textureKeys = [
+            'map', 'alphaMap', 'bumpMap', 'normalMap', 'roughnessMap',
+            'metalnessMap', 'envMap', 'lightMap', 'aoMap', 'emissiveMap', 'displacementMap'
+          ];
+          textureKeys.forEach((key) => {
             const value = mat[key];
             if (value && value.isTexture && typeof value.dispose === 'function') {
-              try { value.dispose(); } catch (e) {}
+              try {
+                if (value.image && typeof value.image === 'object' && value.image instanceof HTMLCanvasElement) {
+                  value.image.width = 1;
+                  value.image.height = 1;
+                }
+                value.dispose();
+              } catch (e) {}
             }
           });
           if (typeof mat.dispose === 'function') {
@@ -6271,16 +6339,20 @@
   }
 
   // Persistent shared WebGLRenderer for the 3D Item Showcase modal.
-  // Prevents allocating & leaking multiple WebGL contexts when cycling through 3D models.
+  // Re-uses a single WebGL context so mobile devices never exceed WebGL context limits.
   let sharedItemRenderer = null;
-
   function getSharedItemRenderer(mountEl, width, height) {
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const maxDpr = isMobile ? 1.5 : 2.0;
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, maxDpr);
+
     if (sharedItemRenderer) {
       try {
         const gl = sharedItemRenderer.getContext();
         if (gl && !gl.isContextLost()) {
           sharedItemRenderer.setSize(width, height, false);
-          sharedItemRenderer.clear();
+          sharedItemRenderer.setPixelRatio(pixelRatio);
+          sharedItemRenderer.clear(true, true, true);
           if (sharedItemRenderer.domElement && sharedItemRenderer.domElement.parentNode !== mountEl) {
             mountEl.innerHTML = '';
             mountEl.appendChild(sharedItemRenderer.domElement);
@@ -6294,12 +6366,12 @@
 
     try {
       sharedItemRenderer = new THREE.WebGLRenderer({
-        antialias: true,
+        antialias: !isMobile,
         alpha: true,
-        powerPreference: 'default'
+        powerPreference: isMobile ? 'default' : 'high-performance'
       });
       sharedItemRenderer.setSize(width, height, false);
-      sharedItemRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      sharedItemRenderer.setPixelRatio(pixelRatio);
       if (THREE.sRGBEncoding) sharedItemRenderer.outputEncoding = THREE.sRGBEncoding;
 
       const dom = sharedItemRenderer.domElement;
@@ -6308,12 +6380,10 @@
       dom.style.display = 'block';
       dom.style.touchAction = 'none';
 
-      // Prevent WebGL context loss from killing or refreshing the page
       dom.addEventListener('webglcontextlost', (e) => {
         e.preventDefault();
         console.warn('[SpotLIGHT 3D] WebGL context loss caught & prevented from crashing');
       }, false);
-
       dom.addEventListener('webglcontextrestored', () => {
         console.log('[SpotLIGHT 3D] WebGL context restored');
       }, false);
@@ -6329,20 +6399,24 @@
 
   function dispose3dViewer(viewerInstance, destroyRenderer = false) {
     if (!viewerInstance) return;
+
     if (viewerInstance.animId) {
       cancelAnimationFrame(viewerInstance.animId);
       viewerInstance.animId = null;
     }
+
     if (typeof viewerInstance.cleanup === 'function') {
       try { viewerInstance.cleanup(); } catch (e) {}
       viewerInstance.cleanup = null;
     }
+
     if (viewerInstance.modelMesh) {
       disposeObject3DResources(viewerInstance.modelMesh);
       if (viewerInstance.modelMesh.parent) {
         try { viewerInstance.modelMesh.parent.remove(viewerInstance.modelMesh); } catch (e) {}
       }
     }
+
     if (viewerInstance.scene) {
       disposeObject3DResources(viewerInstance.scene);
       while (viewerInstance.scene.children && viewerInstance.scene.children.length > 0) {
@@ -6353,10 +6427,11 @@
         }
       }
     }
+
     if (viewerInstance.renderer) {
       try {
         viewerInstance.renderer.renderLists?.dispose?.();
-        viewerInstance.renderer.clear();
+        viewerInstance.renderer.clear(true, true, true);
       } catch (e) {}
 
       if (destroyRenderer) {
@@ -6379,6 +6454,7 @@
         viewerInstance.renderer = null;
       }
     }
+
     viewerInstance.scene = null;
     viewerInstance.camera = null;
     viewerInstance.modelMesh = null;
@@ -6397,8 +6473,12 @@
 
   function init3dItemViewer(mountEl, modelSrc, isInteractive) {
     if (!mountEl || typeof THREE === 'undefined') return;
-    // Safely dispose previous viewer without destroying shared renderer context
+
+    // 1. Dispose previous active viewer cleanly
     dispose3dViewer(active3dViewer, false);
+
+    // 2. Start fresh session (guaranteed match with animate loop)
+    const thisSession = ++viewerSessionId;
 
     const width = mountEl.clientWidth || 520;
     const height = mountEl.clientHeight || width || 420;
@@ -6428,11 +6508,14 @@
     let loadToken = { cancelled: false };
 
     const addFallback = () => {
-      if (loadToken.cancelled || modelRoot.children.length) return;
+      if (loadToken.cancelled || thisSession !== viewerSessionId || modelRoot.children.length) return;
       modelRoot.add(get3dModelMeshBySrc(modelSrc));
+      try { renderer.render(scene, camera); } catch (_) {}
+      set3dLoading(false);
     };
 
     if (isUrl && typeof THREE.GLTFLoader !== 'undefined') {
+      set3dLoading(true, 'Loading 3D asset...');
       const loader = new THREE.GLTFLoader();
       if (typeof THREE.DRACOLoader !== 'undefined') {
         try {
@@ -6446,7 +6529,7 @@
       loader.load(
         modelSrc,
         (gltf) => {
-          if (loadToken.cancelled) {
+          if (loadToken.cancelled || thisSession !== viewerSessionId) {
             disposeObject3DResources(gltf.scene);
             return;
           }
@@ -6459,15 +6542,31 @@
           const center = box.getCenter(new THREE.Vector3());
           loadedMesh.position.sub(center.multiplyScalar(scale));
           modelRoot.add(loadedMesh);
+
+          // Render first frame immediately
+          try { renderer.render(scene, camera); } catch (_) {}
+          set3dLoading(false);
         },
-        undefined,
+        (xhr) => {
+          if (thisSession !== viewerSessionId) return;
+          if (xhr && xhr.lengthComputable && xhr.total > 0) {
+            const pct = Math.round((xhr.loaded / xhr.total) * 100);
+            set3dLoading(true, `Loading 3D asset ${pct}%...`);
+          } else {
+            set3dLoading(true, 'Loading 3D asset...');
+          }
+        },
         (err) => {
           console.warn('[SpotLIGHT 3D] GLTFLoader failed, using procedural fallback:', err);
+          set3dLoading(false);
           addFallback();
         }
       );
     } else {
+      // Procedural models build and render on Frame 0 immediately (< 3ms)
       modelRoot.add(get3dModelMeshBySrc(modelSrc));
+      try { renderer.render(scene, camera); } catch (_) {}
+      set3dLoading(false);
     }
 
     active3dViewer = {
@@ -6512,23 +6611,112 @@
       }
     };
 
+    // Auto-resize on viewport change or mobile rotation
+    const handleResize = () => {
+      if (!active3dViewer || active3dViewer.renderer !== renderer || !active3dViewer.camera || !mountEl) return;
+      const w = mountEl.clientWidth || 520;
+      const h = mountEl.clientHeight || w || 420;
+      active3dViewer.camera.aspect = w / h;
+      active3dViewer.camera.updateProjectionMatrix();
+      renderer.setSize(w, h, false);
+    };
+    window.addEventListener('resize', handleResize);
+
     if (isInteractive) {
       const dom = renderer.domElement;
       dom.style.cursor = 'grab';
+      dom.style.touchAction = 'none';
 
-      let pinchStartDist = null;
+      // MOBILE TOUCH: 1 Finger: Orbit, 2 Fingers: Grab/Move + Pinch Zoom
+      let prevSingleTouch = { x: 0, y: 0 };
+      let prevTwoFingerMid = { x: 0, y: 0 };
+      let prevPinchDist = 0;
 
-      const pointerPos = (e) => ({
-        x: Number.isFinite(e.clientX) ? e.clientX : (e.touches && e.touches[0]?.clientX) || 0,
-        y: Number.isFinite(e.clientY) ? e.clientY : (e.touches && e.touches[0]?.clientY) || 0
-      });
+      const onTouchStart = (e) => {
+        if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        active3dViewer.autoRotate = false;
+        const touches = e.touches;
 
+        if (touches.length === 1) {
+          active3dViewer.isDragging = true;
+          active3dViewer.dragMode = 'orbit';
+          prevSingleTouch = { x: touches[0].clientX, y: touches[0].clientY };
+        } else if (touches.length >= 2) {
+          active3dViewer.isDragging = true;
+          active3dViewer.dragMode = 'pan';
+          const t0 = touches[0];
+          const t1 = touches[1];
+          prevTwoFingerMid = {
+            x: (t0.clientX + t1.clientX) * 0.5,
+            y: (t0.clientY + t1.clientY) * 0.5
+          };
+          prevPinchDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+        }
+      };
+
+      const onTouchMove = (e) => {
+        if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        if (e.cancelable) e.preventDefault();
+        const touches = e.touches;
+
+        if (touches.length === 1) {
+          const cur = { x: touches[0].clientX, y: touches[0].clientY };
+          const dx = cur.x - prevSingleTouch.x;
+          const dy = cur.y - prevSingleTouch.y;
+
+          active3dViewer.rotation.y -= dx * 0.012;
+          active3dViewer.rotation.x = Math.max(-1.3, Math.min(1.3, active3dViewer.rotation.x + dy * 0.012));
+
+          prevSingleTouch = cur;
+        } else if (touches.length >= 2) {
+          const t0 = touches[0];
+          const t1 = touches[1];
+          const curMid = {
+            x: (t0.clientX + t1.clientX) * 0.5,
+            y: (t0.clientY + t1.clientY) * 0.5
+          };
+          const curDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+
+          const dx = curMid.x - prevTwoFingerMid.x;
+          const dy = curMid.y - prevTwoFingerMid.y;
+          const panScale = active3dViewer.distance * 0.0024;
+          const rotY = active3dViewer.rotation.y;
+          const tgt = active3dViewer.target || (active3dViewer.target = { x: 0, y: 0.2, z: 0 });
+
+          tgt.x -= Math.cos(rotY) * dx * panScale;
+          tgt.y += dy * panScale;
+          tgt.z -= -Math.sin(rotY) * dx * panScale;
+
+          if (prevPinchDist > 0 && curDist > 0) {
+            const deltaDist = prevPinchDist - curDist;
+            setDistance(active3dViewer.distance + deltaDist * 0.0065);
+          }
+
+          prevTwoFingerMid = curMid;
+          prevPinchDist = curDist;
+        }
+      };
+
+      const onTouchEnd = (e) => {
+        if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        const touches = e.touches;
+        if (touches.length === 1) {
+          prevSingleTouch = { x: touches[0].clientX, y: touches[0].clientY };
+          active3dViewer.dragMode = 'orbit';
+        } else if (touches.length === 0) {
+          active3dViewer.isDragging = false;
+          active3dViewer.dragMode = 'orbit';
+        }
+      };
+
+      // DESKTOP MOUSE INTERACTIONS
       const onPointerDown = (e) => {
+        if (e.pointerType === 'touch') return;
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
         active3dViewer.isDragging = true;
         active3dViewer.autoRotate = false;
         dom.style.cursor = 'grabbing';
-        active3dViewer.prevMouse = pointerPos(e);
+        active3dViewer.prevMouse = { x: e.clientX, y: e.clientY };
         active3dViewer.dragMode = (e.button === 2 || e.button === 1 || e.shiftKey) ? 'pan' : 'orbit';
         if (dom.setPointerCapture && e.pointerId != null) {
           try { dom.setPointerCapture(e.pointerId); } catch (_) {}
@@ -6536,8 +6724,9 @@
       };
 
       const onPointerMove = (e) => {
+        if (e.pointerType === 'touch') return;
         if (!active3dViewer || active3dViewer.renderer !== renderer || !active3dViewer.isDragging) return;
-        const cur = pointerPos(e);
+        const cur = { x: e.clientX, y: e.clientY };
         const dx = cur.x - active3dViewer.prevMouse.x;
         const dy = cur.y - active3dViewer.prevMouse.y;
 
@@ -6549,15 +6738,14 @@
           tgt.y += dy * panScale;
           tgt.z -= -Math.sin(rotY) * dx * panScale;
         } else {
-          // Corrected horizontal orbit direction: dragging left turns model left
           active3dViewer.rotation.y -= dx * 0.012;
           active3dViewer.rotation.x = Math.max(-1.25, Math.min(1.25, active3dViewer.rotation.x + dy * 0.012));
         }
         active3dViewer.prevMouse = cur;
-        if (e.cancelable && e.touches) e.preventDefault();
       };
 
-      const stopDrag = () => {
+      const stopDrag = (e) => {
+        if (e && e.pointerType === 'touch') return;
         if (active3dViewer && active3dViewer.renderer === renderer) {
           active3dViewer.isDragging = false;
           active3dViewer.dragMode = 'orbit';
@@ -6572,55 +6760,40 @@
         setDistance(active3dViewer.distance * factor);
       };
 
-      const onTouchStart = (e) => {
-        if (!e.touches || e.touches.length < 2) return;
-        const a = e.touches[0];
-        const b = e.touches[1];
-        pinchStartDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-        if (active3dViewer && active3dViewer.renderer === renderer) active3dViewer.isDragging = false;
-      };
-
-      const onTouchMove = (e) => {
-        if (!e.touches || e.touches.length < 2 || pinchStartDist == null) return;
-        e.preventDefault();
-        const a = e.touches[0];
-        const b = e.touches[1];
-        const curDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-        const delta = pinchStartDist - curDist;
-        setDistance(active3dViewer.distance + delta * 0.006);
-        pinchStartDist = curDist;
-      };
-
-      const onTouchEnd = () => { pinchStartDist = null; };
       const onContextMenu = (e) => { e.preventDefault(); };
+
+      dom.addEventListener('touchstart', onTouchStart, { passive: true });
+      dom.addEventListener('touchmove', onTouchMove, { passive: false });
+      dom.addEventListener('touchend', onTouchEnd, { passive: true });
+      dom.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
       dom.addEventListener('pointerdown', onPointerDown);
       dom.addEventListener('pointermove', onPointerMove);
       dom.addEventListener('pointerup', stopDrag);
       dom.addEventListener('pointercancel', stopDrag);
       dom.addEventListener('wheel', onWheel, { passive: false });
-      dom.addEventListener('touchstart', onTouchStart, { passive: true });
-      dom.addEventListener('touchmove', onTouchMove, { passive: false });
-      dom.addEventListener('touchend', onTouchEnd, { passive: true });
       dom.addEventListener('contextmenu', onContextMenu);
 
       active3dViewer.cleanup = () => {
         loadToken.cancelled = true;
+        window.removeEventListener('resize', handleResize);
+        dom.removeEventListener('touchstart', onTouchStart);
+        dom.removeEventListener('touchmove', onTouchMove);
+        dom.removeEventListener('touchend', onTouchEnd);
+        dom.removeEventListener('touchcancel', onTouchEnd);
+
         dom.removeEventListener('pointerdown', onPointerDown);
         dom.removeEventListener('pointermove', onPointerMove);
         dom.removeEventListener('pointerup', stopDrag);
         dom.removeEventListener('pointercancel', stopDrag);
         dom.removeEventListener('wheel', onWheel);
-        dom.removeEventListener('touchstart', onTouchStart);
-        dom.removeEventListener('touchmove', onTouchMove);
-        dom.removeEventListener('touchend', onTouchEnd);
         dom.removeEventListener('contextmenu', onContextMenu);
       };
     }
 
-    // Safe Animation Render Loop
+    // Safe Animation Render Loop with guaranteed session match
     function animate() {
-      if (!active3dViewer || active3dViewer.renderer !== renderer || !active3dViewer.camera || !active3dViewer.scene) {
+      if (thisSession !== viewerSessionId || !active3dViewer || active3dViewer.renderer !== renderer || !active3dViewer.camera || !active3dViewer.scene) {
         return;
       }
       active3dViewer.animId = requestAnimationFrame(animate);
@@ -6646,82 +6819,33 @@
         console.warn('[SpotLIGHT 3D] Frame render warning:', err);
       }
     }
+
     animate();
   }
 
   window.toggle3dItemFullscreen = async function () {
     const container = document.getElementById('tourInfoModal3dContainer');
     if (!container) return;
-
     if (document.fullscreenElement === container) {
       try { await document.exitFullscreen(); } catch (_) {}
       return;
     }
-
-    try {
-      if (container.requestFullscreen) {
-        await container.requestFullscreen();
-        return;
-      }
-    } catch (_) {}
-
-    container.classList.toggle('spotlight-3d-fullscreen-fallback');
-    window.dispatchEvent(new Event('resize'));
+    if (container.requestFullscreen) {
+      try { await container.requestFullscreen(); } catch (_) {}
+    } else if (container.webkitRequestFullscreen) {
+      try { await container.webkitRequestFullscreen(); } catch (_) {}
+    }
   };
-
-  document.addEventListener('fullscreenchange', () => {
-    const container = document.getElementById('tourInfoModal3dContainer');
-    if (!container) return;
-    const active = document.fullscreenElement === container;
-    container.classList.toggle('spotlight-3d-fullscreen-native', active);
-    window.dispatchEvent(new Event('resize'));
-    if (active) setTimeout(() => window.dispatchEvent(new Event('resize')), 80);
-  });
-
-  const spotlight3dFullscreenStyle = document.createElement('style');
-  spotlight3dFullscreenStyle.textContent = `
-    #tourInfoModal3dContainer.spotlight-3d-fullscreen-native,
-    #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback {
-      width:100vw !important;
-      height:100vh !important;
-      max-height:none !important;
-      aspect-ratio:auto !important;
-      margin:0 !important;
-      border-radius:0 !important;
-      background:#08070f !important;
-    }
-    #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback {
-      position:fixed !important;
-      inset:0 !important;
-      z-index:2147483000 !important;
-    }
-    #tourInfoModal3dContainer.spotlight-3d-fullscreen-native #tourInfoModal3dCanvasMount,
-    #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback #tourInfoModal3dCanvasMount {
-      width:100% !important;
-      height:100% !important;
-    }
-    #tourInfoModal3dContainer.spotlight-3d-fullscreen-native .spotlight-3d-controls,
-    #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback .spotlight-3d-controls {
-      bottom:22px !important;
-    }
-  `;
-  document.head.appendChild(spotlight3dFullscreenStyle);
 
   window.toggle3dModalAutoRotate = function () {
+    if (!active3dViewer) return;
     active3dViewer.autoRotate = !active3dViewer.autoRotate;
     const btn = document.getElementById('tour3dAutoRotateBtn');
-    if (btn) {
-      btn.style.color = active3dViewer.autoRotate ? '#3FDDE0' : '#fff';
-      btn.textContent = active3dViewer.autoRotate ? '⟳ Rotating' : '⏸ Paused';
-    }
-  };
-
-  window.reset3dModalCamera = function () {
-    active3dViewer.rotation = { x: 0.2, y: 0 };
-    active3dViewer.distance = 4.5;
-    active3dViewer.autoRotate = true;
-    const btn = document.getElementById('tour3dAutoRotateBtn');
-    if (btn) {
+    if (!btn) return;
+    if (active3dViewer.autoRotate) {
+      btn.style.color = '#3FDDE0';
+      btn.textContent = '⟳ Rotating';
+    } else {
       btn.style.color = '#fff';
       btn.textContent = '⟳ Auto-Rotate';
     }
@@ -6731,7 +6855,12 @@
   let sharedMiniRenderer = null;
   function initMini3dInspector(mountEl, modelSrc) {
     if (!mountEl || typeof THREE === 'undefined') return;
+
+    // 1. Dispose previous mini viewer
     dispose3dViewer(miniInspector3dViewer, false);
+
+    // 2. Start fresh mini session
+    const thisMiniSession = ++miniSessionId;
 
     const width = mountEl.clientWidth || 320;
     const height = mountEl.clientHeight || 110;
@@ -6739,9 +6868,9 @@
     let renderer = sharedMiniRenderer;
     if (!renderer) {
       try {
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'default' });
+        renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'low-power' });
         renderer.setSize(width, height, false);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
         renderer.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault(), false);
         sharedMiniRenderer = renderer;
       } catch (e) {
@@ -6750,7 +6879,7 @@
       }
     } else {
       renderer.setSize(width, height, false);
-      renderer.clear();
+      renderer.clear(true, true, true);
     }
 
     mountEl.innerHTML = '';
@@ -6778,16 +6907,39 @@
       animId: null
     };
 
+    // Render frame 0 immediately
+    try { renderer.render(scene, camera); } catch (_) {}
+
     function animMini() {
-      if (!miniInspector3dViewer || miniInspector3dViewer.renderer !== renderer) return;
+      if (thisMiniSession !== miniSessionId || !miniInspector3dViewer || miniInspector3dViewer.renderer !== renderer) {
+        return; // Stale session, stop
+      }
       miniInspector3dViewer.animId = requestAnimationFrame(animMini);
       modelRoot.rotation.y += 0.02;
       try {
         renderer.render(scene, camera);
       } catch (_) {}
     }
+
     animMini();
   }
+
+  // Quick helper to preview 3D model in full showcase from inside the inspector
+  window.preview3dShowcaseFromInspector = function (target) {
+    const state = (target === 'place') ? placeHsState : editHsState;
+    const previewHs = {
+      label: state.label || '3D Interactive Model',
+      itemTitle: state.itemTitle || state.label || '3D Feature Showcase',
+      itemPrice: state.itemPrice || '',
+      infoText: state.infoText || 'Interactive 3D model preview. Click and drag to inspect from any angle.',
+      itemCtaText: state.itemCtaText || '',
+      itemCtaUrl: state.itemCtaUrl || '',
+      mediaType: 'model3d',
+      model3dPreset: state.model3dPreset || 'climbing-gear',
+      model3dUrl: state.model3dUrl || ''
+    };
+    window.showHotspotInfoCard(previewHs, -1);
+  };
   // ==========================================
   // VIDEO & PHOTO LIGHTBOX HELPERS
   // ==========================================
@@ -6854,6 +7006,9 @@
     const modal = document.getElementById('tourHotspotInfoModal');
     if (!modal || !hs) return;
 
+    // Instantly show modal dialog so user gets zero-latency UI response
+    modal.style.display = 'flex';
+
     window._currentlyViewingHotspot = hs;
     window._currentlyViewingHotspotIndex = (typeof hsIndex === 'number') ? hsIndex : -1;
 
@@ -6899,7 +7054,10 @@
           container3d.style.display = 'block';
           const mount = document.getElementById('tourInfoModal3dCanvasMount');
           const modelSrc = hs.model3dUrl || hs.model3dPreset || 'climbing-gear';
-          init3dItemViewer(mount, modelSrc, true);
+          // Initialize 3D viewer on next frame once DOM layout and dimensions are active
+          requestAnimationFrame(() => {
+            init3dItemViewer(mount, modelSrc, true);
+          });
         }
       } else if (mediaType === 'photo' && (hs.photoUrl || hs.url)) {
         mediaWrap.style.display = 'block';
@@ -6966,8 +7124,12 @@
     const modal = document.getElementById('tourHotspotInfoModal');
     if (modal) modal.style.display = 'none';
 
+    // Invalidate active session and stop loading indicator
+    viewerSessionId++;
+    set3dLoading(false);
+
     // Dispose active 3D viewer & stop video
-    dispose3dViewer(active3dViewer);
+    dispose3dViewer(active3dViewer, false);
     const iframe = document.getElementById('tourInfoModalIframe');
     if (iframe) iframe.src = 'about:blank';
     const video = document.getElementById('tourInfoModalNativeVideo');
@@ -7020,6 +7182,7 @@
   window.closePlaceHotspotDialog = function () {
     const modal = document.getElementById('tourPlaceHotspotModal');
     if (modal) modal.style.display = 'none';
+    dispose3dViewer(miniInspector3dViewer, false);
   };
 
   window.setQuickHsLabel = function (label) {
@@ -8173,6 +8336,7 @@
   window.closeEditHotspotDialog = function () {
     const modal = document.getElementById('tourEditHotspotModal');
     if (modal) modal.style.display = 'none';
+    dispose3dViewer(miniInspector3dViewer, false);
   };
 
   window.realignHotspotToCurrentCamera = function () {
