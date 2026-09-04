@@ -6693,7 +6693,6 @@
 
     if (isInteractive) {
       const dom = renderer.domElement;
-      // Ensure canvas fills the mount and is the top interactive layer
       if (mountEl) {
         if (dom.parentNode !== mountEl) {
           mountEl.innerHTML = '';
@@ -6704,8 +6703,20 @@
       }
       dom.style.cssText = 'width:100%;height:100%;display:block;cursor:grab;touch-action:none;pointer-events:auto;user-select:none;-webkit-user-select:none;position:absolute;inset:0;z-index:2;';
 
-      // --- Document-level 3D orbit (survives canvas recreate / overlays) ---
-      // Stored on active3dViewer so zoom buttons + animate always share state
+      // Smooth orbit state — targets lerp in animate() so mobile drag isn't jittery
+      active3dViewer.smoothRot = {
+        x: active3dViewer.rotation.x,
+        y: active3dViewer.rotation.y
+      };
+      active3dViewer.smoothDist = active3dViewer.distance;
+      active3dViewer.smoothTarget = {
+        x: active3dViewer.target.x,
+        y: active3dViewer.target.y,
+        z: active3dViewer.target.z
+      };
+      active3dViewer.velX = 0;
+      active3dViewer.velY = 0;
+
       active3dViewer._ptr = {
         down: false,
         mode: 'orbit',
@@ -6713,7 +6724,8 @@
         lastY: 0,
         pinch: 0,
         midX: 0,
-        midY: 0
+        midY: 0,
+        pointers: new Map() // multi-touch via pointer events only (no double touch+pointer)
       };
 
       const in3dHitArea = (target) => {
@@ -6723,19 +6735,34 @@
           target === dom);
       };
 
+      // Sensitivity: lower on touch for smoother grab
+      const sensFor = (pointerType) => (pointerType === 'touch' ? 0.0065 : 0.012);
+
       const onDocPointerDown = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
         if (!in3dHitArea(e.target)) return;
-        // ignore UI buttons inside the 3d chrome
         if (e.target.closest && (e.target.closest('button') || e.target.closest('a'))) return;
         if (e.pointerType !== 'touch' && e.button !== 0 && e.button !== 1 && e.button !== 2) return;
 
         active3dViewer.autoRotate = false;
         active3dViewer.isDragging = true;
+        active3dViewer.velX = 0;
+        active3dViewer.velY = 0;
         active3dViewer._ptr.down = true;
+        active3dViewer._ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         active3dViewer._ptr.lastX = e.clientX;
         active3dViewer._ptr.lastY = e.clientY;
-        active3dViewer._ptr.mode = (e.button === 2 || e.button === 1 || e.shiftKey) ? 'pan' : 'orbit';
+
+        const count = active3dViewer._ptr.pointers.size;
+        if (count >= 2) {
+          active3dViewer._ptr.mode = 'pan';
+          const pts = Array.from(active3dViewer._ptr.pointers.values());
+          active3dViewer._ptr.midX = (pts[0].x + pts[1].x) * 0.5;
+          active3dViewer._ptr.midY = (pts[0].y + pts[1].y) * 0.5;
+          active3dViewer._ptr.pinch = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        } else {
+          active3dViewer._ptr.mode = (e.button === 2 || e.button === 1 || e.shiftKey) ? 'pan' : 'orbit';
+        }
         active3dViewer.dragMode = active3dViewer._ptr.mode;
         if (dom) dom.style.cursor = 'grabbing';
         if (mountEl) mountEl.style.cursor = 'grabbing';
@@ -6747,22 +6774,63 @@
       const onDocPointerMove = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
         if (!active3dViewer._ptr || !active3dViewer._ptr.down) return;
+        if (!active3dViewer._ptr.pointers.has(e.pointerId) && active3dViewer._ptr.pointers.size === 0) return;
 
-        const dx = e.clientX - active3dViewer._ptr.lastX;
-        const dy = e.clientY - active3dViewer._ptr.lastY;
-        active3dViewer._ptr.lastX = e.clientX;
-        active3dViewer._ptr.lastY = e.clientY;
+        if (active3dViewer._ptr.pointers.has(e.pointerId)) {
+          active3dViewer._ptr.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        }
 
-        if (active3dViewer._ptr.mode === 'pan') {
-          const panScale = active3dViewer.distance * 0.0028;
+        const count = active3dViewer._ptr.pointers.size;
+        const sens = sensFor(e.pointerType);
+
+        if (count >= 2) {
+          const pts = Array.from(active3dViewer._ptr.pointers.values());
+          const midX = (pts[0].x + pts[1].x) * 0.5;
+          const midY = (pts[0].y + pts[1].y) * 0.5;
+          const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+          const dx = midX - active3dViewer._ptr.midX;
+          const dy = midY - active3dViewer._ptr.midY;
+          const panScale = active3dViewer.distance * 0.0018;
           const rotY = active3dViewer.rotation.y;
-          const tgt = active3dViewer.target || (active3dViewer.target = { x: 0, y: 0.2, z: 0 });
+          const tgt = active3dViewer.target;
           tgt.x -= Math.cos(rotY) * dx * panScale;
           tgt.y += dy * panScale;
           tgt.z += Math.sin(rotY) * dx * panScale;
+          if (active3dViewer._ptr.pinch > 4 && dist > 4) {
+            const ratio = active3dViewer._ptr.pinch / dist;
+            // damp pinch so zoom doesn't jump
+            const damped = 1 + (ratio - 1) * 0.55;
+            setDistance(active3dViewer.distance * damped);
+          }
+          active3dViewer._ptr.midX = midX;
+          active3dViewer._ptr.midY = midY;
+          active3dViewer._ptr.pinch = dist;
         } else {
-          active3dViewer.rotation.y -= dx * 0.014;
-          active3dViewer.rotation.x = Math.max(-1.35, Math.min(1.35, active3dViewer.rotation.x + dy * 0.014));
+          const dx = e.clientX - active3dViewer._ptr.lastX;
+          const dy = e.clientY - active3dViewer._ptr.lastY;
+          // Ignore tiny jitter under ~1.5px (common on mobile touch)
+          if (Math.abs(dx) < 1.2 && Math.abs(dy) < 1.2) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          active3dViewer._ptr.lastX = e.clientX;
+          active3dViewer._ptr.lastY = e.clientY;
+
+          if (active3dViewer._ptr.mode === 'pan') {
+            const panScale = active3dViewer.distance * 0.0022;
+            const rotY = active3dViewer.rotation.y;
+            const tgt = active3dViewer.target;
+            tgt.x -= Math.cos(rotY) * dx * panScale;
+            tgt.y += dy * panScale;
+            tgt.z += Math.sin(rotY) * dx * panScale;
+          } else {
+            active3dViewer.rotation.y -= dx * sens;
+            active3dViewer.rotation.x = Math.max(-1.35, Math.min(1.35, active3dViewer.rotation.x + dy * sens));
+            // inertia seed
+            active3dViewer.velY = -dx * sens * 0.35;
+            active3dViewer.velX = dy * sens * 0.35;
+          }
         }
         e.preventDefault();
         e.stopPropagation();
@@ -6770,11 +6838,19 @@
 
       const onDocPointerUp = (e) => {
         if (!active3dViewer || !active3dViewer._ptr) return;
-        active3dViewer._ptr.down = false;
-        active3dViewer.isDragging = false;
-        active3dViewer.dragMode = 'orbit';
-        if (dom) dom.style.cursor = 'grab';
-        if (mountEl) mountEl.style.cursor = 'grab';
+        active3dViewer._ptr.pointers.delete(e.pointerId);
+        if (active3dViewer._ptr.pointers.size === 0) {
+          active3dViewer._ptr.down = false;
+          active3dViewer.isDragging = false;
+          active3dViewer.dragMode = 'orbit';
+          if (dom) dom.style.cursor = 'grab';
+          if (mountEl) mountEl.style.cursor = 'grab';
+        } else if (active3dViewer._ptr.pointers.size === 1) {
+          const pt = Array.from(active3dViewer._ptr.pointers.values())[0];
+          active3dViewer._ptr.lastX = pt.x;
+          active3dViewer._ptr.lastY = pt.y;
+          active3dViewer._ptr.mode = 'orbit';
+        }
       };
 
       const onDocWheel = (e) => {
@@ -6782,80 +6858,8 @@
         if (!in3dHitArea(e.target)) return;
         e.preventDefault();
         e.stopPropagation();
-        const factor = e.deltaY > 0 ? 1.09 : 0.91;
+        const factor = e.deltaY > 0 ? 1.07 : 0.93;
         setDistance(active3dViewer.distance * factor);
-      };
-
-      // Touch-specific (pinch + one-finger) on mount/canvas
-      const onTouchStart = (e) => {
-        if (!active3dViewer || active3dViewer.renderer !== renderer) return;
-        if (!in3dHitArea(e.target) && e.target !== mountEl && e.target !== dom) return;
-        if (e.target.closest && e.target.closest('button')) return;
-        active3dViewer.autoRotate = false;
-        const touches = e.touches;
-        if (touches.length === 1) {
-          active3dViewer.isDragging = true;
-          active3dViewer._ptr.down = true;
-          active3dViewer._ptr.mode = 'orbit';
-          active3dViewer._ptr.lastX = touches[0].clientX;
-          active3dViewer._ptr.lastY = touches[0].clientY;
-        } else if (touches.length >= 2) {
-          active3dViewer.isDragging = true;
-          active3dViewer._ptr.down = true;
-          active3dViewer._ptr.mode = 'pan';
-          active3dViewer._ptr.midX = (touches[0].clientX + touches[1].clientX) * 0.5;
-          active3dViewer._ptr.midY = (touches[0].clientY + touches[1].clientY) * 0.5;
-          active3dViewer._ptr.pinch = Math.hypot(
-            touches[0].clientX - touches[1].clientX,
-            touches[0].clientY - touches[1].clientY
-          );
-        }
-        e.stopPropagation();
-      };
-
-      const onTouchMove = (e) => {
-        if (!active3dViewer || active3dViewer.renderer !== renderer) return;
-        if (!active3dViewer._ptr || !active3dViewer._ptr.down) return;
-        if (e.cancelable) e.preventDefault();
-        e.stopPropagation();
-        const touches = e.touches;
-        if (touches.length === 1) {
-          const dx = touches[0].clientX - active3dViewer._ptr.lastX;
-          const dy = touches[0].clientY - active3dViewer._ptr.lastY;
-          active3dViewer.rotation.y -= dx * 0.014;
-          active3dViewer.rotation.x = Math.max(-1.35, Math.min(1.35, active3dViewer.rotation.x + dy * 0.014));
-          active3dViewer._ptr.lastX = touches[0].clientX;
-          active3dViewer._ptr.lastY = touches[0].clientY;
-        } else if (touches.length >= 2) {
-          const midX = (touches[0].clientX + touches[1].clientX) * 0.5;
-          const midY = (touches[0].clientY + touches[1].clientY) * 0.5;
-          const dist = Math.hypot(
-            touches[0].clientX - touches[1].clientX,
-            touches[0].clientY - touches[1].clientY
-          );
-          const dx = midX - active3dViewer._ptr.midX;
-          const dy = midY - active3dViewer._ptr.midY;
-          const panScale = active3dViewer.distance * 0.0024;
-          const rotY = active3dViewer.rotation.y;
-          const tgt = active3dViewer.target || (active3dViewer.target = { x: 0, y: 0.2, z: 0 });
-          tgt.x -= Math.cos(rotY) * dx * panScale;
-          tgt.y += dy * panScale;
-          tgt.z += Math.sin(rotY) * dx * panScale;
-          if (active3dViewer._ptr.pinch > 0 && dist > 0) {
-            setDistance(active3dViewer.distance * (active3dViewer._ptr.pinch / dist));
-          }
-          active3dViewer._ptr.midX = midX;
-          active3dViewer._ptr.midY = midY;
-          active3dViewer._ptr.pinch = dist;
-        }
-      };
-
-      const onTouchEnd = (e) => {
-        if (!active3dViewer || !active3dViewer._ptr) return;
-        if (e.touches.length === 0) {
-          active3dViewer._ptr.down = false;
-          active3dViewer.isDragging = false;
-        }
       };
 
       const onContextMenu = (e) => {
@@ -6865,7 +6869,7 @@
         }
       };
 
-      // Document capture phase so we win over the tour viewport behind the modal
+      // Pointer-only (covers mouse + touch + pen) — avoids double-firing with touch events
       document.addEventListener('pointerdown', onDocPointerDown, true);
       document.addEventListener('pointermove', onDocPointerMove, true);
       document.addEventListener('pointerup', onDocPointerUp, true);
@@ -6873,15 +6877,6 @@
       document.addEventListener('wheel', onDocWheel, { capture: true, passive: false });
       document.addEventListener('contextmenu', onContextMenu, true);
 
-      const touchRoots = [mountEl, dom].filter(Boolean);
-      touchRoots.forEach((t) => {
-        t.addEventListener('touchstart', onTouchStart, { passive: true });
-        t.addEventListener('touchmove', onTouchMove, { passive: false });
-        t.addEventListener('touchend', onTouchEnd, { passive: true });
-        t.addEventListener('touchcancel', onTouchEnd, { passive: true });
-      });
-
-      // Global zoom helpers always bound to current viewer
       window.zoom3dModal = function (direction) {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
         setDistance(active3dViewer.distance + (direction < 0 ? -0.5 : 0.5));
@@ -6889,8 +6884,13 @@
       window.reset3dModalCamera = function () {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
         active3dViewer.rotation = { x: 0.2, y: 0 };
+        active3dViewer.smoothRot = { x: 0.2, y: 0 };
         active3dViewer.distance = 4.5;
+        active3dViewer.smoothDist = 4.5;
         active3dViewer.target = { x: 0, y: 0.2, z: 0 };
+        active3dViewer.smoothTarget = { x: 0, y: 0.2, z: 0 };
+        active3dViewer.velX = 0;
+        active3dViewer.velY = 0;
         active3dViewer.autoRotate = true;
         const btn = document.getElementById('tour3dAutoRotateBtn');
         if (btn) {
@@ -6908,12 +6908,6 @@
         document.removeEventListener('pointercancel', onDocPointerUp, true);
         document.removeEventListener('wheel', onDocWheel, true);
         document.removeEventListener('contextmenu', onContextMenu, true);
-        touchRoots.forEach((t) => {
-          t.removeEventListener('touchstart', onTouchStart);
-          t.removeEventListener('touchmove', onTouchMove);
-          t.removeEventListener('touchend', onTouchEnd);
-          t.removeEventListener('touchcancel', onTouchEnd);
-        });
       };
     }
 
@@ -6927,15 +6921,55 @@
       active3dViewer.animId = requestAnimationFrame(animate);
 
       try {
-        if (active3dViewer.autoRotate && !active3dViewer.isDragging && !(active3dViewer._ptr && active3dViewer._ptr.down)) {
+        const dragging = active3dViewer.isDragging || (active3dViewer._ptr && active3dViewer._ptr.down);
+
+        if (active3dViewer.autoRotate && !dragging) {
           active3dViewer.rotation.y += 0.01;
         }
 
+        // Light inertia after finger lift (mobile feels natural, not sticky)
+        if (!dragging) {
+          if (Math.abs(active3dViewer.velY || 0) > 0.00015 || Math.abs(active3dViewer.velX || 0) > 0.00015) {
+            active3dViewer.rotation.y += active3dViewer.velY || 0;
+            active3dViewer.rotation.x = Math.max(-1.35, Math.min(1.35,
+              active3dViewer.rotation.x + (active3dViewer.velX || 0)));
+            active3dViewer.velY *= 0.92;
+            active3dViewer.velX *= 0.92;
+          } else {
+            active3dViewer.velX = 0;
+            active3dViewer.velY = 0;
+          }
+        }
+
+        // Lerp camera toward target pose — kills mobile jitter
+        if (!active3dViewer.smoothRot) {
+          active3dViewer.smoothRot = { x: active3dViewer.rotation.x, y: active3dViewer.rotation.y };
+        }
+        if (typeof active3dViewer.smoothDist !== 'number') {
+          active3dViewer.smoothDist = active3dViewer.distance;
+        }
+        if (!active3dViewer.smoothTarget) {
+          active3dViewer.smoothTarget = {
+            x: active3dViewer.target.x,
+            y: active3dViewer.target.y,
+            z: active3dViewer.target.z
+          };
+        }
+
+        // While dragging follow tighter; while free, softer
+        const lerp = dragging ? 0.42 : 0.18;
+        active3dViewer.smoothRot.x += (active3dViewer.rotation.x - active3dViewer.smoothRot.x) * lerp;
+        active3dViewer.smoothRot.y += (active3dViewer.rotation.y - active3dViewer.smoothRot.y) * lerp;
+        active3dViewer.smoothDist += (active3dViewer.distance - active3dViewer.smoothDist) * lerp;
+        active3dViewer.smoothTarget.x += (active3dViewer.target.x - active3dViewer.smoothTarget.x) * lerp;
+        active3dViewer.smoothTarget.y += (active3dViewer.target.y - active3dViewer.smoothTarget.y) * lerp;
+        active3dViewer.smoothTarget.z += (active3dViewer.target.z - active3dViewer.smoothTarget.z) * lerp;
+
         const cam = active3dViewer.camera;
-        const dist = active3dViewer.distance;
-        const rotY = active3dViewer.rotation.y;
-        const rotX = active3dViewer.rotation.x;
-        const tgt = active3dViewer.target || { x: 0, y: 0.2, z: 0 };
+        const dist = active3dViewer.smoothDist;
+        const rotY = active3dViewer.smoothRot.y;
+        const rotX = active3dViewer.smoothRot.x;
+        const tgt = active3dViewer.smoothTarget;
 
         cam.position.x = tgt.x + dist * Math.sin(rotY) * Math.cos(rotX);
         cam.position.y = tgt.y + dist * Math.sin(rotX);
