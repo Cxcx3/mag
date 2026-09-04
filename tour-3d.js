@@ -19,7 +19,7 @@
     // Fullscreen button
     src = src.replace(
       'title="Reset 3D camera angle">⌖ Reset</button>',
-      'title="Reset 3D camera angle">⌖ Reset</button>\n                  <button type="button" class="tour-dialog-btn" id="tour3dFullscreenBtn" onclick="window.toggle3dModalFullscreen()" style="padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Fullscreen 3D view">⛶ Full</button>'
+      'title="Reset 3D camera angle">⌖ Reset</button>\n                  <button type="button" class="tour-dialog-btn" id="tour3dFullscreenBtn" onclick="window.toggle3dModalFullscreen(event)" style="padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Fullscreen 3D view">⛶ Full</button>'
     );
     // Viewer state + pan target
     src = src.replace(
@@ -28,13 +28,13 @@
     );
     src = src.replace('const height = mountEl.clientHeight || 270;', 'const height = mountEl.clientHeight || width || 420;');
 
-    // Invert orbit + mark cursor grab on the interaction start
+    // Grab cursor + pan mode on pointer down
     src = src.replace(
       "const dom = renderer.domElement;\n\n      const onPointerDown = (e) => {\n        active3dViewer.isDragging = true;\n        active3dViewer.autoRotate = false; // Pause auto rotate on manual touch\n        active3dViewer.prevMouse = {\n          x: e.clientX || (e.touches && e.touches[0]?.clientX) || 0,\n          y: e.clientY || (e.touches && e.touches[0]?.clientY) || 0\n        };\n      };",
       "const dom = renderer.domElement;\n      dom.style.cursor = 'grab';\n      dom.style.touchAction = 'none';\n      if (!active3dViewer.target) active3dViewer.target = { x: 0, y: 0.2, z: 0 };\n\n      const onPointerDown = (e) => {\n        active3dViewer.isDragging = true;\n        active3dViewer.autoRotate = false;\n        dom.style.cursor = 'grabbing';\n        const isTouch = !!(e.touches && e.touches.length);\n        active3dViewer.prevMouse = {\n          x: e.clientX || (e.touches && e.touches[0]?.clientX) || 0,\n          y: e.clientY || (e.touches && e.touches[0]?.clientY) || 0\n        };\n        active3dViewer.dragMode = (e.button === 2 || e.button === 1 || e.shiftKey) ? 'pan' : 'orbit';\n        if (e.cancelable && isTouch) e.preventDefault();\n      };"
     );
 
-    // Replace move handler: orbit (inverted) + pan
+    // Orbit (inverted) + pan
     src = src.replace(
       "const onPointerMove = (e) => {\n        if (!active3dViewer.isDragging) return;\n        const curX = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;\n        const curY = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;\n        const deltaX = curX - active3dViewer.prevMouse.x;\n        const deltaY = curY - active3dViewer.prevMouse.y;\n\n        active3dViewer.rotation.y += deltaX * 0.012;\n        active3dViewer.rotation.x = Math.max(-1.1, Math.min(1.1, active3dViewer.rotation.x + deltaY * 0.012));\n\n        active3dViewer.prevMouse = { x: curX, y: curY };\n      };",
       "const onPointerMove = (e) => {\n        if (!active3dViewer.isDragging) return;\n        const curX = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;\n        const curY = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;\n        const deltaX = curX - active3dViewer.prevMouse.x;\n        const deltaY = curY - active3dViewer.prevMouse.y;\n        if (active3dViewer.dragMode === 'pan') {\n          const panScale = active3dViewer.distance * 0.0028;\n          const rotY = active3dViewer.rotation.y;\n          const tgt = active3dViewer.target || (active3dViewer.target = { x: 0, y: 0.2, z: 0 });\n          tgt.x -= Math.cos(rotY) * deltaX * panScale;\n          tgt.y += deltaY * panScale;\n          tgt.z -= -Math.sin(rotY) * deltaX * panScale;\n        } else {\n          active3dViewer.rotation.y -= deltaX * 0.012;\n          active3dViewer.rotation.x = Math.max(-1.25, Math.min(1.25, active3dViewer.rotation.x + deltaY * 0.012));\n        }\n        active3dViewer.prevMouse = { x: curX, y: curY };\n        if (e.cancelable && e.touches) e.preventDefault();\n      };"
@@ -45,7 +45,7 @@
       "const onPointerUp = () => {\n        active3dViewer.isDragging = false;\n        active3dViewer.dragMode = 'orbit';\n        if (active3dViewer.renderer && active3dViewer.renderer.domElement) active3dViewer.renderer.domElement.style.cursor = 'grab';\n      };"
     );
 
-    // Better zoom (closer)
+    // Closer zoom
     src = src.replace(
       "const delta = Math.sign(e.deltaY) * 0.35;\n        active3dViewer.distance = Math.max(1.8, Math.min(8.0, active3dViewer.distance + delta));",
       "const factor = e.deltaY > 0 ? 1.09 : 0.91;\n        active3dViewer.distance = Math.max(0.6, Math.min(10, active3dViewer.distance * factor));"
@@ -57,17 +57,17 @@
       "const tgt = active3dViewer.target || { x: 0, y: 0.2, z: 0 };\n      cam.position.x = tgt.x + dist * Math.sin(rotY) * Math.cos(rotX);\n      cam.position.y = tgt.y + dist * Math.sin(rotX);\n      cam.position.z = tgt.z + dist * Math.cos(rotY) * Math.cos(rotX);\n      cam.lookAt(tgt.x, tgt.y, tgt.z);"
     );
 
-    // Reset clears target + fullscreen helper
+    // Reset clears target
     src = src.replace(
       "window.reset3dModalCamera = function () {\n    active3dViewer.rotation = { x: 0.2, y: 0 };\n    active3dViewer.distance = 4.5;\n    active3dViewer.autoRotate = true;",
       "window.reset3dModalCamera = function () {\n    active3dViewer.rotation = { x: 0.2, y: 0 };\n    active3dViewer.distance = 4.5;\n    active3dViewer.target = { x: 0, y: 0.2, z: 0 };\n    active3dViewer.autoRotate = true;"
     );
 
-    // Inject fullscreen function after reset function ends
+    // CSS fullscreen (works on iOS + desktop) — always inject after reset fn
     if (src.indexOf('toggle3dModalFullscreen') === -1) {
       src = src.replace(
         "window.reset3dModalCamera = function () {\n    active3dViewer.rotation = { x: 0.2, y: 0 };\n    active3dViewer.distance = 4.5;\n    active3dViewer.target = { x: 0, y: 0.2, z: 0 };\n    active3dViewer.autoRotate = true;\n    const btn = document.getElementById('tour3dAutoRotateBtn');\n    if (btn) {\n      btn.style.color = '#fff';\n      btn.textContent = '⟳ Auto-Rotate';\n    }\n  };",
-        "window.reset3dModalCamera = function () {\n    active3dViewer.rotation = { x: 0.2, y: 0 };\n    active3dViewer.distance = 4.5;\n    active3dViewer.target = { x: 0, y: 0.2, z: 0 };\n    active3dViewer.autoRotate = true;\n    const btn = document.getElementById('tour3dAutoRotateBtn');\n    if (btn) {\n      btn.style.color = '#fff';\n      btn.textContent = '⟳ Auto-Rotate';\n    }\n  };\n\n  window.toggle3dModalFullscreen = function () {\n    const el = document.getElementById('tourInfoModal3dContainer');\n    if (!el) return;\n    const btn = document.getElementById('tour3dFullscreenBtn');\n    const resizeViewer = function () {\n      if (!active3dViewer.renderer || !active3dViewer.camera) return;\n      const mount = active3dViewer.mountEl || el;\n      const w = mount.clientWidth || window.innerWidth;\n      const h = mount.clientHeight || window.innerHeight;\n      active3dViewer.renderer.setSize(w, h);\n      active3dViewer.camera.aspect = w / Math.max(h, 1);\n      active3dViewer.camera.updateProjectionMatrix();\n    };\n    const exitFs = function () {\n      if (btn) btn.textContent = '⛶ Full';\n      el.style.maxHeight = 'min(92vw, 520px)';\n      el.style.height = '';\n      el.style.aspectRatio = '1 / 1';\n      requestAnimationFrame(resizeViewer);\n    };\n    if (!document.fullscreenElement && !document.webkitFullscreenElement) {\n      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;\n      if (req) {\n        Promise.resolve(req.call(el)).then(function () {\n          if (btn) btn.textContent = '⛶ Exit';\n          el.style.maxHeight = '100vh';\n          el.style.height = '100vh';\n          el.style.aspectRatio = 'auto';\n          el.style.background = '#0a0812';\n          setTimeout(resizeViewer, 120);\n        }).catch(function () {});\n      }\n      const onFsChange = function () {\n        if (!document.fullscreenElement && !document.webkitFullscreenElement) {\n          exitFs();\n          document.removeEventListener('fullscreenchange', onFsChange);\n          document.removeEventListener('webkitfullscreenchange', onFsChange);\n        }\n      };\n      document.addEventListener('fullscreenchange', onFsChange);\n      document.addEventListener('webkitfullscreenchange', onFsChange);\n    } else {\n      const exit = document.exitFullscreen || document.webkitExitFullscreen;\n      if (exit) exit.call(document);\n      exitFs();\n    }\n  };"
+        "window.reset3dModalCamera = function () {\n    active3dViewer.rotation = { x: 0.2, y: 0 };\n    active3dViewer.distance = 4.5;\n    active3dViewer.target = { x: 0, y: 0.2, z: 0 };\n    active3dViewer.autoRotate = true;\n    const btn = document.getElementById('tour3dAutoRotateBtn');\n    if (btn) {\n      btn.style.color = '#fff';\n      btn.textContent = '⟳ Auto-Rotate';\n    }\n  };\n\n  window.__spotlight3dFs = false;\n  window.toggle3dModalFullscreen = function (ev) {\n    if (ev) { try { ev.preventDefault(); ev.stopPropagation(); } catch (e) {} }\n    const el = document.getElementById('tourInfoModal3dContainer');\n    if (!el) { console.warn('[3D] container missing'); return; }\n    const btn = document.getElementById('tour3dFullscreenBtn');\n    const resizeViewer = function () {\n      if (!active3dViewer || !active3dViewer.renderer || !active3dViewer.camera) return;\n      const mount = active3dViewer.mountEl || el;\n      const w = mount.clientWidth || window.innerWidth;\n      const h = mount.clientHeight || window.innerHeight;\n      active3dViewer.renderer.setSize(w, h);\n      active3dViewer.camera.aspect = w / Math.max(h, 1);\n      active3dViewer.camera.updateProjectionMatrix();\n    };\n    const enterCssFs = function () {\n      window.__spotlight3dFs = true;\n      el.dataset.prevStyle = el.getAttribute('style') || '';\n      el.style.position = 'fixed';\n      el.style.left = '0';\n      el.style.top = '0';\n      el.style.right = '0';\n      el.style.bottom = '0';\n      el.style.width = '100vw';\n      el.style.height = '100vh';\n      el.style.maxHeight = '100vh';\n      el.style.aspectRatio = 'auto';\n      el.style.zIndex = '2147483646';\n      el.style.background = '#0a0812';\n      el.style.borderRadius = '0';\n      el.style.display = 'block';\n      if (btn) btn.textContent = '⛶ Exit';\n      document.body.style.overflow = 'hidden';\n      setTimeout(resizeViewer, 50);\n      setTimeout(resizeViewer, 200);\n    };\n    const exitCssFs = function () {\n      window.__spotlight3dFs = false;\n      if (el.dataset.prevStyle) {\n        el.setAttribute('style', el.dataset.prevStyle);\n        delete el.dataset.prevStyle;\n      } else {\n        el.style.position = 'relative';\n        el.style.left = '';\n        el.style.top = '';\n        el.style.right = '';\n        el.style.bottom = '';\n        el.style.width = '100%';\n        el.style.height = '';\n        el.style.maxHeight = 'min(92vw, 520px)';\n        el.style.aspectRatio = '1 / 1';\n        el.style.zIndex = '';\n      }\n      if (btn) btn.textContent = '⛶ Full';\n      document.body.style.overflow = '';\n      setTimeout(resizeViewer, 50);\n      setTimeout(resizeViewer, 200);\n    };\n    if (window.__spotlight3dFs) {\n      exitCssFs();\n      return;\n    }\n    enterCssFs();\n  };\n\n  document.addEventListener('keydown', function (e) {\n    if (e.key === 'Escape' && window.__spotlight3dFs) {\n      window.toggle3dModalFullscreen();\n    }\n  });"
       );
     }
 
@@ -77,7 +77,7 @@
       "dom.addEventListener('mousedown', onPointerDown);\n      window.addEventListener('mousemove', onPointerMove);\n      window.addEventListener('mouseup', onPointerUp);\n      dom.addEventListener('contextmenu', function (e) { e.preventDefault(); });"
     );
 
-    // Touch passive false so preventDefault works for pan/grab
+    // Touch passive false
     src = src.replace(
       "dom.addEventListener('touchstart', onPointerDown, { passive: true });\n      window.addEventListener('touchmove', onPointerMove, { passive: true });",
       "dom.addEventListener('touchstart', onPointerDown, { passive: false });\n      window.addEventListener('touchmove', onPointerMove, { passive: false });"
