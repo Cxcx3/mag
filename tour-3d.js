@@ -6280,6 +6280,10 @@
   let viewerSessionId = 0;
   let miniSessionId = 0;
 
+  // Prevent multiple queued model initializations / network loads on rapid mobile taps.
+  let pending3dInitRaf = null;
+  let active3dLoadController = null;
+
   // Small bottom loading indicator helper
   function set3dLoading(isLoading, text = 'Loading 3D model...') {
     const el = document.getElementById('tour3dBottomLoadingIndicator');
@@ -6396,6 +6400,14 @@
 
   function dispose3dViewer(viewerInstance, destroyRenderer = false) {
     if (!viewerInstance) return;
+
+    // Abort an in-flight GLTF download immediately when the user switches/closes.
+    const viewerLoadController = viewerInstance.loadController;
+    if (viewerLoadController) {
+      try { viewerLoadController.abort(); } catch (e) {}
+      if (active3dLoadController === viewerLoadController) active3dLoadController = null;
+      viewerInstance.loadController = null;
+    }
 
     if (viewerInstance.animId) {
       cancelAnimationFrame(viewerInstance.animId);
@@ -6523,42 +6535,78 @@
           console.warn('[SpotLIGHT 3D] DRACOLoader setup notice:', dracoErr);
         }
       }
-      loader.load(
-        modelSrc,
-        (gltf) => {
-          if (loadToken.cancelled || thisSession !== viewerSessionId) {
-            disposeObject3DResources(gltf.scene);
-            return;
-          }
-          const loadedMesh = gltf.scene;
-          const box = new THREE.Box3().setFromObject(loadedMesh);
-          const size = box.getSize(new THREE.Vector3());
-          const maxDim = Math.max(size.x, size.y, size.z) || 1;
-          const scale = 2.4 / maxDim;
-          loadedMesh.scale.setScalar(scale);
-          const center = box.getCenter(new THREE.Vector3());
-          loadedMesh.position.sub(center.multiplyScalar(scale));
-          modelRoot.add(loadedMesh);
+      // Use fetch + AbortController instead of loader.load().
+      // loader.load() cannot cancel an old request, so rapid mobile model switching
+      // could leave several large GLTF/GLB downloads decoding at the same time.
+      const loadController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      active3dLoadController = loadController;
 
-          // Render first frame immediately
-          try { renderer.render(scene, camera); } catch (_) {}
-          set3dLoading(false);
-        },
-        (xhr) => {
-          if (thisSession !== viewerSessionId) return;
-          if (xhr && xhr.lengthComputable && xhr.total > 0) {
-            const pct = Math.round((xhr.loaded / xhr.total) * 100);
-            set3dLoading(true, `Loading 3D asset ${pct}%...`);
-          } else {
-            set3dLoading(true, 'Loading 3D asset...');
+      const parseModel = (arrayBuffer) => {
+        if (loadToken.cancelled || thisSession !== viewerSessionId) return;
+        const basePath = (THREE.LoaderUtils && THREE.LoaderUtils.extractUrlBase)
+          ? THREE.LoaderUtils.extractUrlBase(modelSrc)
+          : modelSrc.substring(0, modelSrc.lastIndexOf('/') + 1);
+
+        loader.parse(
+          arrayBuffer,
+          basePath,
+          (gltf) => {
+            if (active3dLoadController === loadController) active3dLoadController = null;
+
+            if (loadToken.cancelled || thisSession !== viewerSessionId) {
+              disposeObject3DResources(gltf.scene);
+              return;
+            }
+
+            const loadedMesh = gltf.scene;
+            const box = new THREE.Box3().setFromObject(loadedMesh);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z) || 1;
+            const scale = 2.4 / maxDim;
+            loadedMesh.scale.setScalar(scale);
+            const center = box.getCenter(new THREE.Vector3());
+            loadedMesh.position.sub(center.multiplyScalar(scale));
+            modelRoot.add(loadedMesh);
+
+            // Render first frame immediately
+            try { renderer.render(scene, camera); } catch (_) {}
+            set3dLoading(false);
+          },
+          (err) => {
+            if (active3dLoadController === loadController) active3dLoadController = null;
+            if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
+            console.warn('[SpotLIGHT 3D] GLTF parse failed, using procedural fallback:', err);
+            set3dLoading(false);
+            addFallback();
           }
-        },
-        (err) => {
-          console.warn('[SpotLIGHT 3D] GLTFLoader failed, using procedural fallback:', err);
+        );
+      };
+
+      const loadModelBytes = async () => {
+        try {
+          const response = await fetch(modelSrc, {
+            signal: loadController ? loadController.signal : undefined,
+            credentials: 'same-origin'
+          });
+
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          // Keep only one ArrayBuffer in memory. A streamed chunk array would
+          // temporarily duplicate the whole model and can spike mobile RAM.
+          const arrayBuffer = await response.arrayBuffer();
+          if (thisSession !== viewerSessionId || loadToken.cancelled) return;
+          set3dLoading(true, 'Loading 3D asset 100%...');
+          parseModel(arrayBuffer);
+        } catch (err) {
+          if (active3dLoadController === loadController) active3dLoadController = null;
+          if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
+          console.warn('[SpotLIGHT 3D] GLTF download failed, using procedural fallback:', err);
           set3dLoading(false);
           addFallback();
         }
-      );
+      };
+
+      loadModelBytes();
     } else {
       // Procedural models build and render on Frame 0 immediately (< 3ms)
       modelRoot.add(get3dModelMeshBySrc(modelSrc));
@@ -6582,7 +6630,14 @@
       maxDistance: 10.0,
       target: { x: 0, y: 0.2, z: 0 },
       animId: null,
-      cleanup: () => { loadToken.cancelled = true; }
+      loadController: loadController || null,
+      cleanup: () => {
+        loadToken.cancelled = true;
+        if (loadController) {
+          try { loadController.abort(); } catch (_) {}
+          if (active3dLoadController === loadController) active3dLoadController = null;
+        }
+      }
     };
 
     const setDistance = (next) => {
@@ -7051,8 +7106,12 @@
           container3d.style.display = 'block';
           const mount = document.getElementById('tourInfoModal3dCanvasMount');
           const modelSrc = hs.model3dUrl || hs.model3dPreset || 'climbing-gear';
-          // Initialize 3D viewer on next frame once DOM layout and dimensions are active
-          requestAnimationFrame(() => {
+          // Initialize only the latest 3D model request. Rapid taps should not queue
+          // multiple WebGL/model loads on mobile.
+          if (pending3dInitRaf) cancelAnimationFrame(pending3dInitRaf);
+          pending3dInitRaf = requestAnimationFrame(() => {
+            pending3dInitRaf = null;
+            if (document.getElementById('tourHotspotInfoModal')?.style.display === 'none') return;
             init3dItemViewer(mount, modelSrc, true);
           });
         }
@@ -7123,6 +7182,14 @@
 
     // Invalidate active session and stop loading indicator
     viewerSessionId++;
+    if (pending3dInitRaf) {
+      cancelAnimationFrame(pending3dInitRaf);
+      pending3dInitRaf = null;
+    }
+    if (active3dLoadController) {
+      try { active3dLoadController.abort(); } catch (_) {}
+      active3dLoadController = null;
+    }
     set3dLoading(false);
 
     // Dispose active 3D viewer & stop video
