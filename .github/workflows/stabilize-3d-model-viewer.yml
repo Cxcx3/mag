@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Patch 3D viewer resource lifecycle
+      - name: Patch 3D viewer
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -24,187 +24,445 @@ jobs:
           p = Path('tour-3d.js')
           s = p.read_text(encoding='utf-8')
 
-          old = '''  function dispose3dViewer(viewerInstance) {
-    if (!viewerInstance) return;
-    if (viewerInstance.animId) {
-      cancelAnimationFrame(viewerInstance.animId);
-      viewerInstance.animId = null;
-    }
-    if (viewerInstance.renderer) {
-      if (viewerInstance.renderer.domElement && viewerInstance.renderer.domElement.parentNode) {
-        viewerInstance.renderer.domElement.parentNode.removeChild(viewerInstance.renderer.domElement);
-      }
-      viewerInstance.renderer.dispose();
-      viewerInstance.renderer = null;
-    }
-    viewerInstance.scene = null;
-    viewerInstance.camera = null;
-    viewerInstance.modelMesh = null;
-  }
-'''
-
-          new = '''  // Release Three.js object resources without tearing down the parent WebGL
-  // context. Repeatedly creating/discarding WebGLRenderer instances can exhaust
-  // browser GPU contexts on long editor sessions and make the page appear to
-  // refresh back to the magazine cover. The model itself is disposable; the
-  // viewer canvas/context should remain stable while the user changes models.
-  function disposeObject3DResources(root) {
-    if (!root || typeof root.traverse !== 'function') return;
-    root.traverse((obj) => {
-      if (!obj) return;
-      if (obj.geometry && typeof obj.geometry.dispose === 'function') {
-        try { obj.geometry.dispose(); } catch (e) {}
-      }
-      if (obj.material) {
-        const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-        materials.forEach((mat) => {
-          if (!mat) return;
-          // Textures owned by this model are safe to release here. Built-in
-          // procedural models create their textures locally.
-          Object.keys(mat).forEach((key) => {
-            const value = mat[key];
-            if (value && value.isTexture && typeof value.dispose === 'function') {
-              try { value.dispose(); } catch (e) {}
+          # ------------------------------------------------------------
+          # 1) Safer Three.js resource disposal.
+          # ------------------------------------------------------------
+          old_dispose = '''  function dispose3dViewer(viewerInstance) {
+            if (!viewerInstance) return;
+            if (viewerInstance.animId) {
+              cancelAnimationFrame(viewerInstance.animId);
+              viewerInstance.animId = null;
             }
-          });
-          if (typeof mat.dispose === 'function') {
-            try { mat.dispose(); } catch (e) {}
+            if (viewerInstance.renderer) {
+              if (viewerInstance.renderer.domElement && viewerInstance.renderer.domElement.parentNode) {
+                viewerInstance.renderer.domElement.parentNode.removeChild(viewerInstance.renderer.domElement);
+              }
+              viewerInstance.renderer.dispose();
+              viewerInstance.renderer = null;
+            }
+            viewerInstance.scene = null;
+            viewerInstance.camera = null;
+            viewerInstance.modelMesh = null;
           }
-        });
-      }
-    });
-  }
+          '''
+          new_dispose = '''  function disposeObject3DResources(root) {
+            if (!root || typeof root.traverse !== 'function') return;
+            root.traverse((obj) => {
+              if (!obj) return;
+              if (obj.geometry && typeof obj.geometry.dispose === 'function') {
+                try { obj.geometry.dispose(); } catch (e) {}
+              }
+              if (obj.material) {
+                const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+                materials.forEach((mat) => {
+                  if (!mat) return;
+                  Object.keys(mat).forEach((key) => {
+                    const value = mat[key];
+                    if (value && value.isTexture && typeof value.dispose === 'function') {
+                      try { value.dispose(); } catch (e) {}
+                    }
+                  });
+                  if (typeof mat.dispose === 'function') {
+                    try { mat.dispose(); } catch (e) {}
+                  }
+                });
+              }
+            });
+          }
 
-  function dispose3dViewer(viewerInstance, destroyRenderer = true) {
-    if (!viewerInstance) return;
-    if (viewerInstance.animId) {
-      cancelAnimationFrame(viewerInstance.animId);
-      viewerInstance.animId = null;
-    }
-    if (typeof viewerInstance.cleanup === 'function') {
-      try { viewerInstance.cleanup(); } catch (e) {}
-      viewerInstance.cleanup = null;
-    }
-    if (viewerInstance.modelMesh) {
-      disposeObject3DResources(viewerInstance.modelMesh);
-      if (viewerInstance.modelMesh.parent) {
-        try { viewerInstance.modelMesh.parent.remove(viewerInstance.modelMesh); } catch (e) {}
-      }
-    }
-    if (viewerInstance.scene && viewerInstance.scene.traverse) {
-      // Only dispose resources that are not part of the model root.
-      viewerInstance.scene.traverse((obj) => {
-        if (!obj || obj === viewerInstance.modelMesh) return;
-        if (obj.geometry && typeof obj.geometry.dispose === 'function') {
-          try { obj.geometry.dispose(); } catch (e) {}
-        }
-        if (obj.material) {
-          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-          mats.forEach((mat) => { if (mat && typeof mat.dispose === 'function') { try { mat.dispose(); } catch (e) {} } });
-        }
-      });
-    }
-    if (viewerInstance.renderer && destroyRenderer) {
-      try { viewerInstance.renderer.renderLists?.dispose?.(); } catch (e) {}
-      try { viewerInstance.renderer.dispose(); } catch (e) {}
-      if (viewerInstance.renderer.domElement && viewerInstance.renderer.domElement.parentNode) {
-        try { viewerInstance.renderer.domElement.parentNode.removeChild(viewerInstance.renderer.domElement); } catch (e) {}
-      }
-      viewerInstance.renderer = null;
-    }
-    viewerInstance.scene = null;
-    viewerInstance.camera = null;
-    viewerInstance.modelMesh = null;
-    viewerInstance.mountEl = null;
-  }
-'''
+          function dispose3dViewer(viewerInstance, destroyRenderer = true) {
+            if (!viewerInstance) return;
+            if (viewerInstance.animId) {
+              cancelAnimationFrame(viewerInstance.animId);
+              viewerInstance.animId = null;
+            }
+            if (typeof viewerInstance.cleanup === 'function') {
+              try { viewerInstance.cleanup(); } catch (e) {}
+              viewerInstance.cleanup = null;
+            }
+            if (viewerInstance.modelMesh) {
+              disposeObject3DResources(viewerInstance.modelMesh);
+              if (viewerInstance.modelMesh.parent) {
+                try { viewerInstance.modelMesh.parent.remove(viewerInstance.modelMesh); } catch (e) {}
+              }
+            }
+            if (viewerInstance.scene && viewerInstance.scene.traverse) {
+              viewerInstance.scene.traverse((obj) => {
+                if (!obj || obj === viewerInstance.modelMesh) return;
+                if (obj.geometry && typeof obj.geometry.dispose === 'function') {
+                  try { obj.geometry.dispose(); } catch (e) {}
+                }
+                if (obj.material) {
+                  const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                  mats.forEach((mat) => {
+                    if (mat && typeof mat.dispose === 'function') {
+                      try { mat.dispose(); } catch (e) {}
+                    }
+                  });
+                }
+              });
+            }
+            if (viewerInstance.renderer && destroyRenderer) {
+              try { viewerInstance.renderer.renderLists?.dispose?.(); } catch (e) {}
+              try { viewerInstance.renderer.dispose(); } catch (e) {}
+              if (viewerInstance.renderer.domElement && viewerInstance.renderer.domElement.parentNode) {
+                try { viewerInstance.renderer.domElement.parentNode.removeChild(viewerInstance.renderer.domElement); } catch (e) {}
+              }
+              viewerInstance.renderer = null;
+            }
+            viewerInstance.scene = null;
+            viewerInstance.camera = null;
+            viewerInstance.modelMesh = null;
+            viewerInstance.mountEl = null;
+          }
+          '''
+          if old_dispose in s:
+              s = s.replace(old_dispose, new_dispose, 1)
+          elif 'function disposeObject3DResources(root)' not in s:
+              raise SystemExit('dispose3dViewer block not found; refusing to modify')
 
-          if old not in s:
-              raise SystemExit('dispose3dViewer block not found; refusing to modify file')
-          s = s.replace(old, new, 1)
-
-          start = s.find('  function initMini3dInspector(mountEl, modelSrc) {')
-          end = s.find('\n  // ==========================================\n  // VIDEO & PHOTO LIGHTBOX HELPERS', start)
+          # ------------------------------------------------------------
+          # 2) Replace the item viewer with a stable, controllable orbit viewer.
+          #    Horizontal drag direction is corrected: drag left => turn left.
+          # ------------------------------------------------------------
+          start = s.find('  function init3dItemViewer(mountEl, modelSrc, isInteractive) {')
+          end = s.find('\n  window.toggle3dModalAutoRotate = function () {', start)
           if start < 0 or end < 0:
-              raise SystemExit('mini viewer block not found; refusing to modify file')
+              raise SystemExit('init3dItemViewer block not found; refusing to modify')
 
-          new_mini = '''  // Mini inspector uses ONE persistent WebGLRenderer per mount. Changing a
-  // model now replaces only the model resources instead of creating another
-  // WebGL context. This is the important stability guard for long editing sessions.
-  function initMini3dInspector(mountEl, modelSrc) {
+          viewer = r'''  function init3dItemViewer(mountEl, modelSrc, isInteractive) {
     if (!mountEl || typeof THREE === 'undefined') return;
+    dispose3dViewer(active3dViewer);
 
-    const width = mountEl.clientWidth || 320;
-    const height = mountEl.clientHeight || 110;
-    let viewer = miniInspector3dViewer;
-
-    // Reuse the existing renderer when the same inspector is being updated.
-    if (viewer && viewer.renderer && viewer.mountEl === mountEl && viewer.scene && viewer.camera && viewer.modelMesh) {
-      if (viewer.modelMesh) {
-        disposeObject3DResources(viewer.modelMesh);
-        viewer.scene.remove(viewer.modelMesh);
-      }
-      const modelRoot = new THREE.Group();
-      modelRoot.add(get3dModelMeshBySrc(modelSrc));
-      viewer.modelMesh = modelRoot;
-      viewer.scene.add(modelRoot);
-      viewer.renderer.setSize(width, height, false);
-      viewer.camera.aspect = width / height;
-      viewer.camera.updateProjectionMatrix();
-      return;
-    }
-
-    // First inspector open only: create its single renderer/context.
-    dispose3dViewer(miniInspector3dViewer, true);
-
+    const width = mountEl.clientWidth || 520;
+    const height = mountEl.clientHeight || width;
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 50);
-    camera.position.set(0, 0.8, 3.8);
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.05, 100);
+    camera.position.set(0, 0.6, 4.5);
 
     let renderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       renderer.setSize(width, height, false);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
       mountEl.innerHTML = '';
       mountEl.appendChild(renderer.domElement);
+      renderer.domElement.style.width = '100%';
+      renderer.domElement.style.height = '100%';
+      renderer.domElement.style.display = 'block';
+      renderer.domElement.style.touchAction = 'none';
     } catch (err) {
-      console.warn('[SpotLIGHT 3D] Mini viewer WebGL initialization failed:', err);
+      console.warn('[SpotLIGHT 3D] WebGL item viewer could not initialize:', err);
       return;
     }
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-    dirLight.position.set(3, 5, 4);
-    scene.add(dirLight);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.65);
+    keyLight.position.set(5, 7, 5);
+    scene.add(keyLight);
+    const fillLight = new THREE.DirectionalLight(0x3FDDE0, 0.7);
+    fillLight.position.set(-5, -2, -3);
+    scene.add(fillLight);
+    const rimLight = new THREE.PointLight(0xFFD23F, 1.1, 12);
+    rimLight.position.set(0, 4, -4);
+    scene.add(rimLight);
 
     const modelRoot = new THREE.Group();
     scene.add(modelRoot);
-    modelRoot.add(get3dModelMeshBySrc(modelSrc));
 
-    miniInspector3dViewer = {
+    const isUrl = (typeof modelSrc === 'string') && (modelSrc.startsWith('http') || modelSrc.startsWith('data:') || modelSrc.startsWith('blob:'));
+    let loadToken = { cancelled: false };
+
+    const addFallback = () => {
+      if (loadToken.cancelled || modelRoot.children.length) return;
+      modelRoot.add(createProceduralClimbingGear());
+    };
+
+    if (isUrl && typeof THREE.GLTFLoader !== 'undefined') {
+      const loader = new THREE.GLTFLoader();
+      if (typeof THREE.DRACOLoader !== 'undefined') {
+        try {
+          const dracoLoader = new THREE.DRACOLoader();
+          dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
+          loader.setDRACOLoader(dracoLoader);
+        } catch (dracoErr) {
+          console.warn('DRACOLoader setup failed:', dracoErr);
+        }
+      }
+      loader.load(modelSrc, (gltf) => {
+        if (loadToken.cancelled) {
+          disposeObject3DResources(gltf.scene);
+          return;
+        }
+        const loadedMesh = gltf.scene;
+        const box = new THREE.Box3().setFromObject(loadedMesh);
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        const scale = 2.4 / maxDim;
+        loadedMesh.scale.setScalar(scale);
+        const center = box.getCenter(new THREE.Vector3());
+        loadedMesh.position.sub(center.multiplyScalar(scale));
+        modelRoot.add(loadedMesh);
+      }, undefined, (err) => {
+        console.warn('GLTFLoader error, using procedural fallback:', err);
+        addFallback();
+      });
+    } else {
+      addFallback();
+    }
+
+    active3dViewer = {
       renderer,
       scene,
       camera,
       mountEl,
       modelMesh: modelRoot,
+      autoRotate: true,
+      isDragging: false,
+      prevMouse: { x: 0, y: 0 },
+      rotation: { x: 0.2, y: 0 },
+      distance: 4.5,
+      minDistance: 1.05,
+      maxDistance: 9.0,
       animId: null,
-      cleanup: null
+      cleanup: () => { loadToken.cancelled = true; }
     };
 
-    function animMini() {
-      if (!miniInspector3dViewer || miniInspector3dViewer.renderer !== renderer) return;
-      miniInspector3dViewer.animId = requestAnimationFrame(animMini);
-      modelRoot.rotation.y += 0.02;
+    const setDistance = (next) => {
+      if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+      active3dViewer.distance = Math.max(active3dViewer.minDistance, Math.min(active3dViewer.maxDistance, next));
+    };
+
+    window.zoom3dModal = function (direction) {
+      if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+      setDistance(active3dViewer.distance + (direction < 0 ? -0.45 : 0.45));
+    };
+
+    window.reset3dModalCamera = function () {
+      if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+      active3dViewer.rotation = { x: 0.2, y: 0 };
+      active3dViewer.distance = 4.5;
+      active3dViewer.autoRotate = true;
+      const btn = document.getElementById('tour3dAutoRotateBtn');
+      if (btn) {
+        btn.style.color = '#3FDDE0';
+        btn.textContent = '⟳ Rotating';
+      }
+    };
+
+    if (isInteractive) {
+      const dom = renderer.domElement;
+      let pinchStartDistance = null;
+
+      const pointerPosition = (e) => ({
+        x: Number.isFinite(e.clientX) ? e.clientX : 0,
+        y: Number.isFinite(e.clientY) ? e.clientY : 0
+      });
+
+      const onPointerDown = (e) => {
+        if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        active3dViewer.isDragging = true;
+        active3dViewer.autoRotate = false;
+        const p = pointerPosition(e);
+        active3dViewer.prevMouse = p;
+        if (dom.setPointerCapture) {
+          try { dom.setPointerCapture(e.pointerId); } catch (_) {}
+        }
+      };
+
+      const onPointerMove = (e) => {
+        if (!active3dViewer || active3dViewer.renderer !== renderer || !active3dViewer.isDragging) return;
+        const p = pointerPosition(e);
+        const dx = p.x - active3dViewer.prevMouse.x;
+        const dy = p.y - active3dViewer.prevMouse.y;
+
+        // Corrected horizontal orbit direction: dragging left turns the model left.
+        active3dViewer.rotation.y -= dx * 0.012;
+        // Vertical direction remains natural and clamped.
+        active3dViewer.rotation.x = Math.max(-1.25, Math.min(1.25, active3dViewer.rotation.x + dy * 0.012));
+        active3dViewer.prevMouse = p;
+      };
+
+      const stopDrag = () => {
+        if (active3dViewer && active3dViewer.renderer === renderer) active3dViewer.isDragging = false;
+      };
+
+      const onWheel = (e) => {
+        if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        e.preventDefault();
+        // Fine-grained mouse-wheel zoom, with a larger usable range.
+        const amount = Math.max(-0.55, Math.min(0.55, e.deltaY * 0.004));
+        setDistance(active3dViewer.distance + amount);
+      };
+
+      const onTouchStart = (e) => {
+        if (!e.touches || e.touches.length < 2) return;
+        const a = e.touches[0];
+        const b = e.touches[1];
+        pinchStartDistance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        if (active3dViewer && active3dViewer.renderer === renderer) active3dViewer.isDragging = false;
+      };
+
+      const onTouchMove = (e) => {
+        if (!e.touches || e.touches.length < 2 || pinchStartDistance == null) return;
+        e.preventDefault();
+        const a = e.touches[0];
+        const b = e.touches[1];
+        const currentDistance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        const delta = pinchStartDistance - currentDistance;
+        setDistance(active3dViewer.distance + delta * 0.006);
+        pinchStartDistance = currentDistance;
+      };
+
+      const onTouchEnd = () => { pinchStartDistance = null; };
+
+      dom.addEventListener('pointerdown', onPointerDown);
+      dom.addEventListener('pointermove', onPointerMove);
+      dom.addEventListener('pointerup', stopDrag);
+      dom.addEventListener('pointercancel', stopDrag);
+      dom.addEventListener('wheel', onWheel, { passive: false });
+      dom.addEventListener('touchstart', onTouchStart, { passive: true });
+      dom.addEventListener('touchmove', onTouchMove, { passive: false });
+      dom.addEventListener('touchend', onTouchEnd, { passive: true });
+
+      active3dViewer.cleanup = () => {
+        loadToken.cancelled = true;
+        dom.removeEventListener('pointerdown', onPointerDown);
+        dom.removeEventListener('pointermove', onPointerMove);
+        dom.removeEventListener('pointerup', stopDrag);
+        dom.removeEventListener('pointercancel', stopDrag);
+        dom.removeEventListener('wheel', onWheel);
+        dom.removeEventListener('touchstart', onTouchStart);
+        dom.removeEventListener('touchmove', onTouchMove);
+        dom.removeEventListener('touchend', onTouchEnd);
+      };
+    }
+
+    function animate() {
+      if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+      active3dViewer.animId = requestAnimationFrame(animate);
+
+      if (active3dViewer.autoRotate && !active3dViewer.isDragging) {
+        active3dViewer.rotation.y += 0.006;
+      }
+
+      const cam = active3dViewer.camera;
+      const dist = active3dViewer.distance;
+      const rotY = active3dViewer.rotation.y;
+      const rotX = active3dViewer.rotation.x;
+      cam.position.x = dist * Math.sin(rotY) * Math.cos(rotX);
+      cam.position.y = dist * Math.sin(rotX) + 0.4;
+      cam.position.z = dist * Math.cos(rotY) * Math.cos(rotX);
+      cam.lookAt(0, 0.2, 0);
       renderer.render(scene, camera);
     }
-    animMini();
+    animate();
   }
 '''
+          s = s[:start] + viewer + s[end:]
 
-          s = s[:start] + new_mini + s[end:]
+          # ------------------------------------------------------------
+          # 3) Make the item showcase viewer square, larger, and add controls.
+          # ------------------------------------------------------------
+          s = s.replace(
+              'max-width:460px;width:92%;text-align:center;',
+              'max-width:min(980px,96vw);width:min(980px,96vw);text-align:center;',
+              1
+          )
+          s = s.replace(
+              'style="display:none;width:100%;height:270px;position:relative;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);"',
+              'style="display:none;width:min(100%,720px);height:auto;aspect-ratio:1/1;min-height:280px;max-height:78vh;position:relative;margin:0 auto;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);"',
+              1
+          )
+
+          hint_re = re.compile(r'\s*<div style="position:absolute;bottom:10px;left:12px;background:rgba\(0,0,0,0\.65\);.*?</div>\s*', re.S)
+          controls = '''
+                <div class="spotlight-3d-controls" style="position:absolute;left:14px;bottom:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-end;z-index:5;pointer-events:none;">
+                  <button type="button" class="spotlight-3d-control-btn spotlight-3d-fullscreen-btn" onclick="window.toggle3dItemFullscreen()" title="Fullscreen 3D viewer" aria-label="Fullscreen 3D viewer" style="pointer-events:auto;width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;">⛶</button>
+                  <div style="display:flex;flex-direction:column;gap:7px;pointer-events:auto;">
+                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(-1)" title="Zoom in" aria-label="Zoom in" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;">+</button>
+                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(1)" title="Zoom out" aria-label="Zoom out" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;">−</button>
+                  </div>
+                </div>
+          '''
+          s2, n = hint_re.subn(controls, s, count=1)
+          if n == 0:
+              raise SystemExit('3D gesture hint block not found; refusing to modify')
+          s = s2
+
+          # ------------------------------------------------------------
+          # 4) Add fullscreen behavior without navigating/reloading the magazine.
+          # ------------------------------------------------------------
+          marker = '  window.toggle3dModalAutoRotate = function () {'
+          fullscreen_code = r'''  window.toggle3dItemFullscreen = async function () {
+    const container = document.getElementById('tourInfoModal3dContainer');
+    if (!container) return;
+
+    if (document.fullscreenElement === container) {
+      try { await document.exitFullscreen(); } catch (_) {}
+      return;
+    }
+
+    try {
+      if (container.requestFullscreen) {
+        await container.requestFullscreen();
+        return;
+      }
+    } catch (_) {}
+
+    // iOS/Safari fallback: expand only the 3D viewer, never the magazine page.
+    container.classList.toggle('spotlight-3d-fullscreen-fallback');
+    window.dispatchEvent(new Event('resize'));
+  };
+
+  document.addEventListener('fullscreenchange', () => {
+    const container = document.getElementById('tourInfoModal3dContainer');
+    if (!container) return;
+    const active = document.fullscreenElement === container;
+    container.classList.toggle('spotlight-3d-fullscreen-native', active);
+    window.dispatchEvent(new Event('resize'));
+    if (active) setTimeout(() => window.dispatchEvent(new Event('resize')), 80);
+  });
+
+  const spotlight3dFullscreenStyle = document.createElement('style');
+  spotlight3dFullscreenStyle.textContent = `
+    #tourInfoModal3dContainer.spotlight-3d-fullscreen-native,
+    #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback {
+      width:100vw !important;
+      height:100vh !important;
+      max-height:none !important;
+      aspect-ratio:auto !important;
+      margin:0 !important;
+      border-radius:0 !important;
+      background:#08070f !important;
+    }
+    #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback {
+      position:fixed !important;
+      inset:0 !important;
+      z-index:2147483000 !important;
+    }
+    #tourInfoModal3dContainer.spotlight-3d-fullscreen-native #tourInfoModal3dCanvasMount,
+    #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback #tourInfoModal3dCanvasMount {
+      width:100% !important;
+      height:100% !important;
+    }
+    #tourInfoModal3dContainer.spotlight-3d-fullscreen-native .spotlight-3d-controls,
+    #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback .spotlight-3d-controls {
+      bottom:22px !important;
+    }
+  `;
+  document.head.appendChild(spotlight3dFullscreenStyle);
+
+'''
+          if marker not in s:
+              raise SystemExit('3D controls insertion marker not found')
+          if 'window.toggle3dItemFullscreen = async function ()' not in s:
+              s = s.replace(marker, fullscreen_code + marker, 1)
+
           p.write_text(s, encoding='utf-8')
-          print('Patched tour-3d.js successfully')
+          print('3D item showcase patch prepared')
           PY
 
       - name: Verify JavaScript syntax
@@ -216,5 +474,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add tour-3d.js
           git diff --cached --quiet && exit 0
-          git commit -m "Fix 3D model switching WebGL stability"
+          git commit -m "Improve 3D item showcase controls"
           git push
