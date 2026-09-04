@@ -6531,6 +6531,7 @@
 
     const isUrl = (typeof modelSrc === 'string') && (modelSrc.startsWith('http') || modelSrc.startsWith('data:') || modelSrc.startsWith('blob:'));
     let loadToken = { cancelled: false };
+    let loadController = null;
 
     const addFallback = () => {
       if (loadToken.cancelled || thisSession !== viewerSessionId || modelRoot.children.length) return;
@@ -6554,7 +6555,7 @@
       // Use fetch + AbortController instead of loader.load().
       // loader.load() cannot cancel an old request, so rapid mobile model switching
       // could leave several large GLTF/GLB downloads decoding at the same time.
-      const loadController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      loadController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       active3dLoadController = loadController;
 
       const parseModel = (arrayBuffer) => {
@@ -6918,28 +6919,30 @@
 
     // Safe Animation Render Loop with guaranteed session match
     function animate() {
-      if (thisSession !== viewerSessionId || !active3dViewer || active3dViewer.renderer !== renderer || !active3dViewer.camera || !active3dViewer.scene) {
-        return;
-      }
+      // Always reschedule first so a single failed frame cannot kill the loop
+      if (thisSession !== viewerSessionId) return;
+      if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+      if (!active3dViewer.camera || !active3dViewer.scene) return;
+
       active3dViewer.animId = requestAnimationFrame(animate);
 
-      if (active3dViewer.autoRotate && !active3dViewer.isDragging) {
-        active3dViewer.rotation.y += 0.008;
-      }
-
-      const cam = active3dViewer.camera;
-      const dist = active3dViewer.distance;
-      const rotY = active3dViewer.rotation.y;
-      const rotX = active3dViewer.rotation.x;
-      const tgt = active3dViewer.target || { x: 0, y: 0.2, z: 0 };
-
-      cam.position.x = tgt.x + dist * Math.sin(rotY) * Math.cos(rotX);
-      cam.position.y = tgt.y + dist * Math.sin(rotX);
-      cam.position.z = tgt.z + dist * Math.cos(rotY) * Math.cos(rotX);
-      cam.lookAt(tgt.x, tgt.y, tgt.z);
-
       try {
-        renderer.render(scene, camera);
+        if (active3dViewer.autoRotate && !active3dViewer.isDragging && !(active3dViewer._ptr && active3dViewer._ptr.down)) {
+          active3dViewer.rotation.y += 0.01;
+        }
+
+        const cam = active3dViewer.camera;
+        const dist = active3dViewer.distance;
+        const rotY = active3dViewer.rotation.y;
+        const rotX = active3dViewer.rotation.x;
+        const tgt = active3dViewer.target || { x: 0, y: 0.2, z: 0 };
+
+        cam.position.x = tgt.x + dist * Math.sin(rotY) * Math.cos(rotX);
+        cam.position.y = tgt.y + dist * Math.sin(rotX);
+        cam.position.z = tgt.z + dist * Math.cos(rotY) * Math.cos(rotX);
+        cam.lookAt(tgt.x, tgt.y, tgt.z);
+
+        renderer.render(active3dViewer.scene, cam);
       } catch (err) {
         console.warn('[SpotLIGHT 3D] Frame render warning:', err);
       }
