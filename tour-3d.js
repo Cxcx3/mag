@@ -3893,9 +3893,6 @@
                   <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(63,221,224,0.25);border-top-color:#3FDDE0;border-radius:50%;animation:tour3dSpin 0.75s linear infinite;"></span>
                   <span id="tour3dLoadingText" style="white-space:nowrap;letter-spacing:0.02em;">Loading 3D model...</span>
                 </div>
-                <div id="tour3dMobileGestureHint" style="position:absolute;top:10px;left:10px;padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;color:rgba(255,255,255,0.9);background:rgba(0,0,0,0.68);border:1px solid rgba(255,255,255,0.2);backdrop-filter:blur(6px);pointer-events:none;z-index:2;display:flex;align-items:center;gap:6px;">
-                  <span>👆 1 Finger: Rotate · ✌ 2 Fingers: Move & Zoom</span>
-                </div>
                 <div class="spotlight-3d-controls" style="position:absolute;left:14px;bottom:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-end;z-index:5;pointer-events:none;">
                   <button type="button" class="spotlight-3d-control-btn spotlight-3d-fullscreen-btn" onclick="window.toggle3dItemFullscreen()" title="Fullscreen 3D viewer" aria-label="Fullscreen 3D viewer" style="pointer-events:auto;width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;">⛶</button>
                   <div style="display:flex;flex-direction:column;gap:7px;pointer-events:auto;">
