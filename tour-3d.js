@@ -3886,8 +3886,8 @@
             <!-- MEDIA CONTAINER: 3D MODEL / PHOTO / VIDEO -->
             <div id="tourInfoMediaWrapper" style="position:relative;width:100%;background:#09080e;border-bottom:1px solid rgba(255,255,255,0.08);overflow:hidden;display:none;">
               <!-- 1. 3D Model Viewer container -->
-              <div id="tourInfoModal3dContainer" style="display:none;width:min(100%,720px);height:auto;aspect-ratio:1/1;min-height:280px;max-height:78vh;position:relative;margin:0 auto;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);">
-                <div id="tourInfoModal3dCanvasMount" style="width:100%;height:100%;cursor:grab;"></div>
+              <div id="tourInfoModal3dContainer" style="display:none;width:min(100%,720px);height:auto;aspect-ratio:1/1;min-height:280px;max-height:78vh;position:relative;margin:0 auto;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);touch-action:none;overflow:hidden;">
+                <div id="tourInfoModal3dCanvasMount" style="width:100%;height:100%;cursor:grab;touch-action:none;pointer-events:auto;position:relative;z-index:1;"></div>
                 <!-- Bottom 3D Loading Indicator -->
                 <div id="tour3dBottomLoadingIndicator" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:24px;font-size:11px;font-weight:700;color:#fff;background:rgba(18,16,26,0.92);border:1px solid rgba(63,221,224,0.45);backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,0.6);display:none;align-items:center;gap:8px;z-index:6;pointer-events:none;transition:opacity 0.25s ease;">
                   <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(63,221,224,0.25);border-top-color:#3FDDE0;border-radius:50%;animation:tour3dSpin 0.75s linear infinite;"></span>
@@ -3900,9 +3900,9 @@
                     <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(1)" title="Zoom out" aria-label="Zoom out" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;">−</button>
                   </div>
                 </div>
-<div style="position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:2;">
-                  <button type="button" class="tour-dialog-btn" id="tour3dAutoRotateBtn" onclick="window.toggle3dModalAutoRotate()" style="padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Toggle 3D auto rotation">⟳ Auto-Rotate</button>
-                  <button type="button" class="tour-dialog-btn" onclick="window.reset3dModalCamera()" style="padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Reset 3D camera angle">⌖ Reset</button>
+<div style="position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:4;pointer-events:none;">
+                  <button type="button" class="tour-dialog-btn" id="tour3dAutoRotateBtn" onclick="window.toggle3dModalAutoRotate()" style="pointer-events:auto;padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Toggle 3D auto rotation">⟳ Auto-Rotate</button>
+                  <button type="button" class="tour-dialog-btn" onclick="window.reset3dModalCamera()" style="pointer-events:auto;padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Reset 3D camera angle">⌖ Reset</button>
                 </div>
               </div>
 
@@ -4778,6 +4778,11 @@
 
       window.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
+        const infoM = document.getElementById('tourHotspotInfoModal');
+        if (infoM && infoM.style.display !== 'none' && infoM.style.display !== '') {
+          isDragging = false;
+          return;
+        }
         const dx = e.clientX - lastX;
         const dy = e.clientY - lastY;
         lastX = e.clientX;
@@ -4797,6 +4802,12 @@
 
       container.addEventListener('wheel', (e) => {
         if (document.getElementById('tourEmbedFrame')?.style.display === 'block') return;
+        // Never steal zoom from open dialogs / 3D item viewer
+        if (e.target && e.target.closest && (
+          e.target.closest('.tour-dialog-overlay') ||
+          e.target.closest('#tourInfoModal3dContainer') ||
+          e.target.closest('#tourInfoModal3dCanvasMount')
+        )) return;
         e.preventDefault();
         adjustZoom(e.deltaY * 0.05);
       }, { passive: false });
@@ -4823,6 +4834,11 @@
       }, { passive: true });
 
       container.addEventListener('touchmove', (e) => {
+        // Block when a dialog / 3D item showcase is open
+        const infoM = document.getElementById('tourHotspotInfoModal');
+        if (infoM && infoM.style.display !== 'none' && infoM.style.display !== '') return;
+        if (e.target && e.target.closest && e.target.closest('.tour-dialog-overlay')) return;
+
         if (isDragging && e.touches.length === 1) {
           const dx = e.touches[0].clientX - lastX;
           const dy = e.touches[0].clientY - lastY;
@@ -6676,8 +6692,23 @@
 
     if (isInteractive) {
       const dom = renderer.domElement;
+      // Bind to both canvas and mount so empty padding still orbits/zooms
+      const interactTarget = mountEl || dom;
       dom.style.cursor = 'grab';
       dom.style.touchAction = 'none';
+      dom.style.pointerEvents = 'auto';
+      dom.style.userSelect = 'none';
+      dom.style.webkitUserSelect = 'none';
+      dom.style.width = '100%';
+      dom.style.height = '100%';
+      dom.style.display = 'block';
+      if (mountEl) {
+        mountEl.style.cursor = 'grab';
+        mountEl.style.touchAction = 'none';
+        mountEl.style.pointerEvents = 'auto';
+        mountEl.style.position = 'relative';
+        mountEl.style.zIndex = '1';
+      }
 
       // MOBILE TOUCH: 1 Finger: Orbit, 2 Fingers: Grab/Move + Pinch Zoom
       let prevSingleTouch = { x: 0, y: 0 };
@@ -6686,6 +6717,7 @@
 
       const onTouchStart = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        e.stopPropagation();
         active3dViewer.autoRotate = false;
         const touches = e.touches;
 
@@ -6708,7 +6740,9 @@
 
       const onTouchMove = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        if (!active3dViewer.isDragging && e.touches.length < 2) return;
         if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
         const touches = e.touches;
 
         if (touches.length === 1) {
@@ -6734,14 +6768,14 @@
           const panScale = active3dViewer.distance * 0.0024;
           const rotY = active3dViewer.rotation.y;
           const tgt = active3dViewer.target || (active3dViewer.target = { x: 0, y: 0.2, z: 0 });
-
+          // camera-relative pan
           tgt.x -= Math.cos(rotY) * dx * panScale;
           tgt.y += dy * panScale;
-          tgt.z -= -Math.sin(rotY) * dx * panScale;
+          tgt.z += Math.sin(rotY) * dx * panScale;
 
           if (prevPinchDist > 0 && curDist > 0) {
-            const deltaDist = prevPinchDist - curDist;
-            setDistance(active3dViewer.distance + deltaDist * 0.0065);
+            const ratio = prevPinchDist / curDist;
+            setDistance(active3dViewer.distance * ratio);
           }
 
           prevTwoFingerMid = curMid;
@@ -6751,6 +6785,7 @@
 
       const onTouchEnd = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        e.stopPropagation();
         const touches = e.touches;
         if (touches.length === 1) {
           prevSingleTouch = { x: touches[0].clientX, y: touches[0].clientY };
@@ -6758,26 +6793,36 @@
         } else if (touches.length === 0) {
           active3dViewer.isDragging = false;
           active3dViewer.dragMode = 'orbit';
+          if (interactTarget) interactTarget.style.cursor = 'grab';
         }
       };
 
-      // DESKTOP MOUSE INTERACTIONS
+      // DESKTOP + unified pointer (mouse / pen). Touch uses touch* handlers above.
       const onPointerDown = (e) => {
         if (e.pointerType === 'touch') return;
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
+        e.stopPropagation();
+        e.preventDefault();
         active3dViewer.isDragging = true;
         active3dViewer.autoRotate = false;
-        dom.style.cursor = 'grabbing';
+        if (interactTarget) interactTarget.style.cursor = 'grabbing';
+        if (dom) dom.style.cursor = 'grabbing';
         active3dViewer.prevMouse = { x: e.clientX, y: e.clientY };
         active3dViewer.dragMode = (e.button === 2 || e.button === 1 || e.shiftKey) ? 'pan' : 'orbit';
-        if (dom.setPointerCapture && e.pointerId != null) {
-          try { dom.setPointerCapture(e.pointerId); } catch (_) {}
-        }
+        try {
+          if (interactTarget.setPointerCapture && e.pointerId != null) {
+            interactTarget.setPointerCapture(e.pointerId);
+          } else if (dom.setPointerCapture && e.pointerId != null) {
+            dom.setPointerCapture(e.pointerId);
+          }
+        } catch (_) {}
       };
 
       const onPointerMove = (e) => {
         if (e.pointerType === 'touch') return;
         if (!active3dViewer || active3dViewer.renderer !== renderer || !active3dViewer.isDragging) return;
+        e.stopPropagation();
         const cur = { x: e.clientX, y: e.clientY };
         const dx = cur.x - active3dViewer.prevMouse.x;
         const dy = cur.y - active3dViewer.prevMouse.y;
@@ -6788,7 +6833,7 @@
           const tgt = active3dViewer.target || (active3dViewer.target = { x: 0, y: 0.2, z: 0 });
           tgt.x -= Math.cos(rotY) * dx * panScale;
           tgt.y += dy * panScale;
-          tgt.z -= -Math.sin(rotY) * dx * panScale;
+          tgt.z += Math.sin(rotY) * dx * panScale;
         } else {
           active3dViewer.rotation.y -= dx * 0.012;
           active3dViewer.rotation.x = Math.max(-1.25, Math.min(1.25, active3dViewer.rotation.x + dy * 0.012));
@@ -6801,45 +6846,63 @@
         if (active3dViewer && active3dViewer.renderer === renderer) {
           active3dViewer.isDragging = false;
           active3dViewer.dragMode = 'orbit';
+          if (interactTarget) interactTarget.style.cursor = 'grab';
           if (dom) dom.style.cursor = 'grab';
         }
+        try {
+          if (e && e.pointerId != null) {
+            if (interactTarget.releasePointerCapture) interactTarget.releasePointerCapture(e.pointerId);
+            else if (dom.releasePointerCapture) dom.releasePointerCapture(e.pointerId);
+          }
+        } catch (_) {}
       };
 
       const onWheel = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
         e.preventDefault();
+        e.stopPropagation();
         const factor = e.deltaY > 0 ? 1.08 : 0.92;
         setDistance(active3dViewer.distance * factor);
       };
 
-      const onContextMenu = (e) => { e.preventDefault(); };
+      const onContextMenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
 
-      dom.addEventListener('touchstart', onTouchStart, { passive: true });
-      dom.addEventListener('touchmove', onTouchMove, { passive: false });
-      dom.addEventListener('touchend', onTouchEnd, { passive: true });
-      dom.addEventListener('touchcancel', onTouchEnd, { passive: true });
+      // Attach to mount (full hit area) AND canvas
+      const targets = [];
+      if (interactTarget) targets.push(interactTarget);
+      if (dom && dom !== interactTarget) targets.push(dom);
 
-      dom.addEventListener('pointerdown', onPointerDown);
-      dom.addEventListener('pointermove', onPointerMove);
-      dom.addEventListener('pointerup', stopDrag);
-      dom.addEventListener('pointercancel', stopDrag);
-      dom.addEventListener('wheel', onWheel, { passive: false });
-      dom.addEventListener('contextmenu', onContextMenu);
+      targets.forEach((t) => {
+        t.addEventListener('touchstart', onTouchStart, { passive: true });
+        t.addEventListener('touchmove', onTouchMove, { passive: false });
+        t.addEventListener('touchend', onTouchEnd, { passive: true });
+        t.addEventListener('touchcancel', onTouchEnd, { passive: true });
+        t.addEventListener('pointerdown', onPointerDown);
+        t.addEventListener('pointermove', onPointerMove);
+        t.addEventListener('pointerup', stopDrag);
+        t.addEventListener('pointercancel', stopDrag);
+        t.addEventListener('wheel', onWheel, { passive: false });
+        t.addEventListener('contextmenu', onContextMenu);
+      });
 
       active3dViewer.cleanup = () => {
         loadToken.cancelled = true;
         window.removeEventListener('resize', handleResize);
-        dom.removeEventListener('touchstart', onTouchStart);
-        dom.removeEventListener('touchmove', onTouchMove);
-        dom.removeEventListener('touchend', onTouchEnd);
-        dom.removeEventListener('touchcancel', onTouchEnd);
-
-        dom.removeEventListener('pointerdown', onPointerDown);
-        dom.removeEventListener('pointermove', onPointerMove);
-        dom.removeEventListener('pointerup', stopDrag);
-        dom.removeEventListener('pointercancel', stopDrag);
-        dom.removeEventListener('wheel', onWheel);
-        dom.removeEventListener('contextmenu', onContextMenu);
+        targets.forEach((t) => {
+          t.removeEventListener('touchstart', onTouchStart);
+          t.removeEventListener('touchmove', onTouchMove);
+          t.removeEventListener('touchend', onTouchEnd);
+          t.removeEventListener('touchcancel', onTouchEnd);
+          t.removeEventListener('pointerdown', onPointerDown);
+          t.removeEventListener('pointermove', onPointerMove);
+          t.removeEventListener('pointerup', stopDrag);
+          t.removeEventListener('pointercancel', stopDrag);
+          t.removeEventListener('wheel', onWheel);
+          t.removeEventListener('contextmenu', onContextMenu);
+        });
       };
     }
 
