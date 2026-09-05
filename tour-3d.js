@@ -3874,7 +3874,7 @@
         </div>
 
         <!-- HOTSPOT INFO & ITEM SHOWCASE POPUP (3D Model / Close-Up Photo / Video) -->
-        <div class="tour-dialog-overlay" id="tourHotspotInfoModal" style="display:none; z-index:95;">
+        <div class="tour-dialog-overlay" id="tourHotspotInfoModal" onclick="if(event.target===this)window.closeHotspotInfoModal();" style="display:none; z-index:95;">
           <div class="tour-dialog-card" id="tourHotspotInfoCard" style="max-width:min(980px,96vw);width:min(980px,96vw);text-align:center;border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.85);border:1.5px solid rgba(63,221,224,0.35);padding:0;background:rgba(18,16,26,0.96);">
             <div class="tour-dialog-header" style="justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);padding:10px 16px;background:rgba(255,255,255,0.02);">
               <div id="tourInfoModalHeaderTag" style="font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#3FDDE0;display:flex;align-items:center;gap:6px;">
@@ -4920,12 +4920,34 @@
     }
   }
 
+  let isPanoLoopPaused = false;
+  function pausePanoRenderLoop() {
+    isPanoLoopPaused = true;
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+  }
+
+  function resumePanoRenderLoop() {
+    isPanoLoopPaused = false;
+    const modal = document.getElementById('tour3dModal');
+    if (modal && modal.classList.contains('active') && !animFrameId) {
+      animFrameId = requestAnimationFrame(renderFrame);
+    }
+  }
+
   /**
    * Main High-Performance Animation Loop
    */
   function renderFrame() {
     const modal = document.getElementById('tour3dModal');
     if (!modal || !modal.classList.contains('active')) {
+      animFrameId = null;
+      return;
+    }
+
+    if (isPanoLoopPaused) {
       animFrameId = null;
       return;
     }
@@ -4940,7 +4962,8 @@
     // to give mobile devices 100% GPU memory & frame budget, preventing WebGL crashes
     const infoModal = document.getElementById('tourHotspotInfoModal');
     if (infoModal && infoModal.style.display !== 'none' && infoModal.style.display !== '') {
-      animFrameId = requestAnimationFrame(renderFrame);
+      animFrameId = null;
+      isPanoLoopPaused = true;
       return;
     }
 
@@ -5931,26 +5954,26 @@
       metalness: 0.05
     });
 
-    // 1. Carabiner curved D-body (Torus arc)
-    const spineGeom = new THREE.TorusGeometry(0.9, 0.14, 20, 50, Math.PI * 1.55);
+    // 1. Carabiner curved D-body (Torus arc with optimized vertex count)
+    const spineGeom = new THREE.TorusGeometry(0.9, 0.14, 12, 28, Math.PI * 1.55);
     const spineMesh = new THREE.Mesh(spineGeom, goldMetalMat);
     spineMesh.rotation.z = Math.PI * 0.75;
-    group.appendChild ? null : group.add(spineMesh);
+    group.add(spineMesh);
 
     // Straight back spine
-    const backGeom = new THREE.CylinderGeometry(0.14, 0.14, 1.35, 20);
+    const backGeom = new THREE.CylinderGeometry(0.14, 0.14, 1.35, 14);
     const backMesh = new THREE.Mesh(backGeom, goldMetalMat);
     backMesh.position.set(-0.9, 0.05, 0);
     group.add(backMesh);
 
     // 2. Spring Gate (Straight silver bar across opening)
-    const gateGeom = new THREE.CylinderGeometry(0.11, 0.11, 1.25, 20);
+    const gateGeom = new THREE.CylinderGeometry(0.11, 0.11, 1.25, 14);
     const gateMesh = new THREE.Mesh(gateGeom, silverSteelMat);
     gateMesh.position.set(0.68, 0.05, 0);
     group.add(gateMesh);
 
     // Locking screw sleeve
-    const sleeveGeom = new THREE.CylinderGeometry(0.19, 0.19, 0.5, 24);
+    const sleeveGeom = new THREE.CylinderGeometry(0.19, 0.19, 0.5, 16);
     const sleeveMesh = new THREE.Mesh(sleeveGeom, darkKnurlMat);
     sleeveMesh.position.set(0.68, 0.05, 0);
     group.add(sleeveMesh);
@@ -5991,13 +6014,12 @@
       metalness: 0.85,
       roughness: 0.25
     });
-    const glassLensMat = new THREE.MeshPhysicalMaterial({
-      color: 0x113366,
-      metalness: 0.1,
-      roughness: 0.02,
-      transmission: 0.8,
-      ior: 1.52,
-      clearcoat: 1.0
+    const glassLensMat = new THREE.MeshStandardMaterial({
+      color: 0x143464,
+      metalness: 0.9,
+      roughness: 0.1,
+      transparent: true,
+      opacity: 0.85
     });
 
     // 1. Camera Body (Leatherette base)
@@ -6118,7 +6140,7 @@
     const group = new THREE.Group();
 
     const caseMat = new THREE.MeshStandardMaterial({ color: 0x22242A, metalness: 0.85, roughness: 0.25 });
-    const screenGlassMat = new THREE.MeshPhysicalMaterial({ color: 0x050A14, roughness: 0.05, clearcoat: 1.0 });
+    const screenGlassMat = new THREE.MeshStandardMaterial({ color: 0x050A14, roughness: 0.05, metalness: 0.8 });
     const strapMat = new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.8 });
     const crownMat = new THREE.MeshStandardMaterial({ color: 0xDDDFE5, metalness: 0.9, roughness: 0.2 });
 
@@ -6163,7 +6185,7 @@
     group.add(dialPlate);
 
     // Digital Crown Knob
-    const crownGeom = new THREE.CylinderGeometry(0.16, 0.16, 0.2, 24);
+    const crownGeom = new THREE.CylinderGeometry(0.16, 0.16, 0.2, 16);
     const crownMesh = new THREE.Mesh(crownGeom, crownMat);
     crownMesh.rotation.z = Math.PI / 2;
     crownMesh.position.set(0.85, 0.4, 0);
@@ -6188,23 +6210,16 @@
 
     // Brilliant Faceted Gemstone Geometry
     const gemGeom = new THREE.IcosahedronGeometry(1.4, 0);
-    const gemMat = new THREE.MeshPhysicalMaterial({
-      color: 0xE8F8FF,
-      roughness: 0.02,
-      transmission: 0.95,
-      ior: 2.417, // Pure diamond refractive index
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.05,
+    const gemMat = new THREE.MeshStandardMaterial({
+      color: 0xDDF4FF,
+      roughness: 0.08,
+      metalness: 0.2,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.9,
       flatShading: true
     });
     const gemMesh = new THREE.Mesh(gemGeom, gemMat);
     group.add(gemMesh);
-
-    // Internal Sparkle Core
-    const innerLight = new THREE.PointLight(0x3FDDE0, 1.5, 3);
-    group.add(innerLight);
 
     return group;
   }
@@ -6382,7 +6397,7 @@
   let sharedItemRenderer = null;
   function getSharedItemRenderer(mountEl, width, height) {
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const maxDpr = isMobile ? 1.5 : 2.0;
+    const maxDpr = isMobile ? 1.25 : 1.5;
     const pixelRatio = Math.min(window.devicePixelRatio || 1, maxDpr);
 
     if (sharedItemRenderer) {
@@ -6560,16 +6575,13 @@
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.05, 100);
     camera.position.set(0, 0.6, 4.5);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.15));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.65);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.25));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
     keyLight.position.set(5, 7, 5);
     scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0x3FDDE0, 0.7);
+    const fillLight = new THREE.DirectionalLight(0x3FDDE0, 0.65);
     fillLight.position.set(-5, -2, -3);
     scene.add(fillLight);
-    const rimLight = new THREE.PointLight(0xFFD23F, 1.1, 12);
-    rimLight.position.set(0, 4, -4);
-    scene.add(rimLight);
 
     const modelRoot = new THREE.Group();
     scene.add(modelRoot);
@@ -6611,69 +6623,78 @@
           ? THREE.LoaderUtils.extractUrlBase(modelSrc)
           : modelSrc.substring(0, modelSrc.lastIndexOf('/') + 1);
 
-        loader.parse(
-          arrayBuffer,
-          basePath,
-          (gltf) => {
-            if (active3dLoadController === loadController) active3dLoadController = null;
-            loadController = null;
-            if (typeof window !== 'undefined') window.loadController = null;
+        try {
+          loader.parse(
+            arrayBuffer,
+            basePath,
+            (gltf) => {
+              if (active3dLoadController === loadController) active3dLoadController = null;
+              loadController = null;
+              if (typeof window !== 'undefined') window.loadController = null;
 
-            if (loadToken.cancelled || thisSession !== viewerSessionId) {
-              disposeObject3DResources(gltf.scene);
-              return;
-            }
+              if (loadToken.cancelled || thisSession !== viewerSessionId) {
+                disposeObject3DResources(gltf.scene);
+                return;
+              }
 
-            const loadedMesh = gltf.scene;
-            const box = new THREE.Box3().setFromObject(loadedMesh);
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z) || 1;
-            const scale = 2.4 / maxDim;
-            loadedMesh.scale.setScalar(scale);
-            const center = box.getCenter(new THREE.Vector3());
-            loadedMesh.position.sub(center.multiplyScalar(scale));
+              const loadedMesh = gltf.scene;
+              const box = new THREE.Box3().setFromObject(loadedMesh);
+              const size = box.getSize(new THREE.Vector3());
+              const maxDim = Math.max(size.x, size.y, size.z) || 1;
+              const scale = 2.4 / maxDim;
+              loadedMesh.scale.setScalar(scale);
+              const center = box.getCenter(new THREE.Vector3());
+              loadedMesh.position.sub(center.multiplyScalar(scale));
 
-            // GPU Memory optimization: disable mipmaps on textures on mobile/desktop
-            // to save up to 33% texture memory and prevent WebGL crashes on iOS Safari
-            try {
-              loadedMesh.traverse((child) => {
-                if (child.isMesh && child.material) {
-                  const mats = Array.isArray(child.material) ? child.material : [child.material];
-                  mats.forEach((mat) => {
-                    ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach((texKey) => {
-                      if (mat && mat[texKey] && mat[texKey].isTexture) {
-                        mat[texKey].generateMipmaps = false;
-                        mat[texKey].minFilter = THREE.LinearFilter;
-                      }
+              // GPU Memory optimization: disable mipmaps on textures on mobile/desktop
+              // to save up to 33% texture memory and prevent WebGL crashes on iOS Safari
+              try {
+                loadedMesh.traverse((child) => {
+                  if (child.isMesh && child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach((mat) => {
+                      ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach((texKey) => {
+                        if (mat && mat[texKey] && mat[texKey].isTexture) {
+                          mat[texKey].generateMipmaps = false;
+                          mat[texKey].minFilter = THREE.LinearFilter;
+                        }
+                      });
                     });
-                  });
-                }
-              });
-            } catch (_) {}
+                  }
+                });
+              } catch (_) {}
 
-            modelRoot.add(loadedMesh);
+              modelRoot.add(loadedMesh);
 
-            // Render first frame immediately
-            try { renderer.render(scene, camera); } catch (_) {}
-            set3dLoading(false);
-          },
-          (err) => {
-            if (active3dLoadController === loadController) active3dLoadController = null;
-            loadController = null;
-            if (typeof window !== 'undefined') window.loadController = null;
-            if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
-            console.warn('[SpotLIGHT 3D] GLTF parse failed, using procedural fallback:', err);
-            set3dLoading(false);
-            addFallback();
-          }
-        );
+              // Render first frame immediately
+              try { renderer.render(scene, camera); } catch (_) {}
+              set3dLoading(false);
+            },
+            (err) => {
+              if (active3dLoadController === loadController) active3dLoadController = null;
+              loadController = null;
+              if (typeof window !== 'undefined') window.loadController = null;
+              if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
+              console.warn('[SpotLIGHT 3D] GLTF parse failed, using procedural fallback:', err);
+              set3dLoading(false);
+              addFallback();
+            }
+          );
+        } catch (syncErr) {
+          if (active3dLoadController === loadController) active3dLoadController = null;
+          loadController = null;
+          if (typeof window !== 'undefined') window.loadController = null;
+          if (loadToken.cancelled || thisSession !== viewerSessionId) return;
+          console.warn('[SpotLIGHT 3D] Synchronous parse error caught:', syncErr);
+          set3dLoading(false);
+          addFallback();
+        }
       };
 
       const loadModelBytes = async () => {
         try {
           const response = await fetch(modelSrc, {
-            signal: loadController ? loadController.signal : undefined,
-            credentials: 'same-origin'
+            signal: loadController ? loadController.signal : undefined
           });
 
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -6964,13 +6985,6 @@
       interactEl.addEventListener('gesturestart', preventSafariPinch, { passive: false });
       interactEl.addEventListener('gesturechange', preventSafariPinch, { passive: false });
 
-      if (dom !== interactEl) {
-        dom.addEventListener('touchstart', onTouchStart, { passive: false });
-        dom.addEventListener('touchmove', onTouchMove, { passive: false });
-        dom.addEventListener('touchend', onTouchEnd, { passive: false });
-        dom.addEventListener('touchcancel', onTouchEnd, { passive: false });
-      }
-
       interactEl.addEventListener('pointerdown', onPointerDown);
       interactEl.addEventListener('pointermove', onPointerMove);
       interactEl.addEventListener('pointerup', stopDrag);
@@ -7000,13 +7014,6 @@
         interactEl.removeEventListener('touchcancel', onTouchEnd);
         interactEl.removeEventListener('gesturestart', preventSafariPinch);
         interactEl.removeEventListener('gesturechange', preventSafariPinch);
-
-        if (dom !== interactEl) {
-          dom.removeEventListener('touchstart', onTouchStart);
-          dom.removeEventListener('touchmove', onTouchMove);
-          dom.removeEventListener('touchend', onTouchEnd);
-          dom.removeEventListener('touchcancel', onTouchEnd);
-        }
 
         interactEl.removeEventListener('pointerdown', onPointerDown);
         interactEl.removeEventListener('pointermove', onPointerMove);
@@ -7412,6 +7419,7 @@
       if (containerVideo) containerVideo.style.display = 'none';
 
       if (mediaType === 'model3d') {
+        pausePanoRenderLoop();
         mediaWrap.style.display = 'block';
         if (iconWrap) iconWrap.style.display = 'none';
         if (container3d) {
@@ -7537,6 +7545,7 @@
 
     // Dispose active 3D viewer & stop video
     dispose3dViewer(active3dViewer, false);
+    resumePanoRenderLoop();
     const iframe = document.getElementById('tourInfoModalIframe');
     if (iframe) iframe.src = 'about:blank';
     const video = document.getElementById('tourInfoModalNativeVideo');
