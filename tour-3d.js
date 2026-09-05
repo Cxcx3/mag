@@ -3886,23 +3886,25 @@
             <!-- MEDIA CONTAINER: 3D MODEL / PHOTO / VIDEO -->
             <div id="tourInfoMediaWrapper" style="position:relative;width:100%;background:#09080e;border-bottom:1px solid rgba(255,255,255,0.08);overflow:hidden;display:none;">
               <!-- 1. 3D Model Viewer container -->
-              <div id="tourInfoModal3dContainer" style="display:none;width:min(100%,720px);height:auto;aspect-ratio:1/1;min-height:280px;max-height:78vh;position:relative;margin:0 auto;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);">
-                <div id="tourInfoModal3dCanvasMount" style="width:100%;height:100%;cursor:grab;"></div>
+              <div id="tourInfoModal3dContainer" style="display:none;width:min(100%,720px);height:auto;aspect-ratio:1/1;min-height:280px;max-height:78vh;position:relative;margin:0 auto;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none;">
+                <div id="tourInfoModal3dCanvasMount" style="position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none;z-index:1;"></div>
                 <!-- Bottom 3D Loading Indicator -->
                 <div id="tour3dBottomLoadingIndicator" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:24px;font-size:11px;font-weight:700;color:#fff;background:rgba(18,16,26,0.92);border:1px solid rgba(63,221,224,0.45);backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,0.6);display:none;align-items:center;gap:8px;z-index:6;pointer-events:none;transition:opacity 0.25s ease;">
                   <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(63,221,224,0.25);border-top-color:#3FDDE0;border-radius:50%;animation:tour3dSpin 0.75s linear infinite;"></span>
                   <span id="tour3dLoadingText" style="white-space:nowrap;letter-spacing:0.02em;">Loading 3D model...</span>
                 </div>
-                <div class="spotlight-3d-controls" style="position:absolute;left:14px;bottom:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-end;z-index:5;pointer-events:none;">
-                  <button type="button" class="spotlight-3d-control-btn spotlight-3d-fullscreen-btn" onclick="window.toggle3dItemFullscreen()" title="Fullscreen 3D viewer" aria-label="Fullscreen 3D viewer" style="pointer-events:auto;width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;">⛶</button>
+                <!-- Bottom Left & Right Controls (+, -, Fullscreen) -->
+                <div class="spotlight-3d-controls" style="position:absolute;left:14px;bottom:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-end;z-index:15;pointer-events:none;">
+                  <button type="button" class="spotlight-3d-control-btn spotlight-3d-fullscreen-btn" id="tour3dFullscreenBtn" onclick="window.toggle3dItemFullscreen()" title="Fullscreen 3D viewer" aria-label="Fullscreen 3D viewer" style="pointer-events:auto;width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;">⛶</button>
                   <div style="display:flex;flex-direction:column;gap:7px;pointer-events:auto;">
-                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(-1)" title="Zoom in" aria-label="Zoom in" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;">+</button>
-                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(1)" title="Zoom out" aria-label="Zoom out" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;">−</button>
+                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(-1)" title="Zoom in" aria-label="Zoom in" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;">+</button>
+                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(1)" title="Zoom out" aria-label="Zoom out" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;">−</button>
                   </div>
                 </div>
-<div style="position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:2;">
-                  <button type="button" class="tour-dialog-btn" id="tour3dAutoRotateBtn" onclick="window.toggle3dModalAutoRotate()" style="padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Toggle 3D auto rotation">⟳ Auto-Rotate</button>
-                  <button type="button" class="tour-dialog-btn" onclick="window.reset3dModalCamera()" style="padding:4px 9px;font-size:10px;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;" title="Reset 3D camera angle">⌖ Reset</button>
+                <!-- Top Right Controls (Auto-Rotate, Reset) -->
+                <div style="position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:15;pointer-events:auto;">
+                  <button type="button" class="tour-dialog-btn" id="tour3dAutoRotateBtn" onclick="window.toggle3dModalAutoRotate()" style="padding:6px 12px;font-size:11px;font-weight:600;background:rgba(0,0,0,0.7);border:1px solid rgba(63,221,224,0.5);border-radius:8px;color:#3FDDE0;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;" title="Toggle 3D auto rotation">⟳ Rotating</button>
+                  <button type="button" class="tour-dialog-btn" onclick="window.reset3dModalCamera()" style="padding:6px 12px;font-size:11px;font-weight:600;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.25);border-radius:8px;color:#fff;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;" title="Reset 3D camera angle">⌖ Reset</button>
                 </div>
               </div>
 
@@ -4797,6 +4799,11 @@
 
       container.addEventListener('wheel', (e) => {
         if (document.getElementById('tourEmbedFrame')?.style.display === 'block') return;
+        if (e.target && e.target.closest && (
+          e.target.closest('.tour-dialog-overlay') ||
+          e.target.closest('#tourInfoModal3dContainer') ||
+          e.target.closest('#tourInfoModal3dCanvasMount')
+        )) return;
         e.preventDefault();
         adjustZoom(e.deltaY * 0.05);
       }, { passive: false });
@@ -6480,6 +6487,29 @@
     return createProceduralClimbingGear();
   }
 
+  // Global fallbacks ensure buttons in the modal never throw if clicked before/during model load
+  window.zoom3dModal = function (direction) {
+    if (!active3dViewer) return;
+    const minD = active3dViewer.minDistance || 0.6;
+    const maxD = active3dViewer.maxDistance || 10.0;
+    const step = direction < 0 ? -0.55 : 0.55;
+    active3dViewer.distance = Math.max(minD, Math.min(maxD, (active3dViewer.distance || 4.5) + step));
+  };
+
+  window.reset3dModalCamera = function () {
+    if (!active3dViewer) return;
+    active3dViewer.rotation = { x: 0.2, y: 0 };
+    active3dViewer.distance = 4.5;
+    active3dViewer.target = { x: 0, y: 0.2, z: 0 };
+    active3dViewer.autoRotate = true;
+    const btn = document.getElementById('tour3dAutoRotateBtn');
+    if (btn) {
+      btn.style.color = '#3FDDE0';
+      btn.style.borderColor = 'rgba(63,221,224,0.5)';
+      btn.textContent = '⟳ Rotating';
+    }
+  };
+
   function init3dItemViewer(mountEl, modelSrc, isInteractive) {
     if (!mountEl || typeof THREE === 'undefined') return;
 
@@ -6515,6 +6545,7 @@
 
     const isUrl = (typeof modelSrc === 'string') && (modelSrc.startsWith('http') || modelSrc.startsWith('data:') || modelSrc.startsWith('blob:'));
     let loadToken = { cancelled: false };
+    let loadController = null;
 
     const addFallback = () => {
       if (loadToken.cancelled || thisSession !== viewerSessionId || modelRoot.children.length) return;
@@ -6538,7 +6569,7 @@
       // Use fetch + AbortController instead of loader.load().
       // loader.load() cannot cancel an old request, so rapid mobile model switching
       // could leave several large GLTF/GLB downloads decoding at the same time.
-      const loadController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      loadController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       active3dLoadController = loadController;
 
       const parseModel = (arrayBuffer) => {
@@ -6566,6 +6597,25 @@
             loadedMesh.scale.setScalar(scale);
             const center = box.getCenter(new THREE.Vector3());
             loadedMesh.position.sub(center.multiplyScalar(scale));
+
+            // GPU Memory optimization: disable mipmaps on textures on mobile/desktop
+            // to save up to 33% texture memory and prevent WebGL crashes on iOS Safari
+            try {
+              loadedMesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((mat) => {
+                    ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach((texKey) => {
+                      if (mat && mat[texKey] && mat[texKey].isTexture) {
+                        mat[texKey].generateMipmaps = false;
+                        mat[texKey].minFilter = THREE.LinearFilter;
+                      }
+                    });
+                  });
+                }
+              });
+            } catch (_) {}
+
             modelRoot.add(loadedMesh);
 
             // Render first frame immediately
@@ -6642,12 +6692,15 @@
 
     const setDistance = (next) => {
       if (!active3dViewer || active3dViewer.renderer !== renderer) return;
-      active3dViewer.distance = Math.max(active3dViewer.minDistance, Math.min(active3dViewer.maxDistance, next));
+      const minD = active3dViewer.minDistance || 0.6;
+      const maxD = active3dViewer.maxDistance || 10.0;
+      active3dViewer.distance = Math.max(minD, Math.min(maxD, next));
     };
 
     window.zoom3dModal = function (direction) {
       if (!active3dViewer || active3dViewer.renderer !== renderer) return;
-      setDistance(active3dViewer.distance + (direction < 0 ? -0.45 : 0.45));
+      const step = direction < 0 ? -0.55 : 0.55;
+      setDistance(active3dViewer.distance + step);
     };
 
     window.reset3dModalCamera = function () {
@@ -6659,6 +6712,7 @@
       const btn = document.getElementById('tour3dAutoRotateBtn');
       if (btn) {
         btn.style.color = '#3FDDE0';
+        btn.style.borderColor = 'rgba(63,221,224,0.5)';
         btn.textContent = '⟳ Rotating';
       }
     };
@@ -6676,19 +6730,28 @@
 
     if (isInteractive) {
       const dom = renderer.domElement;
-      dom.style.cursor = 'grab';
+      const interactEl = mountEl || dom;
+      interactEl.style.cursor = 'grab';
+      interactEl.style.touchAction = 'none';
       dom.style.touchAction = 'none';
 
-      // MOBILE TOUCH: 1 Finger: Orbit, 2 Fingers: Grab/Move + Pinch Zoom
+      // 1. MOBILE TOUCH (1-finger Orbit, 2-finger Pan & Pinch Zoom)
       let prevSingleTouch = { x: 0, y: 0 };
       let prevTwoFingerMid = { x: 0, y: 0 };
       let prevPinchDist = 0;
 
       const onTouchStart = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        e.stopPropagation();
         active3dViewer.autoRotate = false;
-        const touches = e.touches;
+        const autoBtn = document.getElementById('tour3dAutoRotateBtn');
+        if (autoBtn) {
+          autoBtn.style.color = '#fff';
+          autoBtn.style.borderColor = 'rgba(255,255,255,0.25)';
+          autoBtn.textContent = '⟳ Auto-Rotate';
+        }
 
+        const touches = e.touches;
         if (touches.length === 1) {
           active3dViewer.isDragging = true;
           active3dViewer.dragMode = 'orbit';
@@ -6709,9 +6772,10 @@
       const onTouchMove = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
         if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
         const touches = e.touches;
 
-        if (touches.length === 1) {
+        if (touches.length === 1 && active3dViewer.dragMode === 'orbit') {
           const cur = { x: touches[0].clientX, y: touches[0].clientY };
           const dx = cur.x - prevSingleTouch.x;
           const dy = cur.y - prevSingleTouch.y;
@@ -6751,6 +6815,7 @@
 
       const onTouchEnd = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        e.stopPropagation();
         const touches = e.touches;
         if (touches.length === 1) {
           prevSingleTouch = { x: touches[0].clientX, y: touches[0].clientY };
@@ -6758,26 +6823,42 @@
         } else if (touches.length === 0) {
           active3dViewer.isDragging = false;
           active3dViewer.dragMode = 'orbit';
+          interactEl.style.cursor = 'grab';
         }
       };
 
-      // DESKTOP MOUSE INTERACTIONS
+      // 2. DESKTOP MOUSE / POINTER INTERACTIONS
       const onPointerDown = (e) => {
         if (e.pointerType === 'touch') return;
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
+        e.preventDefault();
+        e.stopPropagation();
+
         active3dViewer.isDragging = true;
         active3dViewer.autoRotate = false;
-        dom.style.cursor = 'grabbing';
+        interactEl.style.cursor = 'grabbing';
+        const autoBtn = document.getElementById('tour3dAutoRotateBtn');
+        if (autoBtn) {
+          autoBtn.style.color = '#fff';
+          autoBtn.style.borderColor = 'rgba(255,255,255,0.25)';
+          autoBtn.textContent = '⟳ Auto-Rotate';
+        }
+
         active3dViewer.prevMouse = { x: e.clientX, y: e.clientY };
         active3dViewer.dragMode = (e.button === 2 || e.button === 1 || e.shiftKey) ? 'pan' : 'orbit';
-        if (dom.setPointerCapture && e.pointerId != null) {
-          try { dom.setPointerCapture(e.pointerId); } catch (_) {}
-        }
+
+        try {
+          if (interactEl.setPointerCapture && e.pointerId != null) {
+            interactEl.setPointerCapture(e.pointerId);
+          }
+        } catch (_) {}
       };
 
       const onPointerMove = (e) => {
         if (e.pointerType === 'touch') return;
         if (!active3dViewer || active3dViewer.renderer !== renderer || !active3dViewer.isDragging) return;
+        e.stopPropagation();
         const cur = { x: e.clientX, y: e.clientY };
         const dx = cur.x - active3dViewer.prevMouse.x;
         const dy = cur.y - active3dViewer.prevMouse.y;
@@ -6791,7 +6872,7 @@
           tgt.z -= -Math.sin(rotY) * dx * panScale;
         } else {
           active3dViewer.rotation.y -= dx * 0.012;
-          active3dViewer.rotation.x = Math.max(-1.25, Math.min(1.25, active3dViewer.rotation.x + dy * 0.012));
+          active3dViewer.rotation.x = Math.max(-1.3, Math.min(1.3, active3dViewer.rotation.x + dy * 0.012));
         }
         active3dViewer.prevMouse = cur;
       };
@@ -6801,45 +6882,56 @@
         if (active3dViewer && active3dViewer.renderer === renderer) {
           active3dViewer.isDragging = false;
           active3dViewer.dragMode = 'orbit';
-          if (dom) dom.style.cursor = 'grab';
+          interactEl.style.cursor = 'grab';
         }
       };
 
+      // 3. MOUSE WHEEL ZOOM
       const onWheel = (e) => {
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
         e.preventDefault();
-        const factor = e.deltaY > 0 ? 1.08 : 0.92;
-        setDistance(active3dViewer.distance * factor);
+        e.stopPropagation();
+        const delta = Math.max(-0.55, Math.min(0.55, e.deltaY * 0.004));
+        setDistance(active3dViewer.distance + delta);
       };
 
-      const onContextMenu = (e) => { e.preventDefault(); };
+      const onContextMenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
 
-      dom.addEventListener('touchstart', onTouchStart, { passive: true });
-      dom.addEventListener('touchmove', onTouchMove, { passive: false });
-      dom.addEventListener('touchend', onTouchEnd, { passive: true });
-      dom.addEventListener('touchcancel', onTouchEnd, { passive: true });
+      interactEl.addEventListener('touchstart', onTouchStart, { passive: true });
+      interactEl.addEventListener('touchmove', onTouchMove, { passive: false });
+      interactEl.addEventListener('touchend', onTouchEnd, { passive: true });
+      interactEl.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
-      dom.addEventListener('pointerdown', onPointerDown);
-      dom.addEventListener('pointermove', onPointerMove);
-      dom.addEventListener('pointerup', stopDrag);
-      dom.addEventListener('pointercancel', stopDrag);
-      dom.addEventListener('wheel', onWheel, { passive: false });
-      dom.addEventListener('contextmenu', onContextMenu);
+      interactEl.addEventListener('pointerdown', onPointerDown);
+      interactEl.addEventListener('pointermove', onPointerMove);
+      interactEl.addEventListener('pointerup', stopDrag);
+      interactEl.addEventListener('pointercancel', stopDrag);
+      interactEl.addEventListener('wheel', onWheel, { passive: false });
+      interactEl.addEventListener('contextmenu', onContextMenu);
+
+      window.addEventListener('pointerup', stopDrag);
+      window.addEventListener('pointercancel', stopDrag);
 
       active3dViewer.cleanup = () => {
         loadToken.cancelled = true;
         window.removeEventListener('resize', handleResize);
-        dom.removeEventListener('touchstart', onTouchStart);
-        dom.removeEventListener('touchmove', onTouchMove);
-        dom.removeEventListener('touchend', onTouchEnd);
-        dom.removeEventListener('touchcancel', onTouchEnd);
+        window.removeEventListener('pointerup', stopDrag);
+        window.removeEventListener('pointercancel', stopDrag);
 
-        dom.removeEventListener('pointerdown', onPointerDown);
-        dom.removeEventListener('pointermove', onPointerMove);
-        dom.removeEventListener('pointerup', stopDrag);
-        dom.removeEventListener('pointercancel', stopDrag);
-        dom.removeEventListener('wheel', onWheel);
-        dom.removeEventListener('contextmenu', onContextMenu);
+        interactEl.removeEventListener('touchstart', onTouchStart);
+        interactEl.removeEventListener('touchmove', onTouchMove);
+        interactEl.removeEventListener('touchend', onTouchEnd);
+        interactEl.removeEventListener('touchcancel', onTouchEnd);
+
+        interactEl.removeEventListener('pointerdown', onPointerDown);
+        interactEl.removeEventListener('pointermove', onPointerMove);
+        interactEl.removeEventListener('pointerup', stopDrag);
+        interactEl.removeEventListener('pointercancel', stopDrag);
+        interactEl.removeEventListener('wheel', onWheel);
+        interactEl.removeEventListener('contextmenu', onContextMenu);
       };
     }
 
@@ -6875,19 +6967,118 @@
     animate();
   }
 
+  // Inject Spotlight 3D Fullscreen Styles (supports desktop and mobile fallback)
+  if (typeof document !== 'undefined' && !document.getElementById('spotlight3dFullscreenStyles')) {
+    const s = document.createElement('style');
+    s.id = 'spotlight3dFullscreenStyles';
+    s.textContent = `
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-native,
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        max-height: none !important;
+        max-width: none !important;
+        aspect-ratio: auto !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        background: radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%) !important;
+        z-index: 2147483647 !important;
+        touch-action: none !important;
+        overflow: hidden !important;
+      }
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-native #tourInfoModal3dCanvasMount,
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback #tourInfoModal3dCanvasMount {
+        position: absolute !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+      }
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-native .spotlight-3d-controls,
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback .spotlight-3d-controls {
+        bottom: max(20px, env(safe-area-inset-bottom, 20px)) !important;
+        left: max(16px, env(safe-area-inset-left, 16px)) !important;
+        right: max(16px, env(safe-area-inset-right, 16px)) !important;
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
   window.toggle3dItemFullscreen = async function () {
     const container = document.getElementById('tourInfoModal3dContainer');
     if (!container) return;
-    if (document.fullscreenElement === container) {
-      try { await document.exitFullscreen(); } catch (_) {}
+    const fsBtn = document.getElementById('tour3dFullscreenBtn');
+
+    const isNative = document.fullscreenElement === container || document.webkitFullscreenElement === container;
+    const isFallback = container.classList.contains('spotlight-3d-fullscreen-fallback');
+
+    if (isNative || isFallback) {
+      if (isNative) {
+        try {
+          if (document.exitFullscreen) await document.exitFullscreen();
+          else if (document.webkitExitFullscreen) await document.webkitExitFullscreen();
+        } catch (_) {}
+      }
+      container.classList.remove('spotlight-3d-fullscreen-fallback');
+      container.classList.remove('spotlight-3d-fullscreen-native');
+      if (fsBtn) {
+        fsBtn.innerHTML = '⛶';
+        fsBtn.title = 'Fullscreen 3D viewer';
+      }
+      window.dispatchEvent(new Event('resize'));
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
       return;
     }
-    if (container.requestFullscreen) {
-      try { await container.requestFullscreen(); } catch (_) {}
-    } else if (container.webkitRequestFullscreen) {
-      try { await container.webkitRequestFullscreen(); } catch (_) {}
+
+    let nativeSuccess = false;
+    try {
+      if (container.requestFullscreen) {
+        await container.requestFullscreen();
+        nativeSuccess = true;
+      } else if (container.webkitRequestFullscreen) {
+        await container.webkitRequestFullscreen();
+        nativeSuccess = true;
+      }
+    } catch (_) {
+      nativeSuccess = false;
     }
+
+    if (nativeSuccess) {
+      container.classList.add('spotlight-3d-fullscreen-native');
+    } else {
+      container.classList.add('spotlight-3d-fullscreen-fallback');
+    }
+
+    if (fsBtn) {
+      fsBtn.innerHTML = '✕';
+      fsBtn.title = 'Exit fullscreen';
+    }
+
+    window.dispatchEvent(new Event('resize'));
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 80);
   };
+
+  const onSpotlight3dFullscreenChange = () => {
+    const container = document.getElementById('tourInfoModal3dContainer');
+    const fsBtn = document.getElementById('tour3dFullscreenBtn');
+    if (!container) return;
+    const isNative = document.fullscreenElement === container || document.webkitFullscreenElement === container;
+    container.classList.toggle('spotlight-3d-fullscreen-native', isNative);
+    if (!isNative && !container.classList.contains('spotlight-3d-fullscreen-fallback')) {
+      if (fsBtn) {
+        fsBtn.innerHTML = '⛶';
+        fsBtn.title = 'Fullscreen 3D viewer';
+      }
+    }
+    window.dispatchEvent(new Event('resize'));
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 80);
+  };
+  if (typeof document !== 'undefined') {
+    document.addEventListener('fullscreenchange', onSpotlight3dFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onSpotlight3dFullscreenChange);
+  }
 
   window.toggle3dModalAutoRotate = function () {
     if (!active3dViewer) return;
@@ -6896,9 +7087,11 @@
     if (!btn) return;
     if (active3dViewer.autoRotate) {
       btn.style.color = '#3FDDE0';
+      btn.style.borderColor = 'rgba(63,221,224,0.5)';
       btn.textContent = '⟳ Rotating';
     } else {
       btn.style.color = '#fff';
+      btn.style.borderColor = 'rgba(255,255,255,0.25)';
       btn.textContent = '⟳ Auto-Rotate';
     }
   };
@@ -7179,6 +7372,21 @@
   window.closeHotspotInfoModal = function () {
     const modal = document.getElementById('tourHotspotInfoModal');
     if (modal) modal.style.display = 'none';
+
+    // Clean up fullscreen state if modal was closed while fullscreen
+    const container3d = document.getElementById('tourInfoModal3dContainer');
+    if (container3d) {
+      container3d.classList.remove('spotlight-3d-fullscreen-fallback');
+      container3d.classList.remove('spotlight-3d-fullscreen-native');
+    }
+    const fsBtn = document.getElementById('tour3dFullscreenBtn');
+    if (fsBtn) {
+      fsBtn.innerHTML = '⛶';
+      fsBtn.title = 'Fullscreen 3D viewer';
+    }
+    if (typeof document !== 'undefined' && document.fullscreenElement) {
+      try { document.exitFullscreen(); } catch (_) {}
+    }
 
     // Invalidate active session and stop loading indicator
     viewerSessionId++;
