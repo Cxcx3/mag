@@ -2670,7 +2670,7 @@ function renderEditor(){
     const ci = +activeTab.split('-')[1];
     const c = MAGAZINE.cities[ci];
     const adsHtml = (c.ads || []).map((a, ai) => `
-      <div class="ad-editor" data-ai="${ai}">
+      <div class="ad-editor" data-ci="${ci}" data-ai="${ai}">
         <div class="ad-editor-head">
           <h4>Business ${ai + 1}</h4>
           <div class="ad-editor-actions">
@@ -4030,6 +4030,8 @@ window.triggerAdShareByIndex = function(cityIdx, adIdx, pageIdx, event) {
 };
 
 window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
+  // Clear any spot editing pointer to avoid cross-tour bleeding
+  window.currentEditingSpotId = null;
   const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
   const ad = (city && Array.isArray(city.ads)) ? city.ads[adIdx] : (MAGAZINE && Array.isArray(MAGAZINE.ads) ? MAGAZINE.ads[adIdx] : null);
   window.currentEditingAdRef = ad || null;
@@ -4044,6 +4046,9 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
   try {
     if (ad) {
       openTour({
+        tourId: `city-${cityIdx}-ad-${adIdx}`,
+        cityIdx: cityIdx,
+        adIdx: adIdx,
         title: ad.name || 'Featured Spot',
         tag: ad.tag || (city ? city.name : 'Local Spot'),
         location: city ? (city.name + ', UT') : 'Wasatch Front, UT',
@@ -4055,7 +4060,13 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
         scenes: (ad.tourConfig && ad.tourConfig.scenes) ? ad.tourConfig.scenes : undefined
       });
     } else {
-      openTour();
+      openTour({
+        tourId: `city-${cityIdx}-ad-${adIdx}`,
+        cityIdx: cityIdx,
+        adIdx: adIdx,
+        title: 'Featured Spot',
+        location: city ? (city.name + ', UT') : 'Wasatch Front, UT'
+      });
     }
     if (startInEditMode && typeof window.toggleTourEditorMode === 'function') {
       setTimeout(function () { window.toggleTourEditorMode(true); }, 250);
@@ -4067,6 +4078,10 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
 };
 
 window.openSpot3dTour = function(spotId) {
+  // Clear any city ad editing pointers so community spots never bleed into or overwrite city ads
+  window.currentEditingAdRef = null;
+  window.currentEditingCityIdx = null;
+  window.currentEditingAdIdx = null;
   window.currentEditingSpotId = spotId;
   const p = (Array.isArray(COMMUNITY_POSTS)) ? COMMUNITY_POSTS.find(item => String(item.id) === String(spotId)) : null;
   const openTour = window.open3dTourModal || (typeof open3dTourModal === 'function' ? open3dTourModal : null);
@@ -4078,15 +4093,23 @@ window.openSpot3dTour = function(spotId) {
   try {
     if (p) {
       openTour({
+        tourId: `spot-${spotId}`,
+        spotId: spotId,
         title: p.title || 'Community Spot',
         tag: p.category || 'Community Spot',
         location: p.location || 'Wasatch Front, UT',
         blurb: p.description || '',
         link: p.link || '#',
-        tourUrl: p.tour3d || p.tourUrl || ''
+        tourUrl: p.tour3d || p.tourUrl || '',
+        panoUrl: p.pano3d || p.panoUrl || '',
+        scenes: (p.tourConfig && p.tourConfig.scenes) ? p.tourConfig.scenes : undefined
       });
     } else {
-      openTour();
+      openTour({
+        tourId: `spot-${spotId}`,
+        spotId: spotId,
+        title: 'Community Spot'
+      });
     }
   } catch (err) {
     console.error('[SpotLIGHT] openSpot3dTour error:', err);

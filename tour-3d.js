@@ -5164,12 +5164,22 @@
     if (!layer || !container) return;
 
     const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene || !Array.isArray(curScene.hotspots)) return;
+    const pins = layer.querySelectorAll('.tour-hotspot-pin');
+    if (!curScene || !Array.isArray(curScene.hotspots) || curScene.hotspots.length === 0) {
+      for (let i = 0; i < pins.length; i++) {
+        pins[i].style.display = 'none';
+      }
+      return;
+    }
 
     const rect = container.getBoundingClientRect();
     const w = rect.width || window.innerWidth;
     const h = rect.height || window.innerHeight;
-    const pins = layer.querySelectorAll('.tour-hotspot-pin');
+
+    // Hide any orphan pins that exceed the current scene's hotspots count
+    for (let i = curScene.hotspots.length; i < pins.length; i++) {
+      pins[i].style.display = 'none';
+    }
 
     curScene.hotspots.forEach((hs, idx) => {
       const pin = pins[idx];
@@ -8859,75 +8869,64 @@
 
     const tourJson = JSON.stringify({ scenes: activeSceneList });
 
-    // 1. Update active editing ad reference
-    if (window.currentEditingAdRef) {
-      window.currentEditingAdRef.tourConfig = { scenes: activeSceneList };
-      window.currentEditingAdRef.tour3d = tourJson;
-      window.currentEditingAdRef.tourUrl = tourJson;
-    }
+    // Determine current tour unique identifier
+    const tourId = currentTourData?.tourId ||
+      (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number'
+        ? `city-${window.currentEditingCityIdx}-ad-${window.currentEditingAdIdx}`
+        : (window.currentEditingSpotId ? `spot-${window.currentEditingSpotId}` : (currentTourData?.title ? `tour-${currentTourData.title.replace(/\s+/g, '-').toLowerCase()}` : 'active')));
 
-    // 2. Update magazine city ad if indices or title match
-    if (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
-      let matchedAd = false;
-      if (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number') {
-        const cIdx = window.currentEditingCityIdx;
-        const aIdx = window.currentEditingAdIdx;
-        if (window.MAGAZINE.cities[cIdx] && Array.isArray(window.MAGAZINE.cities[cIdx].ads) && window.MAGAZINE.cities[cIdx].ads[aIdx]) {
-          window.MAGAZINE.cities[cIdx].ads[aIdx].tour3d = tourJson;
-          window.MAGAZINE.cities[cIdx].ads[aIdx].tourUrl = tourJson;
-          window.MAGAZINE.cities[cIdx].ads[aIdx].tourConfig = { scenes: activeSceneList };
-          matchedAd = true;
-        }
-      }
-      // If not matched by index, find matching ad by title/tag across all cities
-      if (!matchedAd && currentTourData && currentTourData.title) {
-        const searchTitle = currentTourData.title.toLowerCase();
-        for (let ci = 0; ci < window.MAGAZINE.cities.length; ci++) {
-          const city = window.MAGAZINE.cities[ci];
-          if (city && Array.isArray(city.ads)) {
-            for (let ai = 0; ai < city.ads.length; ai++) {
-              const ad = city.ads[ai];
-              if (ad && ad.name && ad.name.toLowerCase() === searchTitle) {
-                ad.tour3d = tourJson;
-                ad.tourUrl = tourJson;
-                ad.tourConfig = { scenes: activeSceneList };
-                matchedAd = true;
-                break;
-              }
-            }
-          }
-          if (matchedAd) break;
-        }
-      }
-    }
-
-    // 3. Update community post if editing community spot
+    // 1. If currently editing a community spot, update ONLY the community post
     if (window.currentEditingSpotId && typeof window.saveCommunitySpotTour === 'function') {
       try {
         await window.saveCommunitySpotTour(window.currentEditingSpotId, tourJson);
       } catch (e) {}
+    } else {
+      // 2. We are editing a magazine city ad: update ONLY this exact ad
+      if (window.currentEditingAdRef) {
+        window.currentEditingAdRef.tourConfig = { scenes: activeSceneList };
+        window.currentEditingAdRef.tour3d = tourJson;
+        window.currentEditingAdRef.tourUrl = tourJson;
+      }
+
+      if (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
+        if (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number') {
+          const cIdx = window.currentEditingCityIdx;
+          const aIdx = window.currentEditingAdIdx;
+          if (window.MAGAZINE.cities[cIdx] && Array.isArray(window.MAGAZINE.cities[cIdx].ads) && window.MAGAZINE.cities[cIdx].ads[aIdx]) {
+            window.MAGAZINE.cities[cIdx].ads[aIdx].tour3d = tourJson;
+            window.MAGAZINE.cities[cIdx].ads[aIdx].tourUrl = tourJson;
+            window.MAGAZINE.cities[cIdx].ads[aIdx].tourConfig = { scenes: activeSceneList };
+          }
+        }
+      }
+
+      // Update open input fields in Admin Editor for THIS EXACT ad only
+      try {
+        const tourInputs = document.querySelectorAll('input[data-ad="tour3d"]');
+        tourInputs.forEach(inp => {
+          const adEl = inp.closest('.ad-editor');
+          if (
+            adEl &&
+            typeof window.currentEditingCityIdx === 'number' &&
+            typeof window.currentEditingAdIdx === 'number' &&
+            adEl.dataset.ci !== undefined &&
+            +adEl.dataset.ci === window.currentEditingCityIdx &&
+            +adEl.dataset.ai === window.currentEditingAdIdx
+          ) {
+            inp.value = tourJson;
+          }
+        });
+      } catch (e) {}
     }
 
-    // 4. Update local caches
+    // 4. Update local caches scoped specifically to this tour ID
     try {
-      localStorage.setItem('spotlight_tour_' + (currentTourData?.title || 'active'), tourJson);
-      localStorage.setItem('spotlight_latest_tour', tourJson);
+      if (tourId) {
+        localStorage.setItem(`spotlight_tour_${tourId}`, tourJson);
+      }
       if (window.MAGAZINE) {
         localStorage.setItem('spotlight_magazine_content_v5', JSON.stringify(window.MAGAZINE));
       }
-    } catch (e) {}
-
-    // 5. Update open input fields in Admin Editor
-    try {
-      const tourInputs = document.querySelectorAll('input[data-ad="tour3d"]');
-      tourInputs.forEach(inp => {
-        const adEl = inp.closest('.ad-editor');
-        if (adEl && typeof window.currentEditingAdIdx === 'number' && +adEl.dataset.ai === window.currentEditingAdIdx) {
-          inp.value = tourJson;
-        } else if (!adEl) {
-          inp.value = tourJson;
-        }
-      });
     } catch (e) {}
 
     // 6. Refresh live views
@@ -10745,6 +10744,24 @@
 
     modal.classList.add('active');
 
+    // Instantly wipe the hotspot layer DOM so no pins from previous tours remain
+    const layer = document.getElementById('tourHotspotsLayer');
+    if (layer) {
+      layer.innerHTML = '';
+      layer.style.opacity = '1';
+    }
+
+    // Determine unique tour identity
+    const tourId = options.tourId ||
+      (typeof options.cityIdx === 'number' && typeof options.adIdx === 'number'
+        ? `city-${options.cityIdx}-ad-${options.adIdx}`
+        : (options.spotId ? `spot-${options.spotId}` : (options.title ? `tour-${options.title.replace(/\s+/g, '-').toLowerCase()}` : 'default')));
+
+    const isDemoWalk = options.isDemo ||
+      tourId === 'demo_slc_walk' ||
+      (!options.title && !options.tag && !options.location) ||
+      (options.title && options.title.toLowerCase().includes('spotlight slc'));
+
     // Parse custom scenes or stored tour config
     let loadedScenes = null;
 
@@ -10753,33 +10770,72 @@
     } else if (options.tourUrl && options.tourUrl.startsWith('{')) {
       try {
         const parsed = JSON.parse(options.tourUrl);
-        if (parsed.scenes && Array.isArray(parsed.scenes)) {
+        if (parsed.scenes && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
           loadedScenes = parsed.scenes;
         }
       } catch (e) {}
+    }
+
+    // Check localStorage for this specific tour if not already in memory
+    if (!loadedScenes && tourId && tourId !== 'default') {
+      try {
+        const cached = localStorage.getItem(`spotlight_tour_${tourId}`);
+        if (cached && cached.startsWith('{')) {
+          const parsed = JSON.parse(cached);
+          if (parsed.scenes && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
+            loadedScenes = parsed.scenes;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Sanitize any accidental contamination: if this is a business or community post,
+    // ensure it hasn't inherited the demo SLC scenes (slc-entrance, climbing gear, camera)
+    if (loadedScenes && loadedScenes.length > 0 && !isDemoWalk) {
+      const first = loadedScenes[0];
+      if (first && (first.id === 'slc-entrance' || first.name === 'SpotLIGHT SLC · Street Entrance & Walk-In')) {
+        // Strip foreign demo tour and create a clean isolated scene
+        loadedScenes = null;
+      }
     }
 
     if (!loadedScenes && (options.tourUrl || options.panoUrl)) {
       const directNorm = normalize3dTourUrl(options.tourUrl || options.panoUrl);
       loadedScenes = [
         {
-          id: 'custom-spot',
+          id: 'custom-spot-' + Date.now().toString(36),
           name: options.title || '360° Interactive Space',
           location: options.location || 'Wasatch Front, UT',
           tag: options.tag || directNorm.provider || '360° Scan',
           tourUrl: directNorm.isEmbed ? directNorm.url : '',
           panoUrl: directNorm.isImage ? directNorm.url : '',
-          blurb: options.blurb || '',
-          hotspots: []
+          aspectMode: 'full-360',
+          vScale: 1.0,
+          blurb: options.blurb || 'Explore this space in 360°',
+          hotspots: [] // Clean empty hotspots for this tour
         }
       ];
     }
 
     if (!loadedScenes || loadedScenes.length === 0) {
-      if (options.location && options.location.toLowerCase().includes('west jordan')) {
+      if (isDemoWalk) {
         loadedScenes = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
       } else {
-        loadedScenes = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
+        // Clean default room for a new tour - isolated with its own empty hotspots
+        loadedScenes = [
+          {
+            id: 'room-' + Date.now().toString(36),
+            name: options.title ? (options.title + ' · Main Space') : 'Main Space',
+            location: options.location || 'Wasatch Front, UT',
+            tag: options.tag || '360° Walkthrough',
+            panoUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2500&q=80',
+            tourUrl: '',
+            aspectMode: 'full-360',
+            vScale: 1.0,
+            blurb: options.blurb || 'Explore this space in 360°',
+            hotspots: [] // Clean empty hotspots for this tour
+          }
+        ];
       }
     }
 
@@ -11030,6 +11086,21 @@
       cancelAnimationFrame(animFrameId);
       animFrameId = null;
     }
+    // Clean up hotspot layer completely so pins never bleed into subsequent tours
+    const layer = document.getElementById('tourHotspotsLayer');
+    if (layer) {
+      layer.innerHTML = '';
+      layer.style.opacity = '1';
+    }
+
+    // Reset tour viewer state and isolate editing pointers
+    activeSceneList = [];
+    activeSceneIndex = 0;
+    currentTourData = null;
+    window.currentEditingAdRef = null;
+    window.currentEditingCityIdx = null;
+    window.currentEditingAdIdx = null;
+    window.currentEditingSpotId = null;
   };
 
   // Auto-initialize UI on load
