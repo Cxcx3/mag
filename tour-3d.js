@@ -3886,25 +3886,25 @@
             <!-- MEDIA CONTAINER: 3D MODEL / PHOTO / VIDEO -->
             <div id="tourInfoMediaWrapper" style="position:relative;width:100%;background:#09080e;border-bottom:1px solid rgba(255,255,255,0.08);overflow:hidden;display:none;">
               <!-- 1. 3D Model Viewer container -->
-              <div id="tourInfoModal3dContainer" style="display:none;width:min(100%,720px);height:auto;aspect-ratio:1/1;min-height:280px;max-height:78vh;position:relative;margin:0 auto;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none;">
-                <div id="tourInfoModal3dCanvasMount" style="position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none;z-index:1;"></div>
+              <div id="tourInfoModal3dContainer" style="display:none;width:min(100%,720px);height:auto;aspect-ratio:1/1;min-height:280px;max-height:78vh;position:relative;margin:0 auto;background:radial-gradient(circle at 50% 50%, #1c182a 0%, #0a0812 100%);touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;">
+                <div id="tourInfoModal3dCanvasMount" style="position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:none;z-index:1;-webkit-user-select:none;-webkit-touch-callout:none;"></div>
                 <!-- Bottom 3D Loading Indicator -->
                 <div id="tour3dBottomLoadingIndicator" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:24px;font-size:11px;font-weight:700;color:#fff;background:rgba(18,16,26,0.92);border:1px solid rgba(63,221,224,0.45);backdrop-filter:blur(8px);box-shadow:0 6px 20px rgba(0,0,0,0.6);display:none;align-items:center;gap:8px;z-index:6;pointer-events:none;transition:opacity 0.25s ease;">
                   <span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(63,221,224,0.25);border-top-color:#3FDDE0;border-radius:50%;animation:tour3dSpin 0.75s linear infinite;"></span>
                   <span id="tour3dLoadingText" style="white-space:nowrap;letter-spacing:0.02em;">Loading 3D model...</span>
                 </div>
                 <!-- Bottom Left & Right Controls (+, -, Fullscreen) -->
-                <div class="spotlight-3d-controls" style="position:absolute;left:14px;bottom:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-end;z-index:15;pointer-events:none;">
-                  <button type="button" class="spotlight-3d-control-btn spotlight-3d-fullscreen-btn" id="tour3dFullscreenBtn" onclick="window.toggle3dItemFullscreen()" title="Fullscreen 3D viewer" aria-label="Fullscreen 3D viewer" style="pointer-events:auto;width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;">⛶</button>
-                  <div style="display:flex;flex-direction:column;gap:7px;pointer-events:auto;">
-                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(-1)" title="Zoom in" aria-label="Zoom in" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;">+</button>
-                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(1)" title="Zoom out" aria-label="Zoom out" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;">−</button>
+                <div class="spotlight-3d-controls" style="position:absolute;left:14px;bottom:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-end;z-index:25;pointer-events:none;">
+                  <button type="button" class="spotlight-3d-control-btn spotlight-3d-fullscreen-btn" id="tour3dFullscreenBtn" onclick="window.toggle3dItemFullscreen()" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation()" title="Fullscreen 3D viewer" aria-label="Fullscreen 3D viewer" style="pointer-events:auto;width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;">⛶</button>
+                  <div style="display:flex;flex-direction:column;gap:8px;pointer-events:auto;">
+                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(-1)" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation()" title="Zoom in" aria-label="Zoom in" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;">+</button>
+                    <button type="button" class="spotlight-3d-control-btn" onclick="window.zoom3dModal(1)" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation()" title="Zoom out" aria-label="Zoom out" style="width:48px;height:48px;border:1px solid rgba(255,255,255,0.24);border-radius:12px;background:rgba(0,0,0,0.72);backdrop-filter:blur(8px);color:#fff;font-size:25px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;">−</button>
                   </div>
                 </div>
                 <!-- Top Right Controls (Auto-Rotate, Reset) -->
-                <div style="position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:15;pointer-events:auto;">
-                  <button type="button" class="tour-dialog-btn" id="tour3dAutoRotateBtn" onclick="window.toggle3dModalAutoRotate()" style="padding:6px 12px;font-size:11px;font-weight:600;background:rgba(0,0,0,0.7);border:1px solid rgba(63,221,224,0.5);border-radius:8px;color:#3FDDE0;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;" title="Toggle 3D auto rotation">⟳ Rotating</button>
-                  <button type="button" class="tour-dialog-btn" onclick="window.reset3dModalCamera()" style="padding:6px 12px;font-size:11px;font-weight:600;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.25);border-radius:8px;color:#fff;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;" title="Reset 3D camera angle">⌖ Reset</button>
+                <div class="spotlight-3d-top-controls" style="position:absolute;top:10px;right:10px;display:flex;gap:6px;z-index:25;pointer-events:auto;">
+                  <button type="button" class="tour-dialog-btn" id="tour3dAutoRotateBtn" onclick="window.toggle3dModalAutoRotate()" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation()" style="padding:7px 13px;font-size:11px;font-weight:600;background:rgba(0,0,0,0.7);border:1px solid rgba(63,221,224,0.5);border-radius:8px;color:#3FDDE0;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;" title="Toggle 3D auto rotation">⟳ Rotating</button>
+                  <button type="button" class="tour-dialog-btn" onclick="window.reset3dModalCamera()" ontouchstart="event.stopPropagation()" ontouchend="event.stopPropagation()" style="padding:7px 13px;font-size:11px;font-weight:600;background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.25);border-radius:8px;color:#fff;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;" title="Reset 3D camera angle">⌖ Reset</button>
                 </div>
               </div>
 
@@ -6273,6 +6273,8 @@
     cleanup: null
   };
 
+  let fullscreenPlaceholder = null;
+
   let miniInspector3dViewer = {
     renderer: null,
     scene: null,
@@ -6492,7 +6494,7 @@
     if (!active3dViewer) return;
     const minD = active3dViewer.minDistance || 0.6;
     const maxD = active3dViewer.maxDistance || 10.0;
-    const step = direction < 0 ? -0.55 : 0.55;
+    const step = direction < 0 ? -0.75 : 0.75;
     active3dViewer.distance = Math.max(minD, Math.min(maxD, (active3dViewer.distance || 4.5) + step));
   };
 
@@ -6699,7 +6701,7 @@
 
     window.zoom3dModal = function (direction) {
       if (!active3dViewer || active3dViewer.renderer !== renderer) return;
-      const step = direction < 0 ? -0.55 : 0.55;
+      const step = direction < 0 ? -0.75 : 0.75;
       setDistance(active3dViewer.distance + step);
     };
 
@@ -6733,16 +6735,15 @@
       const interactEl = mountEl || dom;
       interactEl.style.cursor = 'grab';
       interactEl.style.touchAction = 'none';
+      interactEl.style.webkitUserSelect = 'none';
+      interactEl.style.webkitTouchCallout = 'none';
       dom.style.touchAction = 'none';
+      dom.style.webkitUserSelect = 'none';
+      dom.style.webkitTouchCallout = 'none';
 
-      // 1. MOBILE TOUCH (1-finger Orbit, 2-finger Pan & Pinch Zoom)
-      let prevSingleTouch = { x: 0, y: 0 };
-      let prevTwoFingerMid = { x: 0, y: 0 };
-      let prevPinchDist = 0;
-
-      const onTouchStart = (e) => {
-        if (!active3dViewer || active3dViewer.renderer !== renderer) return;
-        e.stopPropagation();
+      // Reset auto-rotate UI when manual interaction begins
+      const stopAutoRotateUI = () => {
+        if (!active3dViewer) return;
         active3dViewer.autoRotate = false;
         const autoBtn = document.getElementById('tour3dAutoRotateBtn');
         if (autoBtn) {
@@ -6750,8 +6751,24 @@
           autoBtn.style.borderColor = 'rgba(255,255,255,0.25)';
           autoBtn.textContent = '⟳ Auto-Rotate';
         }
+      };
+
+      // 1. MOBILE TOUCH INTERACTIONS (Full iOS Safari & Android Support)
+      // Handles single-finger 3D rotation, two-finger pinch-zoom, and two-finger pan
+      let prevSingleTouch = { x: 0, y: 0 };
+      let prevTwoFingerMid = { x: 0, y: 0 };
+      let prevPinchDist = 0;
+      let isTouching = false;
+
+      const onTouchStart = (e) => {
+        if (!active3dViewer || active3dViewer.renderer !== renderer) return;
+        if (e.target && e.target.closest && e.target.closest('.spotlight-3d-controls, .spotlight-3d-top-controls, button')) return;
+        if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        stopAutoRotateUI();
 
         const touches = e.touches;
+        isTouching = true;
         if (touches.length === 1) {
           active3dViewer.isDragging = true;
           active3dViewer.dragMode = 'orbit';
@@ -6775,7 +6792,7 @@
         e.stopPropagation();
         const touches = e.touches;
 
-        if (touches.length === 1 && active3dViewer.dragMode === 'orbit') {
+        if (touches.length === 1 && (active3dViewer.dragMode === 'orbit' || !active3dViewer.dragMode)) {
           const cur = { x: touches[0].clientX, y: touches[0].clientY };
           const dx = cur.x - prevSingleTouch.x;
           const dy = cur.y - prevSingleTouch.y;
@@ -6821,30 +6838,30 @@
           prevSingleTouch = { x: touches[0].clientX, y: touches[0].clientY };
           active3dViewer.dragMode = 'orbit';
         } else if (touches.length === 0) {
+          isTouching = false;
           active3dViewer.isDragging = false;
           active3dViewer.dragMode = 'orbit';
           interactEl.style.cursor = 'grab';
         }
       };
 
-      // 2. DESKTOP MOUSE / POINTER INTERACTIONS
+      // Prevent iOS Safari page-level pinch gestures while interacting with 3D canvas
+      const preventSafariPinch = (e) => {
+        if (e.cancelable) e.preventDefault();
+      };
+
+      // 2. DESKTOP MOUSE / POINTER INTERACTIONS (Fallback & PC Support)
       const onPointerDown = (e) => {
-        if (e.pointerType === 'touch') return;
+        if (e.pointerType === 'touch') return; // Handled natively by touch events on mobile
         if (!active3dViewer || active3dViewer.renderer !== renderer) return;
         if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
+        if (e.target && e.target.closest && e.target.closest('.spotlight-3d-controls, .spotlight-3d-top-controls, button')) return;
         e.preventDefault();
         e.stopPropagation();
+        stopAutoRotateUI();
 
         active3dViewer.isDragging = true;
-        active3dViewer.autoRotate = false;
         interactEl.style.cursor = 'grabbing';
-        const autoBtn = document.getElementById('tour3dAutoRotateBtn');
-        if (autoBtn) {
-          autoBtn.style.color = '#fff';
-          autoBtn.style.borderColor = 'rgba(255,255,255,0.25)';
-          autoBtn.textContent = '⟳ Auto-Rotate';
-        }
-
         active3dViewer.prevMouse = { x: e.clientX, y: e.clientY };
         active3dViewer.dragMode = (e.button === 2 || e.button === 1 || e.shiftKey) ? 'pan' : 'orbit';
 
@@ -6900,10 +6917,20 @@
         e.stopPropagation();
       };
 
-      interactEl.addEventListener('touchstart', onTouchStart, { passive: true });
+      // Attach Touch Listeners with non-passive touchmove for smooth 60fps tracking on iOS & Android
+      interactEl.addEventListener('touchstart', onTouchStart, { passive: false });
       interactEl.addEventListener('touchmove', onTouchMove, { passive: false });
-      interactEl.addEventListener('touchend', onTouchEnd, { passive: true });
-      interactEl.addEventListener('touchcancel', onTouchEnd, { passive: true });
+      interactEl.addEventListener('touchend', onTouchEnd, { passive: false });
+      interactEl.addEventListener('touchcancel', onTouchEnd, { passive: false });
+      interactEl.addEventListener('gesturestart', preventSafariPinch, { passive: false });
+      interactEl.addEventListener('gesturechange', preventSafariPinch, { passive: false });
+
+      if (dom !== interactEl) {
+        dom.addEventListener('touchstart', onTouchStart, { passive: false });
+        dom.addEventListener('touchmove', onTouchMove, { passive: false });
+        dom.addEventListener('touchend', onTouchEnd, { passive: false });
+        dom.addEventListener('touchcancel', onTouchEnd, { passive: false });
+      }
 
       interactEl.addEventListener('pointerdown', onPointerDown);
       interactEl.addEventListener('pointermove', onPointerMove);
@@ -6925,6 +6952,15 @@
         interactEl.removeEventListener('touchmove', onTouchMove);
         interactEl.removeEventListener('touchend', onTouchEnd);
         interactEl.removeEventListener('touchcancel', onTouchEnd);
+        interactEl.removeEventListener('gesturestart', preventSafariPinch);
+        interactEl.removeEventListener('gesturechange', preventSafariPinch);
+
+        if (dom !== interactEl) {
+          dom.removeEventListener('touchstart', onTouchStart);
+          dom.removeEventListener('touchmove', onTouchMove);
+          dom.removeEventListener('touchend', onTouchEnd);
+          dom.removeEventListener('touchcancel', onTouchEnd);
+        }
 
         interactEl.removeEventListener('pointerdown', onPointerDown);
         interactEl.removeEventListener('pointermove', onPointerMove);
@@ -6967,15 +7003,18 @@
     animate();
   }
 
-  // Inject Spotlight 3D Fullscreen Styles (supports desktop and mobile fallback)
+  // Inject Spotlight 3D Fullscreen Styles (supports desktop, iOS Safari & Android mobile)
   if (typeof document !== 'undefined' && !document.getElementById('spotlight3dFullscreenStyles')) {
     const s = document.createElement('style');
     s.id = 'spotlight3dFullscreenStyles';
     s.textContent = `
       #tourInfoModal3dContainer.spotlight-3d-fullscreen-native,
-      #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback {
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-active {
         position: fixed !important;
-        inset: 0 !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
         width: 100vw !important;
         height: 100vh !important;
         height: 100dvh !important;
@@ -6988,18 +7027,24 @@
         z-index: 2147483647 !important;
         touch-action: none !important;
         overflow: hidden !important;
+        -webkit-overflow-scrolling: auto !important;
       }
       #tourInfoModal3dContainer.spotlight-3d-fullscreen-native #tourInfoModal3dCanvasMount,
-      #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback #tourInfoModal3dCanvasMount {
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-active #tourInfoModal3dCanvasMount {
         position: absolute !important;
         inset: 0 !important;
         width: 100% !important;
         height: 100% !important;
       }
       #tourInfoModal3dContainer.spotlight-3d-fullscreen-native .spotlight-3d-controls,
-      #tourInfoModal3dContainer.spotlight-3d-fullscreen-fallback .spotlight-3d-controls {
-        bottom: max(20px, env(safe-area-inset-bottom, 20px)) !important;
-        left: max(16px, env(safe-area-inset-left, 16px)) !important;
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-active .spotlight-3d-controls {
+        bottom: max(24px, env(safe-area-inset-bottom, 24px)) !important;
+        left: max(18px, env(safe-area-inset-left, 18px)) !important;
+        right: max(18px, env(safe-area-inset-right, 18px)) !important;
+      }
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-native .spotlight-3d-top-controls,
+      #tourInfoModal3dContainer.spotlight-3d-fullscreen-active .spotlight-3d-top-controls {
+        top: max(16px, env(safe-area-inset-top, 16px)) !important;
         right: max(16px, env(safe-area-inset-right, 16px)) !important;
       }
     `;
@@ -7011,8 +7056,8 @@
     if (!container) return;
     const fsBtn = document.getElementById('tour3dFullscreenBtn');
 
-    const isNative = document.fullscreenElement === container || document.webkitFullscreenElement === container;
-    const isFallback = container.classList.contains('spotlight-3d-fullscreen-fallback');
+    const isNative = !!(document.fullscreenElement === container || document.webkitFullscreenElement === container);
+    const isFallback = container.classList.contains('spotlight-3d-fullscreen-active');
 
     if (isNative || isFallback) {
       if (isNative) {
@@ -7021,7 +7066,14 @@
           else if (document.webkitExitFullscreen) await document.webkitExitFullscreen();
         } catch (_) {}
       }
-      container.classList.remove('spotlight-3d-fullscreen-fallback');
+
+      if (fullscreenPlaceholder && fullscreenPlaceholder.parentNode) {
+        fullscreenPlaceholder.parentNode.insertBefore(container, fullscreenPlaceholder);
+        fullscreenPlaceholder.remove();
+        fullscreenPlaceholder = null;
+      }
+
+      container.classList.remove('spotlight-3d-fullscreen-active');
       container.classList.remove('spotlight-3d-fullscreen-native');
       if (fsBtn) {
         fsBtn.innerHTML = '⛶';
@@ -7033,22 +7085,37 @@
     }
 
     let nativeSuccess = false;
-    try {
-      if (container.requestFullscreen) {
-        await container.requestFullscreen();
-        nativeSuccess = true;
-      } else if (container.webkitRequestFullscreen) {
-        await container.webkitRequestFullscreen();
-        nativeSuccess = true;
+    // Note: iOS Safari on iPhone only allows HTML5 video elements for native requestFullscreen;
+    // so for iPhone, we promote the container straight to document.body viewport overlay!
+    const isIPhone = /iPhone|iPod/i.test(navigator.userAgent || '');
+    if (!isIPhone && (container.requestFullscreen || container.webkitRequestFullscreen)) {
+      try {
+        if (container.requestFullscreen) {
+          await container.requestFullscreen();
+          nativeSuccess = true;
+        } else if (container.webkitRequestFullscreen) {
+          await container.webkitRequestFullscreen();
+          nativeSuccess = true;
+        }
+      } catch (_) {
+        nativeSuccess = false;
       }
-    } catch (_) {
-      nativeSuccess = false;
     }
 
     if (nativeSuccess) {
       container.classList.add('spotlight-3d-fullscreen-native');
     } else {
-      container.classList.add('spotlight-3d-fullscreen-fallback');
+      // Reparent to document.body to ensure zero transform or parent clipping issues on iOS Safari
+      if (!fullscreenPlaceholder) {
+        fullscreenPlaceholder = document.createElement('div');
+        fullscreenPlaceholder.id = 'tour3dFullscreenPlaceholder';
+        fullscreenPlaceholder.style.display = 'none';
+        if (container.parentNode) {
+          container.parentNode.insertBefore(fullscreenPlaceholder, container);
+        }
+      }
+      document.body.appendChild(container);
+      container.classList.add('spotlight-3d-fullscreen-active');
     }
 
     if (fsBtn) {
@@ -7058,15 +7125,21 @@
 
     window.dispatchEvent(new Event('resize'));
     setTimeout(() => window.dispatchEvent(new Event('resize')), 80);
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
   };
 
   const onSpotlight3dFullscreenChange = () => {
     const container = document.getElementById('tourInfoModal3dContainer');
     const fsBtn = document.getElementById('tour3dFullscreenBtn');
     if (!container) return;
-    const isNative = document.fullscreenElement === container || document.webkitFullscreenElement === container;
+    const isNative = !!(document.fullscreenElement === container || document.webkitFullscreenElement === container);
     container.classList.toggle('spotlight-3d-fullscreen-native', isNative);
-    if (!isNative && !container.classList.contains('spotlight-3d-fullscreen-fallback')) {
+    if (!isNative && !container.classList.contains('spotlight-3d-fullscreen-active')) {
+      if (fullscreenPlaceholder && fullscreenPlaceholder.parentNode) {
+        fullscreenPlaceholder.parentNode.insertBefore(container, fullscreenPlaceholder);
+        fullscreenPlaceholder.remove();
+        fullscreenPlaceholder = null;
+      }
       if (fsBtn) {
         fsBtn.innerHTML = '⛶';
         fsBtn.title = 'Fullscreen 3D viewer';
@@ -7376,7 +7449,12 @@
     // Clean up fullscreen state if modal was closed while fullscreen
     const container3d = document.getElementById('tourInfoModal3dContainer');
     if (container3d) {
-      container3d.classList.remove('spotlight-3d-fullscreen-fallback');
+      if (fullscreenPlaceholder && fullscreenPlaceholder.parentNode) {
+        fullscreenPlaceholder.parentNode.insertBefore(container3d, fullscreenPlaceholder);
+        fullscreenPlaceholder.remove();
+        fullscreenPlaceholder = null;
+      }
+      container3d.classList.remove('spotlight-3d-fullscreen-active');
       container3d.classList.remove('spotlight-3d-fullscreen-native');
     }
     const fsBtn = document.getElementById('tour3dFullscreenBtn');
@@ -7384,8 +7462,11 @@
       fsBtn.innerHTML = '⛶';
       fsBtn.title = 'Fullscreen 3D viewer';
     }
-    if (typeof document !== 'undefined' && document.fullscreenElement) {
-      try { document.exitFullscreen(); } catch (_) {}
+    if (typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement)) {
+      try {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } catch (_) {}
     }
 
     // Invalidate active session and stop loading indicator
