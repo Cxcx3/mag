@@ -6270,6 +6270,7 @@
     minDistance: 0.6,
     maxDistance: 10.0,
     target: { x: 0, y: 0.2, z: 0 },
+    loadController: null,
     cleanup: null
   };
 
@@ -6292,6 +6293,34 @@
   // Prevent multiple queued model initializations / network loads on rapid mobile taps.
   let pending3dInitRaf = null;
   let active3dLoadController = null;
+  let loadController = null;
+  if (typeof window !== 'undefined') {
+    window.loadController = null;
+    window.active3dLoadController = null;
+
+    // Ensure zoom and camera functions always exist globally to prevent TypeError if buttons are tapped
+    window.zoom3dModal = window.zoom3dModal || function (direction) {
+      if (!active3dViewer || !active3dViewer.renderer) return;
+      const step = direction < 0 ? -0.75 : 0.75;
+      const minD = active3dViewer.minDistance || 0.6;
+      const maxD = active3dViewer.maxDistance || 10.0;
+      active3dViewer.distance = Math.max(minD, Math.min(maxD, (active3dViewer.distance || 4.5) + step));
+    };
+
+    window.reset3dModalCamera = window.reset3dModalCamera || function () {
+      if (!active3dViewer || !active3dViewer.renderer) return;
+      active3dViewer.rotation = { x: 0.2, y: 0 };
+      active3dViewer.distance = 4.5;
+      active3dViewer.target = { x: 0, y: 0.2, z: 0 };
+      active3dViewer.autoRotate = true;
+      const btn = document.getElementById('tour3dAutoRotateBtn');
+      if (btn) {
+        btn.style.color = '#3FDDE0';
+        btn.style.borderColor = 'rgba(63,221,224,0.5)';
+        btn.textContent = '⟳ Rotating';
+      }
+    };
+  }
 
   // Small bottom loading indicator helper
   function set3dLoading(isLoading, text = 'Loading 3D model...') {
@@ -6547,7 +6576,8 @@
 
     const isUrl = (typeof modelSrc === 'string') && (modelSrc.startsWith('http') || modelSrc.startsWith('data:') || modelSrc.startsWith('blob:'));
     let loadToken = { cancelled: false };
-    let loadController = null;
+    loadController = null;
+    if (typeof window !== 'undefined') window.loadController = null;
 
     const addFallback = () => {
       if (loadToken.cancelled || thisSession !== viewerSessionId || modelRoot.children.length) return;
@@ -6573,6 +6603,7 @@
       // could leave several large GLTF/GLB downloads decoding at the same time.
       loadController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       active3dLoadController = loadController;
+      if (typeof window !== 'undefined') window.loadController = loadController;
 
       const parseModel = (arrayBuffer) => {
         if (loadToken.cancelled || thisSession !== viewerSessionId) return;
@@ -6585,6 +6616,8 @@
           basePath,
           (gltf) => {
             if (active3dLoadController === loadController) active3dLoadController = null;
+            loadController = null;
+            if (typeof window !== 'undefined') window.loadController = null;
 
             if (loadToken.cancelled || thisSession !== viewerSessionId) {
               disposeObject3DResources(gltf.scene);
@@ -6626,6 +6659,8 @@
           },
           (err) => {
             if (active3dLoadController === loadController) active3dLoadController = null;
+            loadController = null;
+            if (typeof window !== 'undefined') window.loadController = null;
             if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
             console.warn('[SpotLIGHT 3D] GLTF parse failed, using procedural fallback:', err);
             set3dLoading(false);
@@ -6651,6 +6686,8 @@
           parseModel(arrayBuffer);
         } catch (err) {
           if (active3dLoadController === loadController) active3dLoadController = null;
+          loadController = null;
+          if (typeof window !== 'undefined') window.loadController = null;
           if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
           console.warn('[SpotLIGHT 3D] GLTF download failed, using procedural fallback:', err);
           set3dLoading(false);
@@ -6687,8 +6724,10 @@
         loadToken.cancelled = true;
         if (loadController) {
           try { loadController.abort(); } catch (_) {}
-          if (active3dLoadController === loadController) active3dLoadController = null;
         }
+        if (active3dLoadController === loadController) active3dLoadController = null;
+        loadController = null;
+        if (typeof window !== 'undefined') window.loadController = null;
       }
     };
 
@@ -6944,6 +6983,13 @@
 
       active3dViewer.cleanup = () => {
         loadToken.cancelled = true;
+        if (loadController) {
+          try { loadController.abort(); } catch (_) {}
+        }
+        if (active3dLoadController === loadController) active3dLoadController = null;
+        loadController = null;
+        if (typeof window !== 'undefined') window.loadController = null;
+
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('pointerup', stopDrag);
         window.removeEventListener('pointercancel', stopDrag);
@@ -7479,6 +7525,14 @@
       try { active3dLoadController.abort(); } catch (_) {}
       active3dLoadController = null;
     }
+    if (loadController) {
+      try { loadController.abort(); } catch (_) {}
+      loadController = null;
+    }
+    if (typeof window !== 'undefined') {
+      window.loadController = null;
+      window.active3dLoadController = null;
+    }
     set3dLoading(false);
 
     // Dispose active 3D viewer & stop video
@@ -7486,7 +7540,9 @@
     const iframe = document.getElementById('tourInfoModalIframe');
     if (iframe) iframe.src = 'about:blank';
     const video = document.getElementById('tourInfoModalNativeVideo');
-    if (video) video.pause();
+    if (video && typeof video.pause === 'function') {
+      try { video.pause(); } catch (_) {}
+    }
   };
 
   window.customizeHotspotFromModal = function () {
