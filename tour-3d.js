@@ -5783,6 +5783,16 @@
     const reader = new FileReader();
 
     if (type === 'model3d') {
+      // Same 30MB ceiling the viewer itself enforces (see init3dItemViewer) —
+      // warn upfront rather than let someone upload a model that will just
+      // fail to preview (for themselves and every visitor) later.
+      const MAX_SAFE_MODEL_BYTES = 30 * 1024 * 1024;
+      if (file.size > MAX_SAFE_MODEL_BYTES) {
+        if (typeof showToast === 'function') {
+          showToast(`⚠️ "${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)}MB — over the 30MB safe limit for mobile. Try a compressed .glb.`);
+        }
+        return;
+      }
       // IMPORTANT: never use readAsDataURL for .glb files — they can be many MB,
       // and base64-encoding a large binary file into one giant string (then
       // stuffing it into an <input> value) is exactly what was crashing the
@@ -6627,7 +6637,7 @@
       active3dLoadController = loadController;
       if (typeof window !== 'undefined') window.loadController = loadController;
 
-      const parseModel = (arrayBuffer) => {
+      const parseModel = (arrayBuffer, parseWatchdog) => {
         if (loadToken.cancelled || thisSession !== viewerSessionId) return;
         const basePath = (THREE.LoaderUtils && THREE.LoaderUtils.extractUrlBase)
           ? THREE.LoaderUtils.extractUrlBase(modelSrc)
@@ -6638,6 +6648,7 @@
             arrayBuffer,
             basePath,
             (gltf) => {
+              if (parseWatchdog) clearTimeout(parseWatchdog);
               if (active3dLoadController === loadController) active3dLoadController = null;
               loadController = null;
               if (typeof window !== 'undefined') window.loadController = null;
@@ -6656,17 +6667,37 @@
               const center = box.getCenter(new THREE.Vector3());
               loadedMesh.position.sub(center.multiplyScalar(scale));
 
-              // GPU Memory optimization: disable mipmaps on textures on mobile/desktop
-              // to save up to 33% texture memory and prevent WebGL crashes on iOS Safari
+              // GPU Memory optimization: disable mipmaps, and downscale any
+              // oversized textures. Large embedded textures (2K/4K+, common in
+              // models exported from Blender/Sketchfab) are one of the most
+              // common causes of a hard mobile Safari crash on GPU upload —
+              // capping them here costs little visible quality in a small
+              // preview modal but removes a real crash risk.
+              const MAX_TEXTURE_DIM = 1536;
               try {
                 loadedMesh.traverse((child) => {
                   if (child.isMesh && child.material) {
                     const mats = Array.isArray(child.material) ? child.material : [child.material];
                     mats.forEach((mat) => {
                       ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach((texKey) => {
-                        if (mat && mat[texKey] && mat[texKey].isTexture) {
-                          mat[texKey].generateMipmaps = false;
-                          mat[texKey].minFilter = THREE.LinearFilter;
+                        const tex = mat && mat[texKey];
+                        if (!tex || !tex.isTexture) return;
+                        tex.generateMipmaps = false;
+                        tex.minFilter = THREE.LinearFilter;
+
+                        const img = tex.image;
+                        if (img && img.width > MAX_TEXTURE_DIM || (img && img.height > MAX_TEXTURE_DIM)) {
+                          try {
+                            const scaleFactor = MAX_TEXTURE_DIM / Math.max(img.width, img.height);
+                            const small = document.createElement('canvas');
+                            small.width = Math.max(1, Math.round(img.width * scaleFactor));
+                            small.height = Math.max(1, Math.round(img.height * scaleFactor));
+                            small.getContext('2d').drawImage(img, 0, 0, small.width, small.height);
+                            tex.image = small;
+                            tex.needsUpdate = true;
+                          } catch (resizeErr) {
+                            console.warn('[SpotLIGHT 3D] Texture downscale skipped:', resizeErr);
+                          }
                         }
                       });
                     });
@@ -6681,6 +6712,7 @@
               set3dLoading(false);
             },
             (err) => {
+              if (parseWatchdog) clearTimeout(parseWatchdog);
               if (active3dLoadController === loadController) active3dLoadController = null;
               loadController = null;
               if (typeof window !== 'undefined') window.loadController = null;
@@ -6691,6 +6723,7 @@
             }
           );
         } catch (syncErr) {
+          if (parseWatchdog) clearTimeout(parseWatchdog);
           if (active3dLoadController === loadController) active3dLoadController = null;
           loadController = null;
           if (typeof window !== 'undefined') window.loadController = null;
@@ -6709,12 +6742,57 @@
 
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
+          // Bail out BEFORE downloading/parsing if the server tells us the file
+          // is large enough to be a realistic mobile-crash risk. Decoding a big
+          // textured GLB is exactly what was locking up at "100%" and then
+          // taking the whole tab down — better to degrade gracefully here.
+          const MAX_SAFE_MODEL_BYTES = 30 * 1024 * 1024; // 30MB
+          const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+          if (contentLength > MAX_SAFE_MODEL_BYTES) {
+            console.warn(`[SpotLIGHT 3D] Model is ${(contentLength / 1024 / 1024).toFixed(1)}MB — over the safe mobile limit, skipping to avoid a crash.`);
+            if (typeof showToast === 'function') {
+              showToast('⚠️ This 3D model is too large to preview safely — try a smaller/compressed .glb file.');
+            }
+            set3dLoading(false);
+            addFallback();
+            return;
+          }
+
           // Keep only one ArrayBuffer in memory. A streamed chunk array would
           // temporarily duplicate the whole model and can spike mobile RAM.
           const arrayBuffer = await response.arrayBuffer();
           if (thisSession !== viewerSessionId || loadToken.cancelled) return;
+
+          // Content-Length isn't always sent (e.g. compressed responses) — double
+          // check against the actual downloaded size too.
+          if (arrayBuffer.byteLength > MAX_SAFE_MODEL_BYTES) {
+            console.warn(`[SpotLIGHT 3D] Downloaded model is ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(1)}MB — over the safe mobile limit, skipping to avoid a crash.`);
+            if (typeof showToast === 'function') {
+              showToast('⚠️ This 3D model is too large to preview safely — try a smaller/compressed .glb file.');
+            }
+            set3dLoading(false);
+            addFallback();
+            return;
+          }
+
           set3dLoading(true, 'Loading 3D asset 100%...');
-          parseModel(arrayBuffer);
+
+          // Watchdog: parsing/texture-decoding a heavy model can hang the main
+          // thread long enough for mobile Safari's own watchdog to kill the tab
+          // outright. If parsing hasn't finished in a reasonable time, bail to
+          // the fallback ourselves rather than risk that.
+          const parseWatchdog = setTimeout(() => {
+            if (loadToken.cancelled || thisSession !== viewerSessionId) return;
+            console.warn('[SpotLIGHT 3D] Model parse is taking too long — falling back to avoid a crash.');
+            loadToken.cancelled = true;
+            if (typeof showToast === 'function') {
+              showToast('⚠️ This model took too long to load and was skipped to keep the page from crashing.');
+            }
+            set3dLoading(false);
+            addFallback();
+          }, 20000);
+
+          parseModel(arrayBuffer, parseWatchdog);
         } catch (err) {
           if (active3dLoadController === loadController) active3dLoadController = null;
           loadController = null;
