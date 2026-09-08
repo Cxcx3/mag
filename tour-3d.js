@@ -7409,12 +7409,14 @@
     // YouTube
     const ytMatch = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
     if (ytMatch && ytMatch[1]) {
-      return { type: 'iframe', url: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=1&rel=0` };
+      // mute=1 is required — browsers block autoplay-with-sound by default,
+      // so without it the video just silently sits there waiting for a click.
+      return { type: 'iframe', url: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=1&mute=1&muted=1&playsinline=1&rel=0` };
     }
     // Vimeo
     const vimeoMatch = str.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|video\/|)(\d+)/i);
     if (vimeoMatch && vimeoMatch[3]) {
-      return { type: 'iframe', url: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1` };
+      return { type: 'iframe', url: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1&muted=1&playsinline=1` };
     }
     // Direct Video (MP4, WebM, blob)
     return { type: 'video', url: str };
