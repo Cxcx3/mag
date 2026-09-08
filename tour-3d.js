@@ -108,7 +108,9 @@
       return {
         isEmbed: true,
         isImage: false,
-        url: `https://www.youtube.com/embed/${ytId}?autoplay=1&enablejsapi=1`,
+        // mute=1 is required for autoplay=1 to actually be allowed to fire —
+        // same browser policy as every other video embed in this app.
+        url: `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&muted=1&playsinline=1&enablejsapi=1`,
         provider: 'YouTube VR',
         originalUrl: trimmed
       };
@@ -3549,7 +3551,7 @@
         <canvas class="tour-3d-canvas" id="tour3dCanvas"></canvas>
 
         <!-- External Embed Frame (ThingLink, Matterport, 360Cities, YouTube VR) -->
-        <iframe class="tour-embed-frame" id="tourEmbedFrame" style="display:none;" allow="xr-spatial-tracking; vr; accelerometer; gyroscope; fullscreen" allowfullscreen></iframe>
+        <iframe class="tour-embed-frame" id="tourEmbedFrame" style="display:none;" allow="autoplay; xr-spatial-tracking; vr; accelerometer; gyroscope; fullscreen" allowfullscreen></iframe>
 
         <!-- Hotspots Layer -->
         <div class="tour-hotspots-layer" id="tourHotspotsLayer"></div>
