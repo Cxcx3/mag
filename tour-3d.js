@@ -6419,7 +6419,7 @@
   let sharedItemRenderer = null;
   function getSharedItemRenderer(mountEl, width, height) {
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const maxDpr = isMobile ? 1.25 : 1.5;
+    const maxDpr = isMobile ? 1.0 : 1.5;
     const pixelRatio = Math.min(window.devicePixelRatio || 1, maxDpr);
 
     if (sharedItemRenderer) {
@@ -6515,6 +6515,7 @@
     if (viewerInstance.renderer) {
       try {
         viewerInstance.renderer.renderLists?.dispose?.();
+        viewerInstance.renderer.info?.reset?.();
         viewerInstance.renderer.clear(true, true, true);
       } catch (e) {}
 
@@ -6537,6 +6538,10 @@
         }
         viewerInstance.renderer = null;
       }
+    }
+
+    if (active3dViewer === viewerInstance) {
+      active3dViewer = null;
     }
 
     viewerInstance.scene = null;

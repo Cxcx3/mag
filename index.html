@@ -2214,6 +2214,80 @@ async function restoreAdminSession(){
   }
 }
 
+function playYouTubeIframe(iframe) {
+  if (!iframe || !iframe.contentWindow) return;
+  try {
+    iframe.contentWindow.postMessage('{"event":"listening"}', '*');
+    iframe.contentWindow.postMessage('{"event":"command","func":"mute","args":""}', '*');
+    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+  } catch (e) {}
+}
+
+function pauseYouTubeIframe(iframe) {
+  if (!iframe || !iframe.contentWindow) return;
+  try {
+    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+  } catch (e) {}
+}
+
+window.playYouTubeIframe = playYouTubeIframe;
+window.pauseYouTubeIframe = pauseYouTubeIframe;
+
+window.handleYouTubeIframeLoad = function (iframe) {
+  if (!iframe) return;
+  const page = iframe.closest('.page');
+  const isActive = page ? (page.classList.contains('active-page') || page.id === ('page-' + current)) : true;
+  if (isActive) {
+    playYouTubeIframe(iframe);
+    setTimeout(() => playYouTubeIframe(iframe), 200);
+    setTimeout(() => playYouTubeIframe(iframe), 600);
+    setTimeout(() => playYouTubeIframe(iframe), 1200);
+    setTimeout(() => playYouTubeIframe(iframe), 2200);
+  }
+};
+
+window.toggleYouTubePlayback = function (wrapper) {
+  if (!wrapper) return;
+  const iframe = wrapper.querySelector('iframe');
+  if (!iframe) return;
+  const badge = wrapper.querySelector('.video-play-badge');
+  const isPaused = wrapper.dataset.isPaused === 'true';
+  if (isPaused) {
+    playYouTubeIframe(iframe);
+    wrapper.dataset.isPaused = 'false';
+    if (badge) badge.style.display = 'none';
+  } else {
+    pauseYouTubeIframe(iframe);
+    wrapper.dataset.isPaused = 'true';
+    if (badge) badge.style.display = 'flex';
+  }
+};
+
+window.addEventListener('message', (e) => {
+  if (!e.data) return;
+  let data = e.data;
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch (_) { return; }
+  }
+  if (!data || typeof data !== 'object') return;
+
+  if (data.event === 'onReady' || data.event === 'initialDelivery') {
+    const activePage = document.getElementById('page-' + current);
+    if (activePage) {
+      activePage.querySelectorAll('.yt-embed-wrapper iframe').forEach(iframe => playYouTubeIframe(iframe));
+    }
+  }
+  if (data.event === 'infoDelivery' && data.info) {
+    if (data.info.playerState === 1) {
+      document.querySelectorAll('.active-page .yt-embed-wrapper .video-play-badge').forEach(b => b.style.display = 'none');
+      document.querySelectorAll('.active-page .yt-embed-wrapper').forEach(w => w.dataset.isPaused = 'false');
+    } else if (data.info.playerState === 2) {
+      document.querySelectorAll('.active-page .yt-embed-wrapper .video-play-badge').forEach(b => b.style.display = 'flex');
+      document.querySelectorAll('.active-page .yt-embed-wrapper').forEach(w => w.dataset.isPaused = 'true');
+    }
+  }
+});
+
 function syncActiveVideos() {
   const activePage = document.getElementById('page-' + current);
   if (!activePage) return;
@@ -2241,19 +2315,14 @@ function syncActiveVideos() {
 
   const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
   ytIframes.forEach(iframe => {
-    try {
-      iframe.contentWindow?.postMessage('{"event":"command","func":"mute","args":""}', '*');
-      iframe.contentWindow?.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-    } catch (e) {}
+    playYouTubeIframe(iframe);
   });
 
   document.querySelectorAll('.page:not(.active-page) video').forEach(v => {
     try { v.pause(); } catch (e) {}
   });
   document.querySelectorAll('.page:not(.active-page) .yt-embed-wrapper iframe').forEach(iframe => {
-    try {
-      iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-    } catch (e) {}
+    pauseYouTubeIframe(iframe);
   });
 }
 
@@ -2287,15 +2356,20 @@ function mediaBlock(media, placeholderText, extraClass){
     const ytId = parseYouTubeId(url);
     if(ytId){
       return `
-        <div class="${cls} video-wrapper yt-embed-wrapper" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
+        <div class="${cls} video-wrapper yt-embed-wrapper" data-yt-id="${ytId}" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;cursor:pointer;" onclick="toggleYouTubePlayback(this)">
           <iframe 
-            src="https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&muted=1&loop=1&playlist=${ytId}&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}"
+            class="magazine-yt-iframe"
+            src="https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1"
             title="Video"
-            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
-            allow="autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowfullscreen
             loading="eager"
+            playsinline
+            webkit-playsinline
+            onload="handleYouTubeIframeLoad(this)"
           ></iframe>
+          <div class="video-play-badge yt-play-badge" style="display:none;position:absolute;inset:0;margin:auto;width:48px;height:48px;border-radius:50%;background:rgba(20,18,26,0.8);color:#FFD23F;border:2px solid #FFD23F;align-items:center;justify-content:center;font-size:18px;cursor:pointer;pointer-events:auto;z-index:4;box-shadow:0 4px 16px rgba(0,0,0,0.6);touch-action:manipulation;">▶</div>
         </div>
       `;
     }
@@ -2307,9 +2381,11 @@ function mediaBlock(media, placeholderText, extraClass){
           <iframe 
             src="https://player.vimeo.com/video/${vimeoId}?autoplay=1&muted=1&loop=1&background=1&playsinline=1&autopause=0"
             title="Video"
-            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
-            allow="autoplay; fullscreen; picture-in-picture"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;"
+            allow="autoplay; fullscreen; picture-in-picture; accelerometer; gyroscope"
             loading="eager"
+            playsinline
+            webkit-playsinline
           ></iframe>
         </div>
       `;
@@ -4269,7 +4345,10 @@ function render(){
   nextBtn.disabled = current === total - 1;
   pageCountEl.textContent = `Page ${current + 1} of ${total}`;
   
-  setTimeout(syncActiveVideos, 100);
+  syncActiveVideos();
+  setTimeout(syncActiveVideos, 120);
+  setTimeout(syncActiveVideos, 500);
+  setTimeout(syncActiveVideos, 1200);
 
   const activePage = document.getElementById('page-' + current);
   if (activePage) {
@@ -4296,6 +4375,11 @@ function unlockAndPlayVisibleVideos() {
           p.then(() => { if (badge) badge.style.display = 'none'; }).catch(() => { if (badge) badge.style.display = 'flex'; });
         }
       }
+    });
+
+    const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
+    ytIframes.forEach(iframe => {
+      playYouTubeIframe(iframe);
     });
   }
 }
