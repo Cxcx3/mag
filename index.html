@@ -1775,8 +1775,8 @@ const DEFAULT_MAGAZINE = {
     highlight: 'Spotlight',
     subtitle: 'Salt Lake City → Draper',
     issueTag: 'Issue 01 · August 2026',
-    coverPhotoUrl: '',
-    coverPhotoType: 'image',
+    coverPhotoUrl: 'https://www.youtube.com/watch?v=tTIl24YjlUo',
+    coverPhotoType: 'video',
     featureTitle: 'This month’s local stories',
     featureSummary: 'Neighborhood culture, business wins, and the people shaping the Wasatch Front one block at a time.',
     featureImageUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80',
@@ -2217,16 +2217,16 @@ async function restoreAdminSession(){
 function playYouTubeIframe(iframe) {
   if (!iframe || !iframe.contentWindow) return;
   try {
-    iframe.contentWindow.postMessage('{"event":"listening"}', '*');
-    iframe.contentWindow.postMessage('{"event":"command","func":"mute","args":""}', '*');
-    iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
   } catch (e) {}
 }
 
 function pauseYouTubeIframe(iframe) {
   if (!iframe || !iframe.contentWindow) return;
   try {
-    iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
   } catch (e) {}
 }
 
@@ -2239,10 +2239,10 @@ window.handleYouTubeIframeLoad = function (iframe) {
   const isActive = page ? (page.classList.contains('active-page') || page.id === ('page-' + current)) : true;
   if (isActive) {
     playYouTubeIframe(iframe);
-    setTimeout(() => playYouTubeIframe(iframe), 200);
-    setTimeout(() => playYouTubeIframe(iframe), 600);
+    setTimeout(() => playYouTubeIframe(iframe), 150);
+    setTimeout(() => playYouTubeIframe(iframe), 500);
     setTimeout(() => playYouTubeIframe(iframe), 1200);
-    setTimeout(() => playYouTubeIframe(iframe), 2200);
+    setTimeout(() => playYouTubeIframe(iframe), 2500);
   }
 };
 
@@ -2329,14 +2329,17 @@ function mediaBlock(media, placeholderText, extraClass){
   if(type === 'video'){
     const ytId = parseYouTubeId(url);
     if(ytId){
+      const originParam = (typeof window !== 'undefined' && window.location && window.location.origin)
+        ? '&origin=' + encodeURIComponent(window.location.origin)
+        : '';
       return `
         <div class="${cls} video-wrapper yt-embed-wrapper" data-yt-id="${ytId}" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
           <iframe 
             class="magazine-yt-iframe"
-            src="https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&muted=1&loop=1&playlist=${ytId}&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1"
+            src="https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&playsinline=1&controls=0&loop=1&playlist=${ytId}&enablejsapi=1&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1${originParam}"
             title="Video"
-            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;"
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope; clipboard-write; web-share"
             allowfullscreen
             loading="eager"
             playsinline
@@ -3840,7 +3843,7 @@ function renderPageContent(){
   dotsEl.innerHTML = '';
   PAGES.forEach((p, idx) => {
     const pageEl = document.createElement('div');
-    pageEl.className = 'page';
+    pageEl.className = 'page' + (idx === current ? ' active-page' : '');
     pageEl.id = 'page-' + idx;
     const html = typeof p.html === 'function' ? p.html() : p.html;
     pageEl.innerHTML = `
@@ -4368,8 +4371,15 @@ document.addEventListener('visibilitychange', () => {
 function nextPage(){ if(current < total - 1){ current++; render(); } }
 function prevPage(){ if(current > 0){ current--; render(); } }
 
-function applyMagazineUpdates() {
+let lastAppliedMagJson = '';
+function applyMagazineUpdates(force) {
   window.MAGAZINE = MAGAZINE;
+  const currentJson = JSON.stringify(MAGAZINE);
+  if (!force && lastAppliedMagJson === currentJson && bookEl && bookEl.children.length > 0) {
+    render();
+    return;
+  }
+  lastAppliedMagJson = currentJson;
   buildPages();
   renderPageContent();
   render();
@@ -4588,7 +4598,17 @@ async function start() {
   }
 }
 
+let hasBooted = false;
 function boot() {
+  if (hasBooted) return;
+  hasBooted = true;
+  try {
+    const cached = localStorage.getItem(STORAGE_KEY);
+    if (cached) {
+      MAGAZINE = normalizeMagazine(JSON.parse(cached));
+    }
+  } catch (e) {}
+
   try {
     applyMagazineUpdates();
   } catch (e) {
