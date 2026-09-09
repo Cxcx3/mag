@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The Spotlight Magazine</title>
-<meta name="description" content="Interactive digital flip magazine and live community discovery feed showcasing Wasatch Front local businesses, creators, events, music, and spots ranked by upvotes.">
+<title>The SpotLIGHT</title>
+<meta name="description" content="Tap the link to check it out!">
 
 <!-- Open Graph / Facebook / iMessage / WhatsApp / Instagram / Snapchat Link Preview -->
 <!-- Open Graph / Social Media Preview -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="The Spotlight Magazine">
-<meta property="og:title" content="The Spotlight Magazine">
-<meta property="og:description" content="Interactive digital flip magazine and live community discovery feed showcasing Wasatch Front local businesses, creators, events, music, and spots ranked by upvotes.">
+<meta property="og:site_name" content="The SpotLIGHT">
+<meta property="og:title" content="The SpotLIGHT">
+<meta property="og:description" content="Tap the link to check it out!">
 <meta property="og:url" content="https://cxcx3.github.io/mag/">
 <meta property="og:image" content="https://iili.io/CLtdnkB.jpg">
 <meta property="og:image:secure_url" content="https://iili.io/CLtdnkB.jpg">
@@ -1632,7 +1632,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://docs.opencv.org/4.x/opencv.js" async></script>
 <script src="tour-3d.js"></script>
 <script>
 const SUPABASE_URL = 'https://rcgtgmyiygdkbmbfspbo.supabase.co';
@@ -1774,9 +1776,9 @@ const DEFAULT_MAGAZINE = {
     mainText: 'The ',
     highlight: 'Spotlight',
     subtitle: 'Salt Lake City → Draper',
-    issueTag: 'Issue 01 · SEPTEMBER 2026',
-    coverPhotoUrl: 'https://rcgtgmyiygdkbmbfspbo.supabase.co/storage/v1/object/public/spotlight-media/1788918899932-zqf4o8-promo.mp4.mp4',
-    coverPhotoType: 'video',
+    issueTag: 'Issue 01 · August 2026',
+    coverPhotoUrl: '',
+    coverPhotoType: 'image',
     featureTitle: 'This month’s local stories',
     featureSummary: 'Neighborhood culture, business wins, and the people shaping the Wasatch Front one block at a time.',
     featureImageUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80',
@@ -2214,54 +2216,6 @@ async function restoreAdminSession(){
   }
 }
 
-function playYouTubeIframe(iframe) {
-  if (!iframe || !iframe.contentWindow) return;
-  try {
-    iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
-    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
-    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
-  } catch (e) {}
-}
-
-function pauseYouTubeIframe(iframe) {
-  if (!iframe || !iframe.contentWindow) return;
-  try {
-    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
-  } catch (e) {}
-}
-
-window.playYouTubeIframe = playYouTubeIframe;
-window.pauseYouTubeIframe = pauseYouTubeIframe;
-
-window.handleYouTubeIframeLoad = function (iframe) {
-  if (!iframe) return;
-  const page = iframe.closest('.page');
-  const isActive = page ? (page.classList.contains('active-page') || page.id === ('page-' + current)) : true;
-  if (isActive) {
-    playYouTubeIframe(iframe);
-    setTimeout(() => playYouTubeIframe(iframe), 150);
-    setTimeout(() => playYouTubeIframe(iframe), 500);
-    setTimeout(() => playYouTubeIframe(iframe), 1200);
-    setTimeout(() => playYouTubeIframe(iframe), 2500);
-  }
-};
-
-window.addEventListener('message', (e) => {
-  if (!e.data) return;
-  let data = e.data;
-  if (typeof data === 'string') {
-    try { data = JSON.parse(data); } catch (_) { return; }
-  }
-  if (!data || typeof data !== 'object') return;
-
-  if (data.event === 'onReady' || data.event === 'initialDelivery') {
-    const activePage = document.getElementById('page-' + current);
-    if (activePage) {
-      activePage.querySelectorAll('.yt-embed-wrapper iframe').forEach(iframe => playYouTubeIframe(iframe));
-    }
-  }
-});
-
 function syncActiveVideos() {
   const activePage = document.getElementById('page-' + current);
   if (!activePage) return;
@@ -2274,32 +2228,51 @@ function syncActiveVideos() {
     v.playsInline = true;
     v.setAttribute('playsinline', '');
     v.setAttribute('webkit-playsinline', '');
+    const badge = v.parentElement?.querySelector('.video-play-badge');
     if (v.paused) {
-      v.play().catch(() => {});
+      const p = v.play();
+      if (p !== undefined) {
+        p.then(() => {
+          if (badge) badge.style.display = 'none';
+        }).catch(() => {
+          if (badge) badge.style.display = 'flex';
+        });
+      }
     }
   });
 
   const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
   ytIframes.forEach(iframe => {
-    playYouTubeIframe(iframe);
+    try {
+      iframe.contentWindow?.postMessage('{"event":"command","func":"mute","args":""}', '*');
+      iframe.contentWindow?.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+    } catch (e) {}
   });
 
   document.querySelectorAll('.page:not(.active-page) video').forEach(v => {
     try { v.pause(); } catch (e) {}
   });
   document.querySelectorAll('.page:not(.active-page) .yt-embed-wrapper iframe').forEach(iframe => {
-    pauseYouTubeIframe(iframe);
+    try {
+      iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+    } catch (e) {}
   });
 }
 
 function toggleVideoPlayback(videoEl) {
   if (!videoEl) return;
+  const badge = videoEl.parentElement?.querySelector('.video-play-badge');
   if (videoEl.paused) {
     videoEl.muted = true;
     videoEl.playsInline = true;
-    videoEl.play().catch(() => {});
+    videoEl.play().then(() => {
+      if (badge) badge.style.display = 'none';
+    }).catch(() => {
+      if (badge) badge.style.display = 'flex';
+    });
   } else {
     videoEl.pause();
+    if (badge) badge.style.display = 'flex';
   }
 }
 
@@ -2315,22 +2288,15 @@ function mediaBlock(media, placeholderText, extraClass){
   if(type === 'video'){
     const ytId = parseYouTubeId(url);
     if(ytId){
-      const originParam = (typeof window !== 'undefined' && window.location && window.location.origin)
-        ? '&origin=' + encodeURIComponent(window.location.origin)
-        : '';
       return `
-        <div class="${cls} video-wrapper yt-embed-wrapper" data-yt-id="${ytId}" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
+        <div class="${cls} video-wrapper yt-embed-wrapper" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
           <iframe 
-            class="magazine-yt-iframe"
-            src="https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&playsinline=1&controls=0&loop=1&playlist=${ytId}&enablejsapi=1&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1${originParam}"
+            src="https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&muted=1&loop=1&playlist=${ytId}&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}"
             title="Video"
-            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;"
-            allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope; clipboard-write; web-share"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
+            allow="autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
             allowfullscreen
             loading="eager"
-            playsinline
-            webkit-playsinline
-            onload="handleYouTubeIframeLoad(this)"
           ></iframe>
         </div>
       `;
@@ -2343,11 +2309,9 @@ function mediaBlock(media, placeholderText, extraClass){
           <iframe 
             src="https://player.vimeo.com/video/${vimeoId}?autoplay=1&muted=1&loop=1&background=1&playsinline=1&autopause=0"
             title="Video"
-            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;"
-            allow="autoplay; fullscreen; picture-in-picture; accelerometer; gyroscope"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
+            allow="autoplay; fullscreen; picture-in-picture"
             loading="eager"
-            playsinline
-            webkit-playsinline
           ></iframe>
         </div>
       `;
@@ -2373,12 +2337,14 @@ function mediaBlock(media, placeholderText, extraClass){
           x5-video-player-type="h5"
           preload="auto"
           style="width:100%;height:100%;object-fit:cover;display:block;"
-          onloadedmetadata="this.muted=true; this.play().catch(function(){});"
-          oncanplay="this.muted=true; this.play().catch(function(){});"
+          onclick="toggleVideoPlayback(this)"
+          onplay="const b=this.parentElement?.querySelector('.video-play-badge'); if(b) b.style.display='none';"
+          onpause="const b=this.parentElement?.querySelector('.video-play-badge'); if(b && !this.closest('.page.flipped')) b.style.display='flex';"
           onerror="const errBox=this.parentElement?.querySelector('.video-error-badge'); if(errBox) errBox.style.display='flex';"
         >
           <source src="${url}" type="video/mp4">
         </video>
+        <div class="video-play-badge" onclick="toggleVideoPlayback(this.previousElementSibling)" style="display:none;position:absolute;inset:0;margin:auto;width:48px;height:48px;border-radius:50%;background:rgba(20,18,26,0.8);color:#FFD23F;border:2px solid #FFD23F;align-items:center;justify-content:center;font-size:18px;cursor:pointer;pointer-events:auto;z-index:4;box-shadow:0 4px 16px rgba(0,0,0,0.6);touch-action:manipulation;">▶</div>
         <div class="video-error-badge" style="display:none;position:absolute;inset:0;background:rgba(20,18,26,0.92);color:#FFD23F;flex-direction:column;align-items:center;justify-content:center;padding:16px;text-align:center;font-size:11px;font-weight:700;z-index:5;line-height:1.4;">
           <span style="font-size:22px;margin-bottom:6px;">⚠️</span>
           <span>Could not load video</span>
@@ -2706,7 +2672,7 @@ function renderEditor(){
     const ci = +activeTab.split('-')[1];
     const c = MAGAZINE.cities[ci];
     const adsHtml = (c.ads || []).map((a, ai) => `
-      <div class="ad-editor" data-ci="${ci}" data-ai="${ai}">
+      <div class="ad-editor" data-ai="${ai}">
         <div class="ad-editor-head">
           <h4>Business ${ai + 1}</h4>
           <div class="ad-editor-actions">
@@ -3827,7 +3793,7 @@ function renderPageContent(){
   dotsEl.innerHTML = '';
   PAGES.forEach((p, idx) => {
     const pageEl = document.createElement('div');
-    pageEl.className = 'page' + (idx === current ? ' active-page' : '');
+    pageEl.className = 'page';
     pageEl.id = 'page-' + idx;
     const html = typeof p.html === 'function' ? p.html() : p.html;
     pageEl.innerHTML = `
@@ -4066,8 +4032,6 @@ window.triggerAdShareByIndex = function(cityIdx, adIdx, pageIdx, event) {
 };
 
 window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
-  // Clear any spot editing pointer to avoid cross-tour bleeding
-  window.currentEditingSpotId = null;
   const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
   const ad = (city && Array.isArray(city.ads)) ? city.ads[adIdx] : (MAGAZINE && Array.isArray(MAGAZINE.ads) ? MAGAZINE.ads[adIdx] : null);
   window.currentEditingAdRef = ad || null;
@@ -4082,9 +4046,6 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
   try {
     if (ad) {
       openTour({
-        tourId: `city-${cityIdx}-ad-${adIdx}`,
-        cityIdx: cityIdx,
-        adIdx: adIdx,
         title: ad.name || 'Featured Spot',
         tag: ad.tag || (city ? city.name : 'Local Spot'),
         location: city ? (city.name + ', UT') : 'Wasatch Front, UT',
@@ -4096,13 +4057,7 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
         scenes: (ad.tourConfig && ad.tourConfig.scenes) ? ad.tourConfig.scenes : undefined
       });
     } else {
-      openTour({
-        tourId: `city-${cityIdx}-ad-${adIdx}`,
-        cityIdx: cityIdx,
-        adIdx: adIdx,
-        title: 'Featured Spot',
-        location: city ? (city.name + ', UT') : 'Wasatch Front, UT'
-      });
+      openTour();
     }
     if (startInEditMode && typeof window.toggleTourEditorMode === 'function') {
       setTimeout(function () { window.toggleTourEditorMode(true); }, 250);
@@ -4114,10 +4069,6 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
 };
 
 window.openSpot3dTour = function(spotId) {
-  // Clear any city ad editing pointers so community spots never bleed into or overwrite city ads
-  window.currentEditingAdRef = null;
-  window.currentEditingCityIdx = null;
-  window.currentEditingAdIdx = null;
   window.currentEditingSpotId = spotId;
   const p = (Array.isArray(COMMUNITY_POSTS)) ? COMMUNITY_POSTS.find(item => String(item.id) === String(spotId)) : null;
   const openTour = window.open3dTourModal || (typeof open3dTourModal === 'function' ? open3dTourModal : null);
@@ -4129,23 +4080,15 @@ window.openSpot3dTour = function(spotId) {
   try {
     if (p) {
       openTour({
-        tourId: `spot-${spotId}`,
-        spotId: spotId,
         title: p.title || 'Community Spot',
         tag: p.category || 'Community Spot',
         location: p.location || 'Wasatch Front, UT',
         blurb: p.description || '',
         link: p.link || '#',
-        tourUrl: p.tour3d || p.tourUrl || '',
-        panoUrl: p.pano3d || p.panoUrl || '',
-        scenes: (p.tourConfig && p.tourConfig.scenes) ? p.tourConfig.scenes : undefined
+        tourUrl: p.tour3d || p.tourUrl || ''
       });
     } else {
-      openTour({
-        tourId: `spot-${spotId}`,
-        spotId: spotId,
-        title: 'Community Spot'
-      });
+      openTour();
     }
   } catch (err) {
     console.error('[SpotLIGHT] openSpot3dTour error:', err);
@@ -4305,10 +4248,7 @@ function render(){
   nextBtn.disabled = current === total - 1;
   pageCountEl.textContent = `Page ${current + 1} of ${total}`;
   
-  syncActiveVideos();
-  setTimeout(syncActiveVideos, 120);
-  setTimeout(syncActiveVideos, 500);
-  setTimeout(syncActiveVideos, 1200);
+  setTimeout(syncActiveVideos, 100);
 
   const activePage = document.getElementById('page-' + current);
   if (activePage) {
@@ -4328,14 +4268,13 @@ function unlockAndPlayVisibleVideos() {
       v.playsInline = true;
       v.setAttribute('playsinline', '');
       v.setAttribute('webkit-playsinline', '');
+      const badge = v.parentElement?.querySelector('.video-play-badge');
       if (v.paused) {
-        v.play().catch(() => {});
+        const p = v.play();
+        if (p !== undefined) {
+          p.then(() => { if (badge) badge.style.display = 'none'; }).catch(() => { if (badge) badge.style.display = 'flex'; });
+        }
       }
-    });
-
-    const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
-    ytIframes.forEach(iframe => {
-      playYouTubeIframe(iframe);
     });
   }
 }
@@ -4351,15 +4290,8 @@ document.addEventListener('visibilitychange', () => {
 function nextPage(){ if(current < total - 1){ current++; render(); } }
 function prevPage(){ if(current > 0){ current--; render(); } }
 
-let lastAppliedMagJson = '';
-function applyMagazineUpdates(force) {
+function applyMagazineUpdates() {
   window.MAGAZINE = MAGAZINE;
-  const currentJson = JSON.stringify(MAGAZINE);
-  if (!force && lastAppliedMagJson === currentJson && bookEl && bookEl.children.length > 0) {
-    render();
-    return;
-  }
-  lastAppliedMagJson = currentJson;
   buildPages();
   renderPageContent();
   render();
@@ -4578,17 +4510,7 @@ async function start() {
   }
 }
 
-let hasBooted = false;
 function boot() {
-  if (hasBooted) return;
-  hasBooted = true;
-  try {
-    const cached = localStorage.getItem(STORAGE_KEY);
-    if (cached) {
-      MAGAZINE = normalizeMagazine(JSON.parse(cached));
-    }
-  } catch (e) {}
-
   try {
     applyMagazineUpdates();
   } catch (e) {
