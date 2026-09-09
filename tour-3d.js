@@ -108,9 +108,7 @@
       return {
         isEmbed: true,
         isImage: false,
-        // mute=1 is required for autoplay=1 to actually be allowed to fire —
-        // same browser policy as every other video embed in this app.
-        url: `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&muted=1&playsinline=1&enablejsapi=1`,
+        url: `https://www.youtube.com/embed/${ytId}?autoplay=1&enablejsapi=1`,
         provider: 'YouTube VR',
         originalUrl: trimmed
       };
@@ -3551,7 +3549,7 @@
         <canvas class="tour-3d-canvas" id="tour3dCanvas"></canvas>
 
         <!-- External Embed Frame (ThingLink, Matterport, 360Cities, YouTube VR) -->
-        <iframe class="tour-embed-frame" id="tourEmbedFrame" style="display:none;" allow="autoplay; xr-spatial-tracking; vr; accelerometer; gyroscope; fullscreen" allowfullscreen></iframe>
+        <iframe class="tour-embed-frame" id="tourEmbedFrame" style="display:none;" allow="xr-spatial-tracking; vr; accelerometer; gyroscope; fullscreen" allowfullscreen></iframe>
 
         <!-- Hotspots Layer -->
         <div class="tour-hotspots-layer" id="tourHotspotsLayer"></div>
@@ -3876,7 +3874,7 @@
         </div>
 
         <!-- HOTSPOT INFO & ITEM SHOWCASE POPUP (3D Model / Close-Up Photo / Video) -->
-        <div class="tour-dialog-overlay" id="tourHotspotInfoModal" onclick="if(event.target===this)window.closeHotspotInfoModal();" style="display:none; z-index:95;">
+        <div class="tour-dialog-overlay" id="tourHotspotInfoModal" style="display:none; z-index:95;">
           <div class="tour-dialog-card" id="tourHotspotInfoCard" style="max-width:min(980px,96vw);width:min(980px,96vw);text-align:center;border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.85);border:1.5px solid rgba(63,221,224,0.35);padding:0;background:rgba(18,16,26,0.96);">
             <div class="tour-dialog-header" style="justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);padding:10px 16px;background:rgba(255,255,255,0.02);">
               <div id="tourInfoModalHeaderTag" style="font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#3FDDE0;display:flex;align-items:center;gap:6px;">
@@ -4922,34 +4920,12 @@
     }
   }
 
-  let isPanoLoopPaused = false;
-  function pausePanoRenderLoop() {
-    isPanoLoopPaused = true;
-    if (animFrameId) {
-      cancelAnimationFrame(animFrameId);
-      animFrameId = null;
-    }
-  }
-
-  function resumePanoRenderLoop() {
-    isPanoLoopPaused = false;
-    const modal = document.getElementById('tour3dModal');
-    if (modal && modal.classList.contains('active') && !animFrameId) {
-      animFrameId = requestAnimationFrame(renderFrame);
-    }
-  }
-
   /**
    * Main High-Performance Animation Loop
    */
   function renderFrame() {
     const modal = document.getElementById('tour3dModal');
     if (!modal || !modal.classList.contains('active')) {
-      animFrameId = null;
-      return;
-    }
-
-    if (isPanoLoopPaused) {
       animFrameId = null;
       return;
     }
@@ -4964,8 +4940,7 @@
     // to give mobile devices 100% GPU memory & frame budget, preventing WebGL crashes
     const infoModal = document.getElementById('tourHotspotInfoModal');
     if (infoModal && infoModal.style.display !== 'none' && infoModal.style.display !== '') {
-      animFrameId = null;
-      isPanoLoopPaused = true;
+      animFrameId = requestAnimationFrame(renderFrame);
       return;
     }
 
@@ -5166,22 +5141,12 @@
     if (!layer || !container) return;
 
     const curScene = activeSceneList[activeSceneIndex];
-    const pins = layer.querySelectorAll('.tour-hotspot-pin');
-    if (!curScene || !Array.isArray(curScene.hotspots) || curScene.hotspots.length === 0) {
-      for (let i = 0; i < pins.length; i++) {
-        pins[i].style.display = 'none';
-      }
-      return;
-    }
+    if (!curScene || !Array.isArray(curScene.hotspots)) return;
 
     const rect = container.getBoundingClientRect();
     const w = rect.width || window.innerWidth;
     const h = rect.height || window.innerHeight;
-
-    // Hide any orphan pins that exceed the current scene's hotspots count
-    for (let i = curScene.hotspots.length; i < pins.length; i++) {
-      pins[i].style.display = 'none';
-    }
+    const pins = layer.querySelectorAll('.tour-hotspot-pin');
 
     curScene.hotspots.forEach((hs, idx) => {
       const pin = pins[idx];
@@ -5785,16 +5750,6 @@
     const reader = new FileReader();
 
     if (type === 'model3d') {
-      // Same 30MB ceiling the viewer itself enforces (see init3dItemViewer) —
-      // warn upfront rather than let someone upload a model that will just
-      // fail to preview (for themselves and every visitor) later.
-      const MAX_SAFE_MODEL_BYTES = 30 * 1024 * 1024;
-      if (file.size > MAX_SAFE_MODEL_BYTES) {
-        if (typeof showToast === 'function') {
-          showToast(`⚠️ "${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)}MB — over the 30MB safe limit for mobile. Try a compressed .glb.`);
-        }
-        return;
-      }
       // IMPORTANT: never use readAsDataURL for .glb files — they can be many MB,
       // and base64-encoding a large binary file into one giant string (then
       // stuffing it into an <input> value) is exactly what was crashing the
@@ -5976,26 +5931,26 @@
       metalness: 0.05
     });
 
-    // 1. Carabiner curved D-body (Torus arc with optimized vertex count)
-    const spineGeom = new THREE.TorusGeometry(0.9, 0.14, 12, 28, Math.PI * 1.55);
+    // 1. Carabiner curved D-body (Torus arc)
+    const spineGeom = new THREE.TorusGeometry(0.9, 0.14, 20, 50, Math.PI * 1.55);
     const spineMesh = new THREE.Mesh(spineGeom, goldMetalMat);
     spineMesh.rotation.z = Math.PI * 0.75;
-    group.add(spineMesh);
+    group.appendChild ? null : group.add(spineMesh);
 
     // Straight back spine
-    const backGeom = new THREE.CylinderGeometry(0.14, 0.14, 1.35, 14);
+    const backGeom = new THREE.CylinderGeometry(0.14, 0.14, 1.35, 20);
     const backMesh = new THREE.Mesh(backGeom, goldMetalMat);
     backMesh.position.set(-0.9, 0.05, 0);
     group.add(backMesh);
 
     // 2. Spring Gate (Straight silver bar across opening)
-    const gateGeom = new THREE.CylinderGeometry(0.11, 0.11, 1.25, 14);
+    const gateGeom = new THREE.CylinderGeometry(0.11, 0.11, 1.25, 20);
     const gateMesh = new THREE.Mesh(gateGeom, silverSteelMat);
     gateMesh.position.set(0.68, 0.05, 0);
     group.add(gateMesh);
 
     // Locking screw sleeve
-    const sleeveGeom = new THREE.CylinderGeometry(0.19, 0.19, 0.5, 16);
+    const sleeveGeom = new THREE.CylinderGeometry(0.19, 0.19, 0.5, 24);
     const sleeveMesh = new THREE.Mesh(sleeveGeom, darkKnurlMat);
     sleeveMesh.position.set(0.68, 0.05, 0);
     group.add(sleeveMesh);
@@ -6036,12 +5991,13 @@
       metalness: 0.85,
       roughness: 0.25
     });
-    const glassLensMat = new THREE.MeshStandardMaterial({
-      color: 0x143464,
-      metalness: 0.9,
-      roughness: 0.1,
-      transparent: true,
-      opacity: 0.85
+    const glassLensMat = new THREE.MeshPhysicalMaterial({
+      color: 0x113366,
+      metalness: 0.1,
+      roughness: 0.02,
+      transmission: 0.8,
+      ior: 1.52,
+      clearcoat: 1.0
     });
 
     // 1. Camera Body (Leatherette base)
@@ -6162,7 +6118,7 @@
     const group = new THREE.Group();
 
     const caseMat = new THREE.MeshStandardMaterial({ color: 0x22242A, metalness: 0.85, roughness: 0.25 });
-    const screenGlassMat = new THREE.MeshStandardMaterial({ color: 0x050A14, roughness: 0.05, metalness: 0.8 });
+    const screenGlassMat = new THREE.MeshPhysicalMaterial({ color: 0x050A14, roughness: 0.05, clearcoat: 1.0 });
     const strapMat = new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.8 });
     const crownMat = new THREE.MeshStandardMaterial({ color: 0xDDDFE5, metalness: 0.9, roughness: 0.2 });
 
@@ -6207,7 +6163,7 @@
     group.add(dialPlate);
 
     // Digital Crown Knob
-    const crownGeom = new THREE.CylinderGeometry(0.16, 0.16, 0.2, 16);
+    const crownGeom = new THREE.CylinderGeometry(0.16, 0.16, 0.2, 24);
     const crownMesh = new THREE.Mesh(crownGeom, crownMat);
     crownMesh.rotation.z = Math.PI / 2;
     crownMesh.position.set(0.85, 0.4, 0);
@@ -6232,16 +6188,23 @@
 
     // Brilliant Faceted Gemstone Geometry
     const gemGeom = new THREE.IcosahedronGeometry(1.4, 0);
-    const gemMat = new THREE.MeshStandardMaterial({
-      color: 0xDDF4FF,
-      roughness: 0.08,
-      metalness: 0.2,
+    const gemMat = new THREE.MeshPhysicalMaterial({
+      color: 0xE8F8FF,
+      roughness: 0.02,
+      transmission: 0.95,
+      ior: 2.417, // Pure diamond refractive index
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.05,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.92,
       flatShading: true
     });
     const gemMesh = new THREE.Mesh(gemGeom, gemMat);
     group.add(gemMesh);
+
+    // Internal Sparkle Core
+    const innerLight = new THREE.PointLight(0x3FDDE0, 1.5, 3);
+    group.add(innerLight);
 
     return group;
   }
@@ -6419,7 +6382,7 @@
   let sharedItemRenderer = null;
   function getSharedItemRenderer(mountEl, width, height) {
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const maxDpr = isMobile ? 1.0 : 1.5;
+    const maxDpr = isMobile ? 1.5 : 2.0;
     const pixelRatio = Math.min(window.devicePixelRatio || 1, maxDpr);
 
     if (sharedItemRenderer) {
@@ -6515,7 +6478,6 @@
     if (viewerInstance.renderer) {
       try {
         viewerInstance.renderer.renderLists?.dispose?.();
-        viewerInstance.renderer.info?.reset?.();
         viewerInstance.renderer.clear(true, true, true);
       } catch (e) {}
 
@@ -6538,10 +6500,6 @@
         }
         viewerInstance.renderer = null;
       }
-    }
-
-    if (active3dViewer === viewerInstance) {
-      active3dViewer = null;
     }
 
     viewerInstance.scene = null;
@@ -6602,13 +6560,16 @@
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.05, 100);
     camera.position.set(0, 0.6, 4.5);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.25));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.65);
     keyLight.position.set(5, 7, 5);
     scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0x3FDDE0, 0.65);
+    const fillLight = new THREE.DirectionalLight(0x3FDDE0, 0.7);
     fillLight.position.set(-5, -2, -3);
     scene.add(fillLight);
+    const rimLight = new THREE.PointLight(0xFFD23F, 1.1, 12);
+    rimLight.position.set(0, 4, -4);
+    scene.add(rimLight);
 
     const modelRoot = new THREE.Group();
     scene.add(modelRoot);
@@ -6644,162 +6605,85 @@
       active3dLoadController = loadController;
       if (typeof window !== 'undefined') window.loadController = loadController;
 
-      const parseModel = (arrayBuffer, parseWatchdog) => {
+      const parseModel = (arrayBuffer) => {
         if (loadToken.cancelled || thisSession !== viewerSessionId) return;
         const basePath = (THREE.LoaderUtils && THREE.LoaderUtils.extractUrlBase)
           ? THREE.LoaderUtils.extractUrlBase(modelSrc)
           : modelSrc.substring(0, modelSrc.lastIndexOf('/') + 1);
 
-        try {
-          loader.parse(
-            arrayBuffer,
-            basePath,
-            (gltf) => {
-              if (parseWatchdog) clearTimeout(parseWatchdog);
-              if (active3dLoadController === loadController) active3dLoadController = null;
-              loadController = null;
-              if (typeof window !== 'undefined') window.loadController = null;
+        loader.parse(
+          arrayBuffer,
+          basePath,
+          (gltf) => {
+            if (active3dLoadController === loadController) active3dLoadController = null;
+            loadController = null;
+            if (typeof window !== 'undefined') window.loadController = null;
 
-              if (loadToken.cancelled || thisSession !== viewerSessionId) {
-                disposeObject3DResources(gltf.scene);
-                return;
-              }
-
-              const loadedMesh = gltf.scene;
-              const box = new THREE.Box3().setFromObject(loadedMesh);
-              const size = box.getSize(new THREE.Vector3());
-              const maxDim = Math.max(size.x, size.y, size.z) || 1;
-              const scale = 2.4 / maxDim;
-              loadedMesh.scale.setScalar(scale);
-              const center = box.getCenter(new THREE.Vector3());
-              loadedMesh.position.sub(center.multiplyScalar(scale));
-
-              // GPU Memory optimization: disable mipmaps, and downscale any
-              // oversized textures. Large embedded textures (2K/4K+, common in
-              // models exported from Blender/Sketchfab) are one of the most
-              // common causes of a hard mobile Safari crash on GPU upload —
-              // capping them here costs little visible quality in a small
-              // preview modal but removes a real crash risk.
-              const MAX_TEXTURE_DIM = 1536;
-              try {
-                loadedMesh.traverse((child) => {
-                  if (child.isMesh && child.material) {
-                    const mats = Array.isArray(child.material) ? child.material : [child.material];
-                    mats.forEach((mat) => {
-                      ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach((texKey) => {
-                        const tex = mat && mat[texKey];
-                        if (!tex || !tex.isTexture) return;
-                        tex.generateMipmaps = false;
-                        tex.minFilter = THREE.LinearFilter;
-
-                        const img = tex.image;
-                        if (img && img.width > MAX_TEXTURE_DIM || (img && img.height > MAX_TEXTURE_DIM)) {
-                          try {
-                            const scaleFactor = MAX_TEXTURE_DIM / Math.max(img.width, img.height);
-                            const small = document.createElement('canvas');
-                            small.width = Math.max(1, Math.round(img.width * scaleFactor));
-                            small.height = Math.max(1, Math.round(img.height * scaleFactor));
-                            small.getContext('2d').drawImage(img, 0, 0, small.width, small.height);
-                            tex.image = small;
-                            tex.needsUpdate = true;
-                          } catch (resizeErr) {
-                            console.warn('[SpotLIGHT 3D] Texture downscale skipped:', resizeErr);
-                          }
-                        }
-                      });
-                    });
-                  }
-                });
-              } catch (_) {}
-
-              modelRoot.add(loadedMesh);
-
-              // Render first frame immediately
-              try { renderer.render(scene, camera); } catch (_) {}
-              set3dLoading(false);
-            },
-            (err) => {
-              if (parseWatchdog) clearTimeout(parseWatchdog);
-              if (active3dLoadController === loadController) active3dLoadController = null;
-              loadController = null;
-              if (typeof window !== 'undefined') window.loadController = null;
-              if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
-              console.warn('[SpotLIGHT 3D] GLTF parse failed, using procedural fallback:', err);
-              set3dLoading(false);
-              addFallback();
+            if (loadToken.cancelled || thisSession !== viewerSessionId) {
+              disposeObject3DResources(gltf.scene);
+              return;
             }
-          );
-        } catch (syncErr) {
-          if (parseWatchdog) clearTimeout(parseWatchdog);
-          if (active3dLoadController === loadController) active3dLoadController = null;
-          loadController = null;
-          if (typeof window !== 'undefined') window.loadController = null;
-          if (loadToken.cancelled || thisSession !== viewerSessionId) return;
-          console.warn('[SpotLIGHT 3D] Synchronous parse error caught:', syncErr);
-          set3dLoading(false);
-          addFallback();
-        }
+
+            const loadedMesh = gltf.scene;
+            const box = new THREE.Box3().setFromObject(loadedMesh);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z) || 1;
+            const scale = 2.4 / maxDim;
+            loadedMesh.scale.setScalar(scale);
+            const center = box.getCenter(new THREE.Vector3());
+            loadedMesh.position.sub(center.multiplyScalar(scale));
+
+            // GPU Memory optimization: disable mipmaps on textures on mobile/desktop
+            // to save up to 33% texture memory and prevent WebGL crashes on iOS Safari
+            try {
+              loadedMesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                  const mats = Array.isArray(child.material) ? child.material : [child.material];
+                  mats.forEach((mat) => {
+                    ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach((texKey) => {
+                      if (mat && mat[texKey] && mat[texKey].isTexture) {
+                        mat[texKey].generateMipmaps = false;
+                        mat[texKey].minFilter = THREE.LinearFilter;
+                      }
+                    });
+                  });
+                }
+              });
+            } catch (_) {}
+
+            modelRoot.add(loadedMesh);
+
+            // Render first frame immediately
+            try { renderer.render(scene, camera); } catch (_) {}
+            set3dLoading(false);
+          },
+          (err) => {
+            if (active3dLoadController === loadController) active3dLoadController = null;
+            loadController = null;
+            if (typeof window !== 'undefined') window.loadController = null;
+            if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
+            console.warn('[SpotLIGHT 3D] GLTF parse failed, using procedural fallback:', err);
+            set3dLoading(false);
+            addFallback();
+          }
+        );
       };
 
       const loadModelBytes = async () => {
         try {
           const response = await fetch(modelSrc, {
-            signal: loadController ? loadController.signal : undefined
+            signal: loadController ? loadController.signal : undefined,
+            credentials: 'same-origin'
           });
 
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-          // Bail out BEFORE downloading/parsing if the server tells us the file
-          // is large enough to be a realistic mobile-crash risk. Decoding a big
-          // textured GLB is exactly what was locking up at "100%" and then
-          // taking the whole tab down — better to degrade gracefully here.
-          const MAX_SAFE_MODEL_BYTES = 30 * 1024 * 1024; // 30MB
-          const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
-          if (contentLength > MAX_SAFE_MODEL_BYTES) {
-            console.warn(`[SpotLIGHT 3D] Model is ${(contentLength / 1024 / 1024).toFixed(1)}MB — over the safe mobile limit, skipping to avoid a crash.`);
-            if (typeof showToast === 'function') {
-              showToast('⚠️ This 3D model is too large to preview safely — try a smaller/compressed .glb file.');
-            }
-            set3dLoading(false);
-            addFallback();
-            return;
-          }
 
           // Keep only one ArrayBuffer in memory. A streamed chunk array would
           // temporarily duplicate the whole model and can spike mobile RAM.
           const arrayBuffer = await response.arrayBuffer();
           if (thisSession !== viewerSessionId || loadToken.cancelled) return;
-
-          // Content-Length isn't always sent (e.g. compressed responses) — double
-          // check against the actual downloaded size too.
-          if (arrayBuffer.byteLength > MAX_SAFE_MODEL_BYTES) {
-            console.warn(`[SpotLIGHT 3D] Downloaded model is ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(1)}MB — over the safe mobile limit, skipping to avoid a crash.`);
-            if (typeof showToast === 'function') {
-              showToast('⚠️ This 3D model is too large to preview safely — try a smaller/compressed .glb file.');
-            }
-            set3dLoading(false);
-            addFallback();
-            return;
-          }
-
           set3dLoading(true, 'Loading 3D asset 100%...');
-
-          // Watchdog: parsing/texture-decoding a heavy model can hang the main
-          // thread long enough for mobile Safari's own watchdog to kill the tab
-          // outright. If parsing hasn't finished in a reasonable time, bail to
-          // the fallback ourselves rather than risk that.
-          const parseWatchdog = setTimeout(() => {
-            if (loadToken.cancelled || thisSession !== viewerSessionId) return;
-            console.warn('[SpotLIGHT 3D] Model parse is taking too long — falling back to avoid a crash.');
-            loadToken.cancelled = true;
-            if (typeof showToast === 'function') {
-              showToast('⚠️ This model took too long to load and was skipped to keep the page from crashing.');
-            }
-            set3dLoading(false);
-            addFallback();
-          }, 20000);
-
-          parseModel(arrayBuffer, parseWatchdog);
+          parseModel(arrayBuffer);
         } catch (err) {
           if (active3dLoadController === loadController) active3dLoadController = null;
           loadController = null;
@@ -7080,6 +6964,13 @@
       interactEl.addEventListener('gesturestart', preventSafariPinch, { passive: false });
       interactEl.addEventListener('gesturechange', preventSafariPinch, { passive: false });
 
+      if (dom !== interactEl) {
+        dom.addEventListener('touchstart', onTouchStart, { passive: false });
+        dom.addEventListener('touchmove', onTouchMove, { passive: false });
+        dom.addEventListener('touchend', onTouchEnd, { passive: false });
+        dom.addEventListener('touchcancel', onTouchEnd, { passive: false });
+      }
+
       interactEl.addEventListener('pointerdown', onPointerDown);
       interactEl.addEventListener('pointermove', onPointerMove);
       interactEl.addEventListener('pointerup', stopDrag);
@@ -7109,6 +7000,13 @@
         interactEl.removeEventListener('touchcancel', onTouchEnd);
         interactEl.removeEventListener('gesturestart', preventSafariPinch);
         interactEl.removeEventListener('gesturechange', preventSafariPinch);
+
+        if (dom !== interactEl) {
+          dom.removeEventListener('touchstart', onTouchStart);
+          dom.removeEventListener('touchmove', onTouchMove);
+          dom.removeEventListener('touchend', onTouchEnd);
+          dom.removeEventListener('touchcancel', onTouchEnd);
+        }
 
         interactEl.removeEventListener('pointerdown', onPointerDown);
         interactEl.removeEventListener('pointermove', onPointerMove);
@@ -7416,14 +7314,12 @@
     // YouTube
     const ytMatch = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
     if (ytMatch && ytMatch[1]) {
-      // mute=1 is required — browsers block autoplay-with-sound by default,
-      // so without it the video just silently sits there waiting for a click.
-      return { type: 'iframe', url: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=1&mute=1&muted=1&playsinline=1&rel=0` };
+      return { type: 'iframe', url: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=1&rel=0` };
     }
     // Vimeo
     const vimeoMatch = str.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|video\/|)(\d+)/i);
     if (vimeoMatch && vimeoMatch[3]) {
-      return { type: 'iframe', url: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1&muted=1&playsinline=1` };
+      return { type: 'iframe', url: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1` };
     }
     // Direct Video (MP4, WebM, blob)
     return { type: 'video', url: str };
@@ -7516,7 +7412,6 @@
       if (containerVideo) containerVideo.style.display = 'none';
 
       if (mediaType === 'model3d') {
-        pausePanoRenderLoop();
         mediaWrap.style.display = 'block';
         if (iconWrap) iconWrap.style.display = 'none';
         if (container3d) {
@@ -7642,7 +7537,6 @@
 
     // Dispose active 3D viewer & stop video
     dispose3dViewer(active3dViewer, false);
-    resumePanoRenderLoop();
     const iframe = document.getElementById('tourInfoModalIframe');
     if (iframe) iframe.src = 'about:blank';
     const video = document.getElementById('tourInfoModalNativeVideo');
@@ -8956,64 +8850,75 @@
 
     const tourJson = JSON.stringify({ scenes: activeSceneList });
 
-    // Determine current tour unique identifier
-    const tourId = currentTourData?.tourId ||
-      (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number'
-        ? `city-${window.currentEditingCityIdx}-ad-${window.currentEditingAdIdx}`
-        : (window.currentEditingSpotId ? `spot-${window.currentEditingSpotId}` : (currentTourData?.title ? `tour-${currentTourData.title.replace(/\s+/g, '-').toLowerCase()}` : 'active')));
+    // 1. Update active editing ad reference
+    if (window.currentEditingAdRef) {
+      window.currentEditingAdRef.tourConfig = { scenes: activeSceneList };
+      window.currentEditingAdRef.tour3d = tourJson;
+      window.currentEditingAdRef.tourUrl = tourJson;
+    }
 
-    // 1. If currently editing a community spot, update ONLY the community post
+    // 2. Update magazine city ad if indices or title match
+    if (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
+      let matchedAd = false;
+      if (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number') {
+        const cIdx = window.currentEditingCityIdx;
+        const aIdx = window.currentEditingAdIdx;
+        if (window.MAGAZINE.cities[cIdx] && Array.isArray(window.MAGAZINE.cities[cIdx].ads) && window.MAGAZINE.cities[cIdx].ads[aIdx]) {
+          window.MAGAZINE.cities[cIdx].ads[aIdx].tour3d = tourJson;
+          window.MAGAZINE.cities[cIdx].ads[aIdx].tourUrl = tourJson;
+          window.MAGAZINE.cities[cIdx].ads[aIdx].tourConfig = { scenes: activeSceneList };
+          matchedAd = true;
+        }
+      }
+      // If not matched by index, find matching ad by title/tag across all cities
+      if (!matchedAd && currentTourData && currentTourData.title) {
+        const searchTitle = currentTourData.title.toLowerCase();
+        for (let ci = 0; ci < window.MAGAZINE.cities.length; ci++) {
+          const city = window.MAGAZINE.cities[ci];
+          if (city && Array.isArray(city.ads)) {
+            for (let ai = 0; ai < city.ads.length; ai++) {
+              const ad = city.ads[ai];
+              if (ad && ad.name && ad.name.toLowerCase() === searchTitle) {
+                ad.tour3d = tourJson;
+                ad.tourUrl = tourJson;
+                ad.tourConfig = { scenes: activeSceneList };
+                matchedAd = true;
+                break;
+              }
+            }
+          }
+          if (matchedAd) break;
+        }
+      }
+    }
+
+    // 3. Update community post if editing community spot
     if (window.currentEditingSpotId && typeof window.saveCommunitySpotTour === 'function') {
       try {
         await window.saveCommunitySpotTour(window.currentEditingSpotId, tourJson);
       } catch (e) {}
-    } else {
-      // 2. We are editing a magazine city ad: update ONLY this exact ad
-      if (window.currentEditingAdRef) {
-        window.currentEditingAdRef.tourConfig = { scenes: activeSceneList };
-        window.currentEditingAdRef.tour3d = tourJson;
-        window.currentEditingAdRef.tourUrl = tourJson;
-      }
-
-      if (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
-        if (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number') {
-          const cIdx = window.currentEditingCityIdx;
-          const aIdx = window.currentEditingAdIdx;
-          if (window.MAGAZINE.cities[cIdx] && Array.isArray(window.MAGAZINE.cities[cIdx].ads) && window.MAGAZINE.cities[cIdx].ads[aIdx]) {
-            window.MAGAZINE.cities[cIdx].ads[aIdx].tour3d = tourJson;
-            window.MAGAZINE.cities[cIdx].ads[aIdx].tourUrl = tourJson;
-            window.MAGAZINE.cities[cIdx].ads[aIdx].tourConfig = { scenes: activeSceneList };
-          }
-        }
-      }
-
-      // Update open input fields in Admin Editor for THIS EXACT ad only
-      try {
-        const tourInputs = document.querySelectorAll('input[data-ad="tour3d"]');
-        tourInputs.forEach(inp => {
-          const adEl = inp.closest('.ad-editor');
-          if (
-            adEl &&
-            typeof window.currentEditingCityIdx === 'number' &&
-            typeof window.currentEditingAdIdx === 'number' &&
-            adEl.dataset.ci !== undefined &&
-            +adEl.dataset.ci === window.currentEditingCityIdx &&
-            +adEl.dataset.ai === window.currentEditingAdIdx
-          ) {
-            inp.value = tourJson;
-          }
-        });
-      } catch (e) {}
     }
 
-    // 4. Update local caches scoped specifically to this tour ID
+    // 4. Update local caches
     try {
-      if (tourId) {
-        localStorage.setItem(`spotlight_tour_${tourId}`, tourJson);
-      }
+      localStorage.setItem('spotlight_tour_' + (currentTourData?.title || 'active'), tourJson);
+      localStorage.setItem('spotlight_latest_tour', tourJson);
       if (window.MAGAZINE) {
         localStorage.setItem('spotlight_magazine_content_v5', JSON.stringify(window.MAGAZINE));
       }
+    } catch (e) {}
+
+    // 5. Update open input fields in Admin Editor
+    try {
+      const tourInputs = document.querySelectorAll('input[data-ad="tour3d"]');
+      tourInputs.forEach(inp => {
+        const adEl = inp.closest('.ad-editor');
+        if (adEl && typeof window.currentEditingAdIdx === 'number' && +adEl.dataset.ai === window.currentEditingAdIdx) {
+          inp.value = tourJson;
+        } else if (!adEl) {
+          inp.value = tourJson;
+        }
+      });
     } catch (e) {}
 
     // 6. Refresh live views
@@ -10831,24 +10736,6 @@
 
     modal.classList.add('active');
 
-    // Instantly wipe the hotspot layer DOM so no pins from previous tours remain
-    const layer = document.getElementById('tourHotspotsLayer');
-    if (layer) {
-      layer.innerHTML = '';
-      layer.style.opacity = '1';
-    }
-
-    // Determine unique tour identity
-    const tourId = options.tourId ||
-      (typeof options.cityIdx === 'number' && typeof options.adIdx === 'number'
-        ? `city-${options.cityIdx}-ad-${options.adIdx}`
-        : (options.spotId ? `spot-${options.spotId}` : (options.title ? `tour-${options.title.replace(/\s+/g, '-').toLowerCase()}` : 'default')));
-
-    const isDemoWalk = options.isDemo ||
-      tourId === 'demo_slc_walk' ||
-      (!options.title && !options.tag && !options.location) ||
-      (options.title && options.title.toLowerCase().includes('spotlight slc'));
-
     // Parse custom scenes or stored tour config
     let loadedScenes = null;
 
@@ -10857,72 +10744,33 @@
     } else if (options.tourUrl && options.tourUrl.startsWith('{')) {
       try {
         const parsed = JSON.parse(options.tourUrl);
-        if (parsed.scenes && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
+        if (parsed.scenes && Array.isArray(parsed.scenes)) {
           loadedScenes = parsed.scenes;
         }
       } catch (e) {}
-    }
-
-    // Check localStorage for this specific tour if not already in memory
-    if (!loadedScenes && tourId && tourId !== 'default') {
-      try {
-        const cached = localStorage.getItem(`spotlight_tour_${tourId}`);
-        if (cached && cached.startsWith('{')) {
-          const parsed = JSON.parse(cached);
-          if (parsed.scenes && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
-            loadedScenes = parsed.scenes;
-          }
-        }
-      } catch (e) {}
-    }
-
-    // Sanitize any accidental contamination: if this is a business or community post,
-    // ensure it hasn't inherited the demo SLC scenes (slc-entrance, climbing gear, camera)
-    if (loadedScenes && loadedScenes.length > 0 && !isDemoWalk) {
-      const first = loadedScenes[0];
-      if (first && (first.id === 'slc-entrance' || first.name === 'SpotLIGHT SLC · Street Entrance & Walk-In')) {
-        // Strip foreign demo tour and create a clean isolated scene
-        loadedScenes = null;
-      }
     }
 
     if (!loadedScenes && (options.tourUrl || options.panoUrl)) {
       const directNorm = normalize3dTourUrl(options.tourUrl || options.panoUrl);
       loadedScenes = [
         {
-          id: 'custom-spot-' + Date.now().toString(36),
+          id: 'custom-spot',
           name: options.title || '360° Interactive Space',
           location: options.location || 'Wasatch Front, UT',
           tag: options.tag || directNorm.provider || '360° Scan',
           tourUrl: directNorm.isEmbed ? directNorm.url : '',
           panoUrl: directNorm.isImage ? directNorm.url : '',
-          aspectMode: 'full-360',
-          vScale: 1.0,
-          blurb: options.blurb || 'Explore this space in 360°',
-          hotspots: [] // Clean empty hotspots for this tour
+          blurb: options.blurb || '',
+          hotspots: []
         }
       ];
     }
 
     if (!loadedScenes || loadedScenes.length === 0) {
-      if (isDemoWalk) {
+      if (options.location && options.location.toLowerCase().includes('west jordan')) {
         loadedScenes = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
       } else {
-        // Clean default room for a new tour - isolated with its own empty hotspots
-        loadedScenes = [
-          {
-            id: 'room-' + Date.now().toString(36),
-            name: options.title ? (options.title + ' · Main Space') : 'Main Space',
-            location: options.location || 'Wasatch Front, UT',
-            tag: options.tag || '360° Walkthrough',
-            panoUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2500&q=80',
-            tourUrl: '',
-            aspectMode: 'full-360',
-            vScale: 1.0,
-            blurb: options.blurb || 'Explore this space in 360°',
-            hotspots: [] // Clean empty hotspots for this tour
-          }
-        ];
+        loadedScenes = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
       }
     }
 
@@ -11173,21 +11021,6 @@
       cancelAnimationFrame(animFrameId);
       animFrameId = null;
     }
-    // Clean up hotspot layer completely so pins never bleed into subsequent tours
-    const layer = document.getElementById('tourHotspotsLayer');
-    if (layer) {
-      layer.innerHTML = '';
-      layer.style.opacity = '1';
-    }
-
-    // Reset tour viewer state and isolate editing pointers
-    activeSceneList = [];
-    activeSceneIndex = 0;
-    currentTourData = null;
-    window.currentEditingAdRef = null;
-    window.currentEditingCityIdx = null;
-    window.currentEditingAdIdx = null;
-    window.currentEditingSpotId = null;
   };
 
   // Auto-initialize UI on load
