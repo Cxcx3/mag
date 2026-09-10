@@ -4609,10 +4609,15 @@ window.render = render;
 
 let gestureStartX = 0;
 let gestureStartY = 0;
+let gestureLastY = 0;
 let gestureStartTime = 0;
+let gestureLastTime = 0;
+let gestureStartScrollTop = 0;
 let isHorizontalSwipe = false;
 let isVerticalScroll = false;
 let gestureMoved = false;
+let scrollVelocity = 0;
+let momentumRaf = null;
 
 function getActiveSheet() {
   const activePage = document.getElementById('page-' + current);
@@ -4626,7 +4631,18 @@ if (bookWrap) {
     const t = e.touches[0];
     gestureStartX = t.clientX;
     gestureStartY = t.clientY;
+    gestureLastY = t.clientY;
     gestureStartTime = performance.now();
+    gestureLastTime = gestureStartTime;
+    scrollVelocity = 0;
+
+    if (momentumRaf) {
+      cancelAnimationFrame(momentumRaf);
+      momentumRaf = null;
+    }
+
+    const sheet = getActiveSheet();
+    gestureStartScrollTop = sheet ? sheet.scrollTop : 0;
     isHorizontalSwipe = false;
     isVerticalScroll = false;
     gestureMoved = false;
@@ -4637,12 +4653,21 @@ if (bookWrap) {
     const t = e.touches[0];
     const dx = t.clientX - gestureStartX;
     const dy = t.clientY - gestureStartY;
+    const now = performance.now();
+    const dt = now - gestureLastTime;
+
+    if (dt > 10) {
+      const instantaneousV = (gestureLastY - t.clientY) / dt;
+      scrollVelocity = instantaneousV * 0.7 + scrollVelocity * 0.3;
+      gestureLastY = t.clientY;
+      gestureLastTime = now;
+    }
 
     if (!gestureMoved) {
       const dist = Math.hypot(dx, dy);
-      if (dist > 8) {
+      if (dist > 6) {
         gestureMoved = true;
-        if (Math.abs(dx) > Math.abs(dy) * 1.2) {
+        if (Math.abs(dx) > Math.abs(dy) * 1.25 && Math.abs(dx) > 8) {
           isHorizontalSwipe = true;
         } else {
           isVerticalScroll = true;
@@ -4650,10 +4675,15 @@ if (bookWrap) {
       }
     }
 
-    if (isHorizontalSwipe && e.cancelable) {
-      e.preventDefault();
+    if (isHorizontalSwipe) {
+      if (e.cancelable) e.preventDefault();
+    } else if (isVerticalScroll) {
+      if (e.cancelable) e.preventDefault();
+      const sheet = getActiveSheet();
+      if (sheet) {
+        sheet.scrollTop = gestureStartScrollTop - dy;
+      }
     }
-    // When vertical scroll, allow native fluid 60/120fps browser scrolling
   }, { passive: false });
 
   bookWrap.addEventListener('touchend', e => {
@@ -4665,7 +4695,32 @@ if (bookWrap) {
 
       if (dx < -30 || (dx < -15 && speed > 0.2)) nextPage();
       else if (dx > 30 || (dx > 15 && speed > 0.2)) prevPage();
+    } else if (isVerticalScroll) {
+      const sheet = getActiveSheet();
+      if (sheet && Math.abs(scrollVelocity) > 0.1) {
+        let v = scrollVelocity * 16;
+        if (v > 30) v = 30;
+        if (v < -30) v = -30;
+
+        function momentumStep() {
+          if (!sheet) return;
+          sheet.scrollTop += v;
+          v *= 0.94;
+          if (Math.abs(v) > 0.4) {
+            momentumRaf = requestAnimationFrame(momentumStep);
+          } else {
+            momentumRaf = null;
+          }
+        }
+        momentumRaf = requestAnimationFrame(momentumStep);
+      }
     }
+    isHorizontalSwipe = false;
+    isVerticalScroll = false;
+    gestureMoved = false;
+  }, { passive: true });
+
+  bookWrap.addEventListener('touchcancel', () => {
     isHorizontalSwipe = false;
     isVerticalScroll = false;
     gestureMoved = false;
