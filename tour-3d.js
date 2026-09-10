@@ -549,13 +549,17 @@
   let currentTourData = null;
   let isEditorMode = false;
 
-  // Camera & Navigation State
+  // Camera & Navigation State (Default 75° human optical FOV prevents digital zoom blur)
   let yaw = 0;
   let pitch = 0;
-  let fov = 65;
+  let fov = 75;
   let targetYaw = 0;
   let targetPitch = 0;
-  let targetFov = 65;
+  let targetFov = 75;
+
+  function isPowerOfTwo(val) {
+    return typeof val === 'number' && val > 0 && (val & (val - 1)) === 0;
+  }
 
   let isDragging = false;
   let startX = 0;
@@ -767,21 +771,44 @@
       const height = Math.max(100, Math.floor(rect.height || window.innerHeight || 600));
 
       canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); console.warn('[SpotLIGHT 360] Panorama WebGL context loss prevented'); }, false);
-      const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       threeRenderer = new THREE.WebGLRenderer({
         canvas: canvas,
-        antialias: !isMobileDevice,
+        antialias: true,
         alpha: false,
-        powerPreference: isMobileDevice ? 'default' : 'high-performance'
+        powerPreference: 'high-performance',
+        precision: 'highp',
+        stencil: false,
+        depth: true
       });
-      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileDevice ? 1.5 : 2.0));
-      threeRenderer.setSize(width, height);
+      // Ultra-crisp native retina resolution (up to 3x DPR for modern Retina / OLED / 4K displays)
+      const initialDpr = Math.min(window.devicePixelRatio || 1, 3.0);
+      threeRenderer.setPixelRatio(initialDpr);
+      // updateStyle: false lets CSS inset:0 manage responsive layout without sub-pixel buffer stretching
+      threeRenderer.setSize(width, height, false);
+      if (typeof THREE.sRGBEncoding !== 'undefined') {
+        threeRenderer.outputEncoding = THREE.sRGBEncoding;
+      }
+      if ('outputColorSpace' in threeRenderer && typeof THREE.SRGBColorSpace !== 'undefined') {
+        threeRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      }
+      // Pure Photographic Fidelity: NoToneMapping keeps 100% natural photo contrast without highlight roll-off or micro-blur
+      if (typeof THREE.NoToneMapping !== 'undefined') {
+        threeRenderer.toneMapping = THREE.NoToneMapping;
+      }
+
+      // Responsive Container Observer: keeps canvas buffer in perfect 1:1 pixel sync on any resize
+      if (window.ResizeObserver && !window._tourContainerResizeObserver) {
+        window._tourContainerResizeObserver = new ResizeObserver(() => {
+          resizeThreeViewport();
+        });
+        window._tourContainerResizeObserver.observe(container);
+      }
 
       threeScene = new THREE.Scene();
       threeCamera = new THREE.PerspectiveCamera(targetFov, width / height, 1, 1500);
 
-      // Inverted Sphere Geometry (inside of sphere faces the camera)
-      const geometry = new THREE.SphereGeometry(500, 64, 32);
+      // Inverted Sphere Geometry: 128 width segments x 64 height segments for seamless, ultra-crisp curved interpolation
+      const geometry = new THREE.SphereGeometry(500, 128, 64);
       geometry.scale(-1, 1, 1);
 
       const material = new THREE.MeshBasicMaterial();
@@ -878,50 +905,40 @@
         const nh = img.naturalHeight || img.height || 1024;
         const ar = nw / nh;
 
-        // A true 2:1 equirectangular image is already a complete 360° master.
-        // Keep the original pixels intact instead of forcing it through the
-        // arc/crop/fill pipeline. This gives the sphere clean, natural
-        // perspective while preserving the existing Matterport-style UI.
-        const isTrueEquirectangular = ar >= 1.98 && ar <= 2.02;
+        // A true equirectangular 360 image is ~2:1 (aspect ratio 1.80 to 2.22) or explicitly 360.
+        // Keep the original pixels 100% intact instead of forcing it through the arc/crop/fill pipeline.
+        const isTrueEquirectangular = (ar >= 1.80 && ar <= 2.22) ||
+          curScene.is360 ||
+          curScene.aspectMode === 'full-360' ||
+          /360|equirectangular|sphere/i.test(curScene.tag || '') ||
+          /pannellum|\.360|insta360|ricoh|theta|alma|cerro/i.test(curScene.panoUrl || curScene.tourUrl || '');
         const renderAspectMode = isTrueEquirectangular ? 'full-360' : aspectMode;
         const isWidePano = !isTrueEquirectangular && (
           renderAspectMode === 'matterport-arc' ||
           renderAspectMode === 'iphone-pano' ||
           renderAspectMode === '360-loop' ||
-          (renderAspectMode !== 'full-360' && ar > 2.0)
+          (renderAspectMode !== 'full-360' && ar > 2.22)
         );
 
         if (typeBadge) {
-          if (renderAspectMode === 'matterport-arc' || (isWidePano && renderAspectMode !== '360-loop' && renderAspectMode !== 'full-360')) {
-            typeBadge.textContent = '✨ MATTERPORT PRO (0% SEAM)';
-            typeBadge.style.background = 'rgba(6, 214, 160, 0.18)';
-            typeBadge.style.borderColor = '#06D6A0';
-            typeBadge.style.color = '#06D6A0';
-          } else if (renderAspectMode === '360-loop' || renderAspectMode === 'iphone-pano') {
-            typeBadge.textContent = '🔄 360° LOOP WALKTHROUGH';
-            typeBadge.style.background = 'rgba(255, 210, 63, 0.18)';
-            typeBadge.style.borderColor = '#FFD23F';
-            typeBadge.style.color = '#FFD23F';
-          } else {
-            typeBadge.textContent = '🌐 360° PHOTOSPHERE (2:1)';
-            typeBadge.style.background = 'rgba(255, 210, 63, 0.15)';
-            typeBadge.style.borderColor = 'rgba(255, 210, 63, 0.35)';
-            typeBadge.style.color = '#FFD23F';
-          }
+          typeBadge.style.display = 'none';
         }
 
         let finalTexture = null;
 
         if (isWidePano) {
-          // Construct Ultra-HD 2:1 Master Canvas to eliminate vertical stretching
-          const maxGpuSize = threeRenderer ? Math.min(threeRenderer.capabilities.maxTextureSize || 4096, 4096) : 4096;
-          const canvasW = Math.min(Math.max(nw, 2048), maxGpuSize);
+          // Construct Ultra-HD 2:1 Master Canvas to eliminate vertical stretching & blurriness
+          const maxGpu = threeRenderer ? (threeRenderer.capabilities.maxTextureSize || 8192) : 8192;
+          const maxGpuSize = Math.min(maxGpu, 8192);
+          const canvasW = Math.min(Math.max(nw, 4096), maxGpuSize);
           const canvasH = Math.floor(canvasW / 2); // Exact 2:1 Equirectangular Sphere Ratio
 
           const canvas = document.createElement('canvas');
           canvas.width = canvasW;
           canvas.height = canvasH;
           const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
 
           const isArcMode = (renderAspectMode === 'matterport-arc');
 
@@ -1152,20 +1169,66 @@
 
           finalTexture = new THREE.CanvasTexture(canvas);
         } else {
-          finalTexture = new THREE.Texture(img);
-          finalTexture.needsUpdate = true;
+          // Native 2:1 Equirectangular Photosphere - Full Optical Resolution
+          const maxGpu = threeRenderer ? Math.min(threeRenderer.capabilities.maxTextureSize || 8192, 8192) : 8192;
+          const clarityMode = curScene.clarityMode || window._tourHdQualityMode || 'ultra';
+
+          if (nw > maxGpu || nh > Math.floor(maxGpu / 2)) {
+            // Hardware Max Safe Downscaling: Prevent GPU driver crash or memory truncation on 6K/8K images
+            const targetW = maxGpu;
+            const targetH = Math.floor(targetW / 2);
+            const cCanvas = document.createElement('canvas');
+            cCanvas.width = targetW;
+            cCanvas.height = targetH;
+            const cCtx = cCanvas.getContext('2d');
+            cCtx.imageSmoothingEnabled = true;
+            cCtx.imageSmoothingQuality = 'high';
+            if (clarityMode === 'ultra' && typeof cCtx.filter !== 'undefined') {
+              cCtx.filter = 'contrast(1.05) saturate(1.03)';
+            }
+            cCtx.drawImage(img, 0, 0, targetW, targetH);
+            finalTexture = new THREE.CanvasTexture(cCanvas);
+          } else if (clarityMode === 'ultra' && nw <= 4096) {
+            // Subtle micro-contrast on 4K or smaller to eliminate atmospheric haze and lens softness
+            const cCanvas = document.createElement('canvas');
+            cCanvas.width = nw;
+            cCanvas.height = nh;
+            const cCtx = cCanvas.getContext('2d');
+            cCtx.imageSmoothingEnabled = true;
+            cCtx.imageSmoothingQuality = 'high';
+            if (typeof cCtx.filter !== 'undefined') {
+              cCtx.filter = 'contrast(1.04) saturate(1.02)';
+            }
+            cCtx.drawImage(img, 0, 0, nw, nh);
+            finalTexture = new THREE.CanvasTexture(cCanvas);
+          } else {
+            // Direct zero-copy GPU texture upload: 100% pure pixel-for-pixel fidelity
+            finalTexture = new THREE.Texture(img);
+            finalTexture.needsUpdate = true;
+          }
         }
 
-        // Ultra-HD Crisp Texture Filtering Setup
-        finalTexture.generateMipmaps = true;
-        finalTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        // Ultra-HD Crisp Texture Filtering Setup:
+        // Use 16x Anisotropic Trilinear Filtering (LinearMipmapLinearFilter).
+        // WebGL 2 supports NPOT and POT mipmaps natively, enabling full 16x anisotropic ray sampling across all spherical angles!
+        const isWebGl2 = !!(threeRenderer && threeRenderer.capabilities && threeRenderer.capabilities.isWebGL2);
+        const maxAniso = threeRenderer ? (threeRenderer.capabilities.getMaxAnisotropy() || 1) : 1;
+
+        if (isWebGl2 || (isPowerOfTwo(nw) && isPowerOfTwo(nh))) {
+          finalTexture.generateMipmaps = true;
+          finalTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        } else {
+          finalTexture.generateMipmaps = false;
+          finalTexture.minFilter = THREE.LinearFilter;
+        }
         finalTexture.magFilter = THREE.LinearFilter;
-        // Preserve the captured image's intended color/brightness on modern Three.js.
+        finalTexture.anisotropy = Math.min(16, maxAniso);
+
+        if (typeof THREE.sRGBEncoding !== 'undefined') {
+          finalTexture.encoding = THREE.sRGBEncoding;
+        }
         if ('colorSpace' in finalTexture && typeof THREE.SRGBColorSpace !== 'undefined') {
           finalTexture.colorSpace = THREE.SRGBColorSpace;
-        }
-        if (threeRenderer) {
-          finalTexture.anisotropy = Math.min(16, threeRenderer.capabilities.getMaxAnisotropy() || 1);
         }
 
         if (currentTexture && currentTexture !== finalTexture && !isTextureCached(currentTexture)) currentTexture.dispose();
@@ -1369,6 +1432,7 @@
         50% { opacity: 0.8; transform: scale(0.96); }
       }
       .tour-type-badge {
+        display: none !important;
         background: rgba(255, 210, 63, 0.15);
         color: #FFD23F;
         border: 1px solid rgba(255, 210, 63, 0.35);
@@ -1464,6 +1528,9 @@
         width: 100%;
         height: 100%;
         display: block;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+        touch-action: none;
       }
       .tour-embed-frame {
         position: absolute;
@@ -3364,13 +3431,16 @@
         <div class="tour-brand-group">
           <div class="tour-badge-row">
             <span class="tour-live-badge">● 360° LIVE VIEW</span>
-            <span class="tour-type-badge" id="tourTypeBadge">360° PHOTOSPHERE</span>
+            <span class="tour-type-badge" id="tourTypeBadge" style="display:none !important;"></span>
           </div>
           <h2 class="tour-spot-title" id="tourSpotTitle">SpotLIGHT 360° Tour</h2>
           <span class="tour-spot-tag" id="tourSpotTag">Downtown Salt Lake City, UT</span>
         </div>
 
         <div class="tour-top-controls">
+          <button type="button" class="tour-hud-btn" id="tourHdBtn" onclick="window.toggleTourHdQuality()" title="Toggle Ultra-HD Sharpness & Anti-Blur (Editor Only)" style="display:none;border-color:#06D6A0;color:#06D6A0;background:rgba(6,214,160,0.18);">
+            <span>✨</span><span class="hud-btn-lbl" id="tourHdLbl">HD: ULTRA</span>
+          </button>
           <button type="button" class="tour-hud-btn" id="tourEditModeBtn" title="Place & Edit Navigation Hotspots">
             <span>✏️</span><span class="hud-btn-lbl">BUILD TOUR</span>
           </button>
@@ -3509,6 +3579,27 @@
               <span>⭕ Floor Puck & Nadir</span>
               <span id="propFloorRingBadge" style="color:#06D6A0;font-weight:800;font-size:10px;">ON</span>
             </button>
+          </div>
+
+          <div class="prop-tool-box" style="border: 1px solid rgba(6,214,160,0.35); background: rgba(6,214,160,0.08); border-radius: 8px; padding: 10px;">
+            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="color:#06D6A0;font-weight:900;">✨ IMAGE SHARPNESS & ANTI-BLUR ENGINE</span>
+              <span id="propHdQualityBadge" style="color:#06D6A0;font-family:monospace;font-weight:900;">ULTRA-HD</span>
+            </div>
+            <div style="font-size:10.5px;color:rgba(255,255,255,0.75);line-height:1.35;margin-bottom:8px;">
+              Renders at native Retina/4K pixel resolution with micro-clarity filtering to eliminate fuzzy or blurry phone panorama photos:
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button type="button" class="prop-sharp-btn" id="propQualityUltraBtn" style="flex:1;padding:8px 6px;text-align:center;background:rgba(6,214,160,0.25);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;" onclick="window.setTourQualityMode('ultra')">
+                ✨ ULTRA-HD
+              </button>
+              <button type="button" class="prop-sharp-btn" id="propQualityHighBtn" style="flex:1;padding:8px 6px;text-align:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.2);color:#fff;" onclick="window.setTourQualityMode('balanced')">
+                HIGH
+              </button>
+              <button type="button" class="prop-sharp-btn" id="propQualityStdBtn" style="flex:1;padding:8px 6px;text-align:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.2);color:#fff;" onclick="window.setTourQualityMode('standard')">
+                STANDARD
+              </button>
+            </div>
           </div>
 
           <div style="margin-top:2px;">
@@ -5081,7 +5172,11 @@
     const height = Math.max(100, Math.floor(rect.height || window.innerHeight || 600));
 
     if (threeRenderer && threeCamera) {
-      threeRenderer.setSize(width, height);
+      const mode = window._tourHdQualityMode || 'ultra';
+      const maxDpr = mode === 'ultra' ? 3.0 : (mode === 'balanced' ? 2.0 : 1.0);
+      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+      threeRenderer.setPixelRatio(dpr);
+      threeRenderer.setSize(width, height, false);
       threeCamera.aspect = width / height;
       threeCamera.updateProjectionMatrix();
     }
@@ -5398,8 +5493,35 @@
     const norm = normalize3dTourUrl(scene.tourUrl || scene.panoUrl || currentTourData?.tourUrl || currentTourData?.panoUrl || '');
 
     if (titleEl) titleEl.textContent = scene.name || currentTourData?.title || 'SpotLIGHT 360° Space';
-    if (tagEl) tagEl.textContent = `📍 ${scene.location || 'Wasatch Front, UT'} · ${scene.tag || norm.provider || '360° Spatial Photosphere'}`;
-    if (badgeEl) badgeEl.textContent = norm.provider && norm.provider !== 'none' ? `360° ${norm.provider.toUpperCase()}` : '360° PHOTOSPHERE';
+
+    const loc = (scene.location || currentTourData?.location || 'Salt Lake City, UT').trim();
+    const rawTag = (scene.tag || '').trim();
+    const isGenericTag = !rawTag ||
+      /custom\s*360/i.test(rawTag) ||
+      /360\s*space/i.test(rawTag) ||
+      /equirectangular/i.test(rawTag) ||
+      /photosphere/i.test(rawTag) ||
+      /360°\s*walkthrough/i.test(rawTag) ||
+      rawTag.toLowerCase() === 'custom 360° space' ||
+      rawTag.toLowerCase() === '360° space' ||
+      rawTag.toLowerCase() === 'equirectangular photo';
+
+    const cleanTag = isGenericTag ? '' : rawTag;
+
+    if (tagEl) {
+      if (cleanTag && cleanTag.toLowerCase() !== loc.toLowerCase()) {
+        tagEl.textContent = `📍 ${loc} · ${cleanTag}`;
+      } else if (loc) {
+        tagEl.textContent = `📍 ${loc}`;
+      } else {
+        tagEl.textContent = '';
+      }
+    }
+
+    if (badgeEl) {
+      badgeEl.style.display = 'none';
+      badgeEl.textContent = '';
+    }
 
     if (ctaEl) {
       if (currentTourData?.link && currentTourData.link !== '#') {
@@ -5411,15 +5533,22 @@
       }
     }
 
+    const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
+
     if (externalLaunchBtn) {
       const orig = scene.originalUrl || norm.originalUrl || norm.url;
-      if (orig && (orig.startsWith('http://') || orig.startsWith('https://'))) {
+      if (unlocked && orig && (orig.startsWith('http://') || orig.startsWith('https://'))) {
         externalLaunchBtn.href = orig;
         externalLaunchBtn.style.display = 'inline-flex';
         externalLaunchBtn.querySelector('.hud-btn-lbl').textContent = norm.provider === '360Cities' ? '360CITIES ↗' : 'EXTERNAL ↗';
       } else {
         externalLaunchBtn.style.display = 'none';
       }
+    }
+
+    const hdBtn = document.getElementById('tourHdBtn');
+    if (hdBtn) {
+      hdBtn.style.display = unlocked ? 'inline-flex' : 'none';
     }
 
     renderSceneSelector();
@@ -5436,6 +5565,17 @@
     activeSceneIndex = index;
     const scene = activeSceneList[index];
     if (!scene) return;
+
+    // Load active quality configured by the editor (defaults to ultra-sharp)
+    const activeQuality = scene.clarityMode || scene.hdQuality || (currentTourData && currentTourData.hdQuality) || (window.currentEditingAdRef && window.currentEditingAdRef.tourHdQuality) || 'ultra';
+    window._tourHdQualityMode = activeQuality;
+
+    const hdLbl = document.getElementById('tourHdLbl');
+    if (hdLbl) {
+      if (activeQuality === 'ultra') hdLbl.textContent = 'HD: ULTRA';
+      else if (activeQuality === 'balanced') hdLbl.textContent = 'HD: HIGH';
+      else hdLbl.textContent = 'HD: STD';
+    }
 
     updateTourSceneHud(index);
 
@@ -5510,8 +5650,8 @@
       fov = scene.startFov;
       targetFov = scene.startFov;
     } else {
-      fov = 65;
-      targetFov = 65;
+      fov = 75;
+      targetFov = 75;
     }
 
     const targetUrl = norm.isImage ? norm.url : (scene.panoUrl || currentTourData?.panoUrl);
@@ -7990,7 +8130,7 @@
       id: newId,
       name: name,
       location: currentTourData?.location || 'Salt Lake City, UT',
-      tag: 'Custom 360° Space',
+      tag: '',
       panoUrl: panoUrl,
       tourUrl: panoUrl.includes('thinglink.com') || panoUrl.includes('matterport.com') || panoUrl.includes('360cities.net') || panoUrl.includes('momento360.com') ? panoUrl : '',
       blurb: 'Interactive 360° walk-in space',
@@ -8037,7 +8177,8 @@
     if (idxInp) idxInp.value = idx;
     if (titleEl) titleEl.textContent = `✏️ Edit Room: ${scene.name}`;
     if (nameInp) nameInp.value = scene.name || '';
-    if (tagInp) tagInp.value = scene.tag || '';
+    const currentTag = (scene.tag || '').trim();
+    if (tagInp) tagInp.value = (/custom\s*360/i.test(currentTag) || currentTag === 'Custom 360° Space') ? '' : currentTag;
     if (urlInp) urlInp.value = scene.tourUrl || scene.panoUrl || '';
     if (blurbInp) blurbInp.value = scene.blurb || '';
     if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
@@ -8224,7 +8365,10 @@
     const blurbInp = document.getElementById('editRoomBlurbInput');
 
     if (nameInp && nameInp.value.trim()) scene.name = nameInp.value.trim();
-    if (tagInp && tagInp.value.trim()) scene.tag = tagInp.value.trim();
+    if (tagInp) {
+      const t = tagInp.value.trim();
+      scene.tag = (/custom\s*360/i.test(t) || t === 'Custom 360° Space') ? '' : t;
+    }
     if (blurbInp) scene.blurb = blurbInp.value.trim();
 
     // Check updated 360 photo source
@@ -9041,22 +9185,135 @@
     }
   };
 
-  window.toggleHdSharpness = function () {
-    if (!threeRenderer || !currentTexture) return;
-    const maxAniso = threeRenderer.capabilities.getMaxAnisotropy() || 1;
-    const isCurrentlyMax = (currentTexture.anisotropy >= maxAniso);
-    currentTexture.anisotropy = isCurrentlyMax ? 1 : maxAniso;
-    currentTexture.needsUpdate = true;
+  window._tourHdQualityMode = 'ultra'; // Default to Ultra-HD for crystal-clear clarity
 
-    const badge = document.getElementById('propSharpBadge');
+  window.toggleTourHdQuality = function () {
+    if (window._tourHdQualityMode === 'ultra') {
+      window.setTourQualityMode('balanced');
+    } else if (window._tourHdQualityMode === 'balanced') {
+      window.setTourQualityMode('standard');
+    } else {
+      window.setTourQualityMode('ultra');
+    }
+  };
+
+  window.setTourQualityMode = function (mode) {
+    window._tourHdQualityMode = mode || 'ultra';
+    const hdBtn = document.getElementById('tourHdBtn');
+    const hdLbl = document.getElementById('tourHdLbl');
+    const badge = document.getElementById('propHdQualityBadge');
+    const sharpBadge = document.getElementById('propSharpBadge');
+    const ultraBtn = document.getElementById('propQualityUltraBtn');
+    const highBtn = document.getElementById('propQualityHighBtn');
+    const stdBtn = document.getElementById('propQualityStdBtn');
+
+    if (hdLbl) {
+      if (window._tourHdQualityMode === 'ultra') {
+        hdLbl.textContent = 'HD: ULTRA';
+      } else if (window._tourHdQualityMode === 'balanced') {
+        hdLbl.textContent = 'HD: HIGH';
+      } else {
+        hdLbl.textContent = 'HD: STD';
+      }
+    }
+
+    if (hdBtn) {
+      if (window._tourHdQualityMode === 'ultra') {
+        hdBtn.style.color = '#06D6A0';
+        hdBtn.style.borderColor = '#06D6A0';
+        hdBtn.style.background = 'rgba(6, 214, 160, 0.18)';
+      } else if (window._tourHdQualityMode === 'balanced') {
+        hdBtn.style.color = '#FFD23F';
+        hdBtn.style.borderColor = '#FFD23F';
+        hdBtn.style.background = 'rgba(255, 210, 63, 0.18)';
+      } else {
+        hdBtn.style.color = 'rgba(255,255,255,0.7)';
+        hdBtn.style.borderColor = 'rgba(255,255,255,0.2)';
+        hdBtn.style.background = 'rgba(255, 255, 255, 0.12)';
+      }
+    }
+
     if (badge) {
-      badge.textContent = isCurrentlyMax ? 'OFF' : 'ON';
-      badge.style.color = isCurrentlyMax ? '#FF4D6D' : '#06D6A0';
+      badge.textContent = window._tourHdQualityMode.toUpperCase();
+      badge.style.color = window._tourHdQualityMode === 'ultra' ? '#06D6A0' : (window._tourHdQualityMode === 'balanced' ? '#FFD23F' : '#fff');
+    }
+    if (sharpBadge) {
+      sharpBadge.textContent = window._tourHdQualityMode === 'standard' ? 'OFF' : 'ON';
+      sharpBadge.style.color = window._tourHdQualityMode === 'standard' ? '#FF4D6D' : '#06D6A0';
+    }
+
+    if (ultraBtn) {
+      ultraBtn.style.background = window._tourHdQualityMode === 'ultra' ? 'rgba(6,214,160,0.25)' : 'rgba(255,255,255,0.06)';
+      ultraBtn.style.borderColor = window._tourHdQualityMode === 'ultra' ? '#06D6A0' : 'rgba(255,255,255,0.2)';
+      ultraBtn.style.color = window._tourHdQualityMode === 'ultra' ? '#06D6A0' : '#fff';
+    }
+    if (highBtn) {
+      highBtn.style.background = window._tourHdQualityMode === 'balanced' ? 'rgba(255,210,63,0.25)' : 'rgba(255,255,255,0.06)';
+      highBtn.style.borderColor = window._tourHdQualityMode === 'balanced' ? '#FFD23F' : 'rgba(255,255,255,0.2)';
+      highBtn.style.color = window._tourHdQualityMode === 'balanced' ? '#FFD23F' : '#fff';
+    }
+    if (stdBtn) {
+      stdBtn.style.background = window._tourHdQualityMode === 'standard' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)';
+      stdBtn.style.borderColor = window._tourHdQualityMode === 'standard' ? '#fff' : 'rgba(255,255,255,0.2)';
+      stdBtn.style.color = '#fff';
+    }
+
+    if (threeRenderer) {
+      const maxDpr = window._tourHdQualityMode === 'ultra' ? 3.0 : (window._tourHdQualityMode === 'balanced' ? 2.0 : 1.0);
+      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+      threeRenderer.setPixelRatio(dpr);
+      resizeThreeViewport();
+    }
+
+    if (currentTexture) {
+      const maxAniso = (threeRenderer && threeRenderer.capabilities) ? (threeRenderer.capabilities.getMaxAnisotropy() || 1) : 1;
+      const isWebGl2 = !!(threeRenderer && threeRenderer.capabilities && threeRenderer.capabilities.isWebGL2);
+      currentTexture.anisotropy = window._tourHdQualityMode === 'standard' ? 1 : Math.min(16, maxAniso);
+      if (window._tourHdQualityMode !== 'standard' && isWebGl2) {
+        currentTexture.generateMipmaps = true;
+        currentTexture.minFilter = THREE.LinearMipmapLinearFilter;
+      } else {
+        currentTexture.generateMipmaps = false;
+        currentTexture.minFilter = THREE.LinearFilter;
+      }
+      currentTexture.magFilter = THREE.LinearFilter;
+      currentTexture.needsUpdate = true;
+    }
+
+    // Refresh active room texture with updated clarity filter
+    panoTextureCache.clear();
+    if (activeSceneList && activeSceneList[activeSceneIndex]) {
+      const cur = activeSceneList[activeSceneIndex];
+      cur.clarityMode = window._tourHdQualityMode;
+      cur.hdQuality = window._tourHdQualityMode;
+      loadThreePanoTexture(cur.tourUrl || cur.panoUrl || '', cur);
+    }
+
+    if (window.currentEditingAdRef) {
+      window.currentEditingAdRef.tourHdQuality = window._tourHdQualityMode;
+      if (window.currentEditingAdRef.tourConfig && Array.isArray(window.currentEditingAdRef.tourConfig.scenes)) {
+        window.currentEditingAdRef.tourConfig.hdQuality = window._tourHdQualityMode;
+      }
+    }
+
+    const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
+    if (unlocked && typeof window.saveTourChangesToMagazine === 'function') {
+      window.saveTourChangesToMagazine();
     }
 
     if (typeof showToast === 'function') {
-      showToast(isCurrentlyMax ? 'Texture filtering: Standard' : '✨ 16x Ultra-HD WebGL Anisotropic Filtering Enabled');
+      if (window._tourHdQualityMode === 'ultra') {
+        showToast(unlocked ? '✨ Ultra-HD Sharpness Activated & Saved for Everyone!' : '✨ Ultra-HD Sharpness Enabled (Native Retina Sampling + Anti-Blur Clarity)');
+      } else if (window._tourHdQualityMode === 'balanced') {
+        showToast(unlocked ? '👌 High-Definition Mode Saved for Everyone' : '👌 High-Definition Mode (2x Sampling)');
+      } else {
+        showToast(unlocked ? 'Standard Mode Saved for Everyone' : 'Standard Mode (1x Sampling)');
+      }
     }
+  };
+
+  window.toggleHdSharpness = function () {
+    window.toggleTourHdQuality();
   };
 
   window.saveCurrentRoomProportions = function () {
@@ -9487,11 +9744,25 @@
       saveBtn.disabled = true;
     }
 
-    const tourJson = JSON.stringify({ scenes: activeSceneList });
+    if (Array.isArray(activeSceneList)) {
+      activeSceneList.forEach(s => {
+        if (s && (/custom\s*360/i.test(s.tag || '') || s.tag === 'Custom 360° Space' || s.tag === '360° Space')) {
+          s.tag = '';
+        }
+        if (s && !s.clarityMode) {
+          s.clarityMode = window._tourHdQualityMode || 'ultra';
+          s.hdQuality = window._tourHdQualityMode || 'ultra';
+        }
+      });
+    }
+
+    const tourConfigObj = { scenes: activeSceneList, hdQuality: window._tourHdQualityMode || 'ultra' };
+    const tourJson = JSON.stringify(tourConfigObj);
 
     // 1. Update active editing ad reference
     if (window.currentEditingAdRef) {
-      window.currentEditingAdRef.tourConfig = { scenes: activeSceneList };
+      window.currentEditingAdRef.tourHdQuality = window._tourHdQualityMode || 'ultra';
+      window.currentEditingAdRef.tourConfig = tourConfigObj;
       window.currentEditingAdRef.tour3d = tourJson;
       window.currentEditingAdRef.tourUrl = tourJson;
     }
@@ -9503,9 +9774,10 @@
         const cIdx = window.currentEditingCityIdx;
         const aIdx = window.currentEditingAdIdx;
         if (window.MAGAZINE.cities[cIdx] && Array.isArray(window.MAGAZINE.cities[cIdx].ads) && window.MAGAZINE.cities[cIdx].ads[aIdx]) {
+          window.MAGAZINE.cities[cIdx].ads[aIdx].tourHdQuality = window._tourHdQualityMode || 'ultra';
           window.MAGAZINE.cities[cIdx].ads[aIdx].tour3d = tourJson;
           window.MAGAZINE.cities[cIdx].ads[aIdx].tourUrl = tourJson;
-          window.MAGAZINE.cities[cIdx].ads[aIdx].tourConfig = { scenes: activeSceneList };
+          window.MAGAZINE.cities[cIdx].ads[aIdx].tourConfig = tourConfigObj;
           matchedAd = true;
         }
       }
@@ -11396,7 +11668,7 @@
           id: 'custom-spot',
           name: options.title || '360° Interactive Space',
           location: options.location || 'Wasatch Front, UT',
-          tag: options.tag || directNorm.provider || '360° Scan',
+          tag: options.tag || '',
           tourUrl: directNorm.isEmbed ? directNorm.url : '',
           panoUrl: directNorm.isImage ? directNorm.url : '',
           blurb: options.blurb || '',
@@ -11414,6 +11686,13 @@
     }
 
     activeSceneList = loadedScenes;
+    if (Array.isArray(activeSceneList)) {
+      activeSceneList.forEach(s => {
+        if (s && (/custom\s*360/i.test(s.tag || '') || s.tag === 'Custom 360° Space' || s.tag === '360° Space' || s.tag === 'Equirectangular Photo')) {
+          s.tag = '';
+        }
+      });
+    }
     targetYaw = 0;
     targetPitch = 0;
     targetFov = 75;
@@ -11428,7 +11707,7 @@
     const autoRotateBtn = document.getElementById('tourAutoRotateBtn');
     if (autoRotateBtn) autoRotateBtn.classList.remove('active');
 
-    // Visitors: hide build/edit controls. Admin (password unlocked): show them.
+    // Visitors: hide build/edit and HD controls. Admin (password unlocked): show them.
     if (typeof window.__spotlightRefreshEditorVisibility === 'function') {
       window.__spotlightRefreshEditorVisibility();
     } else {
@@ -11436,7 +11715,13 @@
       const editBtn = document.getElementById('tourEditModeBtn');
       const editorBar = document.getElementById('tourEditorBar');
       const propPopover = document.getElementById('tourProportionsPopover');
+      const hdBtn = document.getElementById('tourHdBtn');
+      const externalLaunchBtn = document.getElementById('tourExternalLaunchBtn');
+
       if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
+      if (hdBtn) hdBtn.style.display = unlocked ? 'inline-flex' : 'none';
+      if (externalLaunchBtn && !unlocked) externalLaunchBtn.style.display = 'none';
+
       if (editorBar && !unlocked) {
         editorBar.classList.remove('active');
         isEditorMode = false;
@@ -11447,13 +11732,32 @@
     }
   };
 
-  // Keep tour builder button + bar in sync with magazine editor unlock state
+  // Keep tour builder button, HD button, and bar in sync with magazine editor unlock state
   window.__spotlightRefreshEditorVisibility = function () {
     const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
     const editBtn = document.getElementById('tourEditModeBtn');
     const editorBar = document.getElementById('tourEditorBar');
     const propPopover = document.getElementById('tourProportionsPopover');
+    const hdBtn = document.getElementById('tourHdBtn');
+    const externalLaunchBtn = document.getElementById('tourExternalLaunchBtn');
+
     if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
+    if (hdBtn) hdBtn.style.display = unlocked ? 'inline-flex' : 'none';
+
+    if (externalLaunchBtn) {
+      if (!unlocked) {
+        externalLaunchBtn.style.display = 'none';
+      } else {
+        const curScene = activeSceneList && activeSceneList[activeSceneIndex];
+        const orig = curScene ? (curScene.originalUrl || curScene.tourUrl || curScene.panoUrl) : '';
+        if (orig && (orig.startsWith('http://') || orig.startsWith('https://'))) {
+          externalLaunchBtn.style.display = 'inline-flex';
+        } else {
+          externalLaunchBtn.style.display = 'none';
+        }
+      }
+    }
+
     if (!unlocked) {
       isEditorMode = false;
       if (editBtn) editBtn.classList.remove('active');

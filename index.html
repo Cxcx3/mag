@@ -2912,11 +2912,22 @@ function renderEditor(){
           <div class="ed-field full">
             <label>3D Tour / 360° Scan URL or Hotspot Tour (360Cities, Kuula, Momento360, Polycam, Google Maps, or 360° photo)</label>
             <input data-ad="tour3d" value="${esc(a.tour3d || '')}" placeholder="Paste pannellum, 360cities.net, kuula.co, momento360, or 360° photo URL">
-            <div style="margin-top:6px;display:flex;gap:8px;align-items:center;">
-              <button type="button" class="ed-btn ed-primary" style="padding:6px 12px;font-size:11px;background:#14121A;border:1.5px solid #FFD23F;color:#FFD23F" onclick="window.openCityAd3dTour(${ci}, ${ai}, true)">
-                🚪 LAUNCH & EDIT 360° WALKTHROUGH
-              </button>
-              <small style="color:var(--text-muted);font-size:11px;">Opens interactive 360 viewer where you can walk through and place hotspot doors</small>
+            <div style="margin-top:8px;padding:8px 10px;background:rgba(6,214,160,0.08);border:1px solid rgba(6,214,160,0.3);border-radius:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+                <span style="font-size:11px;font-weight:900;color:#06D6A0;">✨ 360° PHOTO QUALITY & ANTI-BLUR (ACTIVE FOR EVERYONE)</span>
+                <span style="font-size:10px;color:#FFD23F;font-weight:800;background:rgba(255,210,63,0.15);padding:2px 6px;border-radius:4px;">🔒 EDITOR ONLY</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <select data-ad="tourHdQuality" onchange="window.updateCityAdTourQuality(${ci}, ${ai}, this.value)" style="flex:1;min-width:180px;background:#14121A;border:1.5px solid #06D6A0;color:#06D6A0;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:800;">
+                  <option value="ultra" ${(a.tourHdQuality === 'ultra' || !a.tourHdQuality) ? 'selected' : ''}>✨ Ultra-HD Sharp (Max Retina 3x + Anti-Blur) · Recommended</option>
+                  <option value="balanced" ${a.tourHdQuality === 'balanced' ? 'selected' : ''}>High Definition (2x Sampling)</option>
+                  <option value="standard" ${a.tourHdQuality === 'standard' ? 'selected' : ''}>Standard (1x Sampling)</option>
+                </select>
+                <button type="button" class="ed-btn ed-primary" style="padding:6px 12px;font-size:11px;background:#14121A;border:1.5px solid #FFD23F;color:#FFD23F;font-weight:800;" onclick="window.openCityAd3dTour(${ci}, ${ai}, true)">
+                  🚪 LAUNCH & EDIT 360°
+                </button>
+              </div>
+              <small style="color:var(--text-muted);font-size:10.5px;display:block;margin-top:4px;">🔒 Only you see the HD and External buttons in the 360 viewer. Setting Ultra-HD here makes the 360 tour crystal-clear for all public visitors automatically.</small>
             </div>
           </div>
           ${mediaFieldHTML('Business Media (Photo or Video)', `city-${ci}-ad-${ai}`, a.media, `ad-${ci}-${ai}-type`)}
@@ -3074,6 +3085,15 @@ function saveActiveTabFields() {
           try {
             const parsed = JSON.parse(a.tour3d);
             a.tourConfig = parsed;
+            if (a.tourHdQuality && Array.isArray(a.tourConfig.scenes)) {
+              a.tourConfig.hdQuality = a.tourHdQuality;
+              a.tourConfig.scenes.forEach(s => {
+                s.clarityMode = a.tourHdQuality;
+                s.hdQuality = a.tourHdQuality;
+              });
+              a.tour3d = JSON.stringify(a.tourConfig);
+              a.tourUrl = a.tour3d;
+            }
           } catch(e){}
         }
         if (a.tour3d && a.tour3d.startsWith('file:///')) {
@@ -4331,7 +4351,8 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
         link: ad.link || '#',
         tourUrl: ad.tour3d || ad.tourUrl || '',
         panoUrl: ad.pano3d || ad.panoUrl || '',
-        scenes: (ad.tourConfig && ad.tourConfig.scenes) ? ad.tourConfig.scenes : undefined
+        scenes: (ad.tourConfig && ad.tourConfig.scenes) ? ad.tourConfig.scenes : undefined,
+        hdQuality: ad.tourHdQuality || (ad.tourConfig && ad.tourConfig.hdQuality) || 'ultra'
       });
     } else {
       openTour({
@@ -4339,7 +4360,8 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
         cityIdx: cityIdx,
         adIdx: adIdx,
         title: 'Featured Spot',
-        location: city ? (city.name + ', UT') : 'Wasatch Front, UT'
+        location: city ? (city.name + ', UT') : 'Wasatch Front, UT',
+        hdQuality: 'ultra'
       });
     }
     if (startInEditMode && typeof window.toggleTourEditorMode === 'function') {
@@ -4348,6 +4370,28 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
   } catch (err) {
     console.error('[SpotLIGHT] openCityAd3dTour error:', err);
     if (typeof showToast === 'function') showToast('❌ Could not open 360° tour');
+  }
+};
+
+window.updateCityAdTourQuality = function(cityIdx, adIdx, qualityMode) {
+  const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
+  const ad = (city && Array.isArray(city.ads)) ? city.ads[adIdx] : null;
+  if (!ad) return;
+  ad.tourHdQuality = qualityMode || 'ultra';
+  if (ad.tourConfig && Array.isArray(ad.tourConfig.scenes)) {
+    ad.tourConfig.hdQuality = ad.tourHdQuality;
+    ad.tourConfig.scenes.forEach(s => {
+      s.clarityMode = ad.tourHdQuality;
+      s.hdQuality = ad.tourHdQuality;
+    });
+    ad.tour3d = JSON.stringify(ad.tourConfig);
+    ad.tourUrl = ad.tour3d;
+  }
+  if (typeof window.saveMagazineData === 'function' && window.isEditorUnlocked) {
+    window.saveMagazineData(window.MAGAZINE);
+  }
+  if (typeof showToast === 'function') {
+    showToast(`✨ 360° ${qualityMode.toUpperCase()} Quality activated for everyone!`);
   }
 };
 
