@@ -1363,9 +1363,7 @@
         min-width: 0;
       }
       .tour-badge-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
+        display: none !important; /* removed top-left LIVE VIEW + type badge (custom 360 space / equirectangular photo) */
       }
       .tour-live-badge {
         background: #FF4D6D;
