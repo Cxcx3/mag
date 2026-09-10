@@ -1,0 +1,41 @@
+name: Fix cropper first-paint flash
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add inline initial hide to cropper modal
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path("index.html")
+          text = path.read_text(encoding="utf-8")
+          old = '<div id="imageCropperModal" role="dialog" aria-modal="true" aria-labelledby="cropperTitle">'
+          new = '<div id="imageCropperModal" role="dialog" aria-modal="true" aria-labelledby="cropperTitle" style="display:none;">'
+          if old in text and 'aria-labelledby="cropperTitle" style="display:none;"' not in text:
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          else:
+              print("Cropper inline-hide patch already applied or target not found; no change needed.")
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Fix cropper modal first-paint flash"
+          git push
