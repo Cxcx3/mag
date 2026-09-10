@@ -1171,10 +1171,9 @@
         } else {
           // Native 2:1 Equirectangular Photosphere - Full Optical Resolution
           const maxGpu = threeRenderer ? Math.min(threeRenderer.capabilities.maxTextureSize || 8192, 8192) : 8192;
-          const clarityMode = curScene.clarityMode || window._tourHdQualityMode || 'ultra';
 
           if (nw > maxGpu || nh > Math.floor(maxGpu / 2)) {
-            // Hardware Max Safe Downscaling: Prevent GPU driver crash or memory truncation on 6K/8K images
+            // Hardware Max Safe Downscaling: Prevent GPU driver crash on oversized 12K+ images
             const targetW = maxGpu;
             const targetH = Math.floor(targetW / 2);
             const cCanvas = document.createElement('canvas');
@@ -1183,46 +1182,26 @@
             const cCtx = cCanvas.getContext('2d');
             cCtx.imageSmoothingEnabled = true;
             cCtx.imageSmoothingQuality = 'high';
-            if (clarityMode === 'ultra' && typeof cCtx.filter !== 'undefined') {
-              cCtx.filter = 'contrast(1.05) saturate(1.03)';
-            }
             cCtx.drawImage(img, 0, 0, targetW, targetH);
-            finalTexture = new THREE.CanvasTexture(cCanvas);
-          } else if (clarityMode === 'ultra' && nw <= 4096) {
-            // Subtle micro-contrast on 4K or smaller to eliminate atmospheric haze and lens softness
-            const cCanvas = document.createElement('canvas');
-            cCanvas.width = nw;
-            cCanvas.height = nh;
-            const cCtx = cCanvas.getContext('2d');
-            cCtx.imageSmoothingEnabled = true;
-            cCtx.imageSmoothingQuality = 'high';
-            if (typeof cCtx.filter !== 'undefined') {
-              cCtx.filter = 'contrast(1.04) saturate(1.02)';
-            }
-            cCtx.drawImage(img, 0, 0, nw, nh);
             finalTexture = new THREE.CanvasTexture(cCanvas);
           } else {
             // Direct zero-copy GPU texture upload: 100% pure pixel-for-pixel fidelity
+            // Bypasses 2D canvas context and GPU tile boundaries to completely eliminate cross seams
             finalTexture = new THREE.Texture(img);
             finalTexture.needsUpdate = true;
           }
         }
 
-        // Ultra-HD Crisp Texture Filtering Setup:
-        // Use 16x Anisotropic Trilinear Filtering (LinearMipmapLinearFilter).
-        // WebGL 2 supports NPOT and POT mipmaps natively, enabling full 16x anisotropic ray sampling across all spherical angles!
-        const isWebGl2 = !!(threeRenderer && threeRenderer.capabilities && threeRenderer.capabilities.isWebGL2);
-        const maxAniso = threeRenderer ? (threeRenderer.capabilities.getMaxAnisotropy() || 1) : 1;
-
-        if (isWebGl2 || (isPowerOfTwo(nw) && isPowerOfTwo(nh))) {
-          finalTexture.generateMipmaps = true;
-          finalTexture.minFilter = THREE.LinearMipmapLinearFilter;
-        } else {
-          finalTexture.generateMipmaps = false;
-          finalTexture.minFilter = THREE.LinearFilter;
-        }
+        // Seamless 360° Wrap Setup:
+        // Set wrapS to RepeatWrapping so 0° and 360° meet smoothly without edge clamping.
+        // Disable mipmaps on equirectangular photospheres to prevent GPU screen-space derivative (dFdx)
+        // seam spikes at the 0°/360° UV boundary. LinearFilter ensures pure 1:1 photographic clarity.
+        finalTexture.wrapS = THREE.RepeatWrapping;
+        finalTexture.wrapT = THREE.ClampToEdgeWrapping;
+        finalTexture.generateMipmaps = false;
+        finalTexture.minFilter = THREE.LinearFilter;
         finalTexture.magFilter = THREE.LinearFilter;
-        finalTexture.anisotropy = Math.min(16, maxAniso);
+        finalTexture.anisotropy = 1;
 
         if (typeof THREE.sRGBEncoding !== 'undefined') {
           finalTexture.encoding = THREE.sRGBEncoding;
@@ -1270,6 +1249,9 @@
         console.warn('[SpotLIGHT 360] Image load fallback:', err);
         const fallbackCanvas = getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-fallback');
         const texture = new THREE.CanvasTexture(fallbackCanvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.generateMipmaps = false;
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         if (currentTexture && currentTexture !== texture && !isTextureCached(currentTexture)) currentTexture.dispose();
@@ -1286,6 +1268,9 @@
     } else {
       const srcCanvas = (urlOrCanvas instanceof HTMLCanvasElement) ? urlOrCanvas : getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-main');
       const texture = new THREE.CanvasTexture(srcCanvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      texture.generateMipmaps = false;
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
 
@@ -1528,8 +1513,6 @@
         width: 100%;
         height: 100%;
         display: block;
-        image-rendering: -webkit-optimize-contrast;
-        image-rendering: crisp-edges;
         touch-action: none;
       }
       .tour-embed-frame {
