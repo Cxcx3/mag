@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>The SpotLIGHT</title>
-<meta name="description" content="Tap the link to check it out!">
+<title>The Spotlight Magazine</title>
+<meta name="description" content="Interactive digital flip magazine and live community discovery feed showcasing Wasatch Front local businesses, creators, events, music, and spots ranked by upvotes.">
 
 <!-- Open Graph / Facebook / iMessage / WhatsApp / Instagram / Snapchat Link Preview -->
 <!-- Open Graph / Social Media Preview -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="The SpotLIGHT">
-<meta property="og:title" content="The SpotLIGHT">
-<meta property="og:description" content="Tap the link to check it out!">
+<meta property="og:site_name" content="The Spotlight Magazine">
+<meta property="og:title" content="The Spotlight Magazine">
+<meta property="og:description" content="Interactive digital flip magazine and live community discovery feed showcasing Wasatch Front local businesses, creators, events, music, and spots ranked by upvotes.">
 <meta property="og:url" content="https://cxcx3.github.io/mag/">
 <meta property="og:image" content="https://iili.io/CLtdnkB.jpg">
 <meta property="og:image:secure_url" content="https://iili.io/CLtdnkB.jpg">
@@ -327,6 +327,40 @@
     border-radius: 8px;
     overflow: hidden;
     background: #111;
+  }
+  /* Hide native iOS Safari start playback button & media controls overlay */
+  video::-webkit-media-controls {
+    display: none !important;
+    -webkit-appearance: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  video::-webkit-media-controls-start-playback-button {
+    display: none !important;
+    -webkit-appearance: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+  }
+  video::-webkit-media-controls-play-button {
+    display: none !important;
+    -webkit-appearance: none !important;
+    opacity: 0 !important;
+  }
+  video::-webkit-media-controls-overlay-play-button {
+    display: none !important;
+    -webkit-appearance: none !important;
+    opacity: 0 !important;
+  }
+  video::-webkit-media-controls-enclosure {
+    display: none !important;
+    -webkit-appearance: none !important;
+  }
+  video::-webkit-media-controls-panel {
+    display: none !important;
+    -webkit-appearance: none !important;
   }
   .cover .flip-hint{
     font-size: 11px;
@@ -1629,12 +1663,92 @@
     </div>
   </div>
 
+  <!-- Image Cropper Modal -->
+  <div id="imageCropperModal" role="dialog" aria-modal="true" aria-labelledby="cropperTitle">
+    <div class="cropper-dialog">
+      <div class="cropper-header">
+        <h3 id="cropperTitle">✂️ Crop &amp; Frame Photo</h3>
+        <button type="button" class="cropper-close-btn" onclick="window.closeImageCropper()" title="Close Cropper (Esc)">✕</button>
+      </div>
+      
+      <div class="cropper-toolbar">
+        <div class="crop-ratio-group">
+          <span>Aspect:</span>
+          <button type="button" class="crop-btn-sm" data-ratio="free" onclick="window.setCropAspectRatio('free')">🔓 Free</button>
+          <button type="button" class="crop-btn-sm" data-ratio="16/9" onclick="window.setCropAspectRatio('16/9')">16:9 Ad</button>
+          <button type="button" class="crop-btn-sm" data-ratio="4/3" onclick="window.setCropAspectRatio('4/3')">4:3 Photo</button>
+          <button type="button" class="crop-btn-sm" data-ratio="1/1" onclick="window.setCropAspectRatio('1/1')">1:1 Square</button>
+          <button type="button" class="crop-btn-sm" data-ratio="3/4" onclick="window.setCropAspectRatio('3/4')">3:4 Portrait</button>
+          <button type="button" class="crop-btn-sm" data-ratio="9/16" onclick="window.setCropAspectRatio('9/16')">9:16 Full</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <button type="button" class="crop-btn-sm" onclick="window.rotateCropper(90)" title="Rotate 90° Clockwise">🔄 Rotate</button>
+          <button type="button" class="crop-btn-sm" onclick="window.flipCropperH()" title="Flip Horizontally">↔️ Flip</button>
+          <button type="button" class="crop-btn-sm" onclick="window.centerCropBox()" title="Center selection">🎯 Center</button>
+          <button type="button" class="crop-btn-sm" onclick="window.maximizeCropBox()" title="Fit to full photo">⛶ Maximize</button>
+          <label class="crop-btn-sm" style="cursor:pointer;position:relative;" title="Pick a different local image">
+            <input type="file" accept="image/*" style="position:absolute;inset:0;opacity:0.001;cursor:pointer;width:100%;height:100%;" onchange="window.handleCropperLocalFile(this)">
+            📁 Replace Photo
+          </label>
+        </div>
+      </div>
+      
+      <div class="cropper-workspace" id="cropperWorkspace">
+        <div id="cropperLoading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(13,11,18,0.85);z-index:20;font-size:14px;font-weight:700;color:#FFD23F;">
+          ⏳ Loading image...
+        </div>
+        <div class="cropper-stage" id="cropperStage">
+          <img id="cropperSourceImg" alt="Cropper Source">
+          <div class="cropper-box" id="cropperCropBox">
+            <div class="crop-grid-line crop-grid-h1"></div>
+            <div class="crop-grid-line crop-grid-h2"></div>
+            <div class="crop-grid-line crop-grid-v1"></div>
+            <div class="crop-grid-line crop-grid-v2"></div>
+            
+            <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
+            <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
+            <div class="crop-handle crop-handle-se" data-handle="se"></div>
+            <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
+            
+            <div class="crop-handle crop-handle-n" data-handle="n"></div>
+            <div class="crop-handle crop-handle-s" data-handle="s"></div>
+            <div class="crop-handle crop-handle-w" data-handle="w"></div>
+            <div class="crop-handle crop-handle-e" data-handle="e"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="cropper-controls-bar">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:#aaa;text-transform:uppercase;font-weight:700;">Crop Box Size:</span>
+          <button type="button" class="crop-btn-sm" style="padding:4px 8px;" onclick="window.adjustCropBoxScale(-0.1)">−</button>
+          <input type="range" id="cropBoxScaleSlider" min="20" max="100" value="85" style="width:110px;accent-color:#FFD23F;cursor:pointer;" oninput="window.setCropBoxScale(this.value)">
+          <button type="button" class="crop-btn-sm" style="padding:4px 8px;" onclick="window.adjustCropBoxScale(0.1)">+</button>
+          <span id="cropBoxScaleVal" style="font-size:11px;color:#FFD23F;font-weight:700;min-width:34px;">85%</span>
+        </div>
+        <div class="crop-size-readout" id="cropDimensionsReadout">
+          0 × 0 px
+        </div>
+      </div>
+      
+      <div class="cropper-footer">
+        <div style="font-size:11px;color:rgba(245,241,232,0.6);display:flex;align-items:center;gap:6px;">
+          <span>💡 Drag inside box to move • Drag yellow corners to resize</span>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button type="button" class="ed-btn ed-light" onclick="window.closeImageCropper()">CANCEL</button>
+          <button type="button" class="ed-btn ed-primary" id="cropApplyBtn" onclick="window.applyCroppedImage()">
+            ✂️ APPLY CROP &amp; SAVE
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
-<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://docs.opencv.org/4.x/opencv.js" async></script>
 <script src="tour-3d.js"></script>
 <script>
 const SUPABASE_URL = 'https://rcgtgmyiygdkbmbfspbo.supabase.co';
@@ -1776,9 +1890,9 @@ const DEFAULT_MAGAZINE = {
     mainText: 'The ',
     highlight: 'Spotlight',
     subtitle: 'Salt Lake City → Draper',
-    issueTag: 'Issue 01 · August 2026',
-    coverPhotoUrl: '',
-    coverPhotoType: 'image',
+    issueTag: 'Issue 01 · SEPTEMBER 2026',
+    coverPhotoUrl: 'https://rcgtgmyiygdkbmbfspbo.supabase.co/storage/v1/object/public/spotlight-media/1788918899932-zqf4o8-promo.mp4.mp4',
+    coverPhotoType: 'video',
     featureTitle: 'This month’s local stories',
     featureSummary: 'Neighborhood culture, business wins, and the people shaping the Wasatch Front one block at a time.',
     featureImageUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80',
@@ -2131,6 +2245,9 @@ function normalizeMagazine(saved){
         theme: city.theme || defaultCity.theme || `theme-c${idx+1}`,
         num: city.num || String(idx + 1).padStart(2, '0'),
         name: city.name || defaultCity.name || `City ${idx+1}`,
+        stampText: city.stampText || city.stamp || defaultCity.stampText || 'Local Spotlight',
+        featuredFaceLabel: city.featuredFaceLabel || city.featuredLabel || defaultCity.featuredFaceLabel || 'Featured Face',
+        businessesLabel: city.businessesLabel || defaultCity.businessesLabel || "This Month's Businesses",
         background: normalizeMedia(city.background, null),
         model,
         ads
@@ -2216,6 +2333,54 @@ async function restoreAdminSession(){
   }
 }
 
+function playYouTubeIframe(iframe) {
+  if (!iframe || !iframe.contentWindow) return;
+  try {
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
+  } catch (e) {}
+}
+
+function pauseYouTubeIframe(iframe) {
+  if (!iframe || !iframe.contentWindow) return;
+  try {
+    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
+  } catch (e) {}
+}
+
+window.playYouTubeIframe = playYouTubeIframe;
+window.pauseYouTubeIframe = pauseYouTubeIframe;
+
+window.handleYouTubeIframeLoad = function (iframe) {
+  if (!iframe) return;
+  const page = iframe.closest('.page');
+  const isActive = page ? (page.classList.contains('active-page') || page.id === ('page-' + current)) : true;
+  if (isActive) {
+    playYouTubeIframe(iframe);
+    setTimeout(() => playYouTubeIframe(iframe), 150);
+    setTimeout(() => playYouTubeIframe(iframe), 500);
+    setTimeout(() => playYouTubeIframe(iframe), 1200);
+    setTimeout(() => playYouTubeIframe(iframe), 2500);
+  }
+};
+
+window.addEventListener('message', (e) => {
+  if (!e.data) return;
+  let data = e.data;
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch (_) { return; }
+  }
+  if (!data || typeof data !== 'object') return;
+
+  if (data.event === 'onReady' || data.event === 'initialDelivery') {
+    const activePage = document.getElementById('page-' + current);
+    if (activePage) {
+      activePage.querySelectorAll('.yt-embed-wrapper iframe').forEach(iframe => playYouTubeIframe(iframe));
+    }
+  }
+});
+
 function syncActiveVideos() {
   const activePage = document.getElementById('page-' + current);
   if (!activePage) return;
@@ -2228,51 +2393,32 @@ function syncActiveVideos() {
     v.playsInline = true;
     v.setAttribute('playsinline', '');
     v.setAttribute('webkit-playsinline', '');
-    const badge = v.parentElement?.querySelector('.video-play-badge');
     if (v.paused) {
-      const p = v.play();
-      if (p !== undefined) {
-        p.then(() => {
-          if (badge) badge.style.display = 'none';
-        }).catch(() => {
-          if (badge) badge.style.display = 'flex';
-        });
-      }
+      v.play().catch(() => {});
     }
   });
 
   const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
   ytIframes.forEach(iframe => {
-    try {
-      iframe.contentWindow?.postMessage('{"event":"command","func":"mute","args":""}', '*');
-      iframe.contentWindow?.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-    } catch (e) {}
+    playYouTubeIframe(iframe);
   });
 
   document.querySelectorAll('.page:not(.active-page) video').forEach(v => {
     try { v.pause(); } catch (e) {}
   });
   document.querySelectorAll('.page:not(.active-page) .yt-embed-wrapper iframe').forEach(iframe => {
-    try {
-      iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-    } catch (e) {}
+    pauseYouTubeIframe(iframe);
   });
 }
 
 function toggleVideoPlayback(videoEl) {
   if (!videoEl) return;
-  const badge = videoEl.parentElement?.querySelector('.video-play-badge');
   if (videoEl.paused) {
     videoEl.muted = true;
     videoEl.playsInline = true;
-    videoEl.play().then(() => {
-      if (badge) badge.style.display = 'none';
-    }).catch(() => {
-      if (badge) badge.style.display = 'flex';
-    });
+    videoEl.play().catch(() => {});
   } else {
     videoEl.pause();
-    if (badge) badge.style.display = 'flex';
   }
 }
 
@@ -2288,15 +2434,22 @@ function mediaBlock(media, placeholderText, extraClass){
   if(type === 'video'){
     const ytId = parseYouTubeId(url);
     if(ytId){
+      const originParam = (typeof window !== 'undefined' && window.location && window.location.origin)
+        ? '&origin=' + encodeURIComponent(window.location.origin)
+        : '';
       return `
-        <div class="${cls} video-wrapper yt-embed-wrapper" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
+        <div class="${cls} video-wrapper yt-embed-wrapper" data-yt-id="${ytId}" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
           <iframe 
-            src="https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&muted=1&loop=1&playlist=${ytId}&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&enablejsapi=1&origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}"
+            class="magazine-yt-iframe"
+            src="https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&playsinline=1&controls=0&loop=1&playlist=${ytId}&enablejsapi=1&rel=0&modestbranding=1&iv_load_policy=3&disablekb=1${originParam}"
             title="Video"
-            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
-            allow="autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;"
+            allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope; clipboard-write; web-share"
             allowfullscreen
             loading="eager"
+            playsinline
+            webkit-playsinline
+            onload="handleYouTubeIframeLoad(this)"
           ></iframe>
         </div>
       `;
@@ -2309,9 +2462,11 @@ function mediaBlock(media, placeholderText, extraClass){
           <iframe 
             src="https://player.vimeo.com/video/${vimeoId}?autoplay=1&muted=1&loop=1&background=1&playsinline=1&autopause=0"
             title="Video"
-            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:auto;"
-            allow="autoplay; fullscreen; picture-in-picture"
+            style="position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;"
+            allow="autoplay; fullscreen; picture-in-picture; accelerometer; gyroscope"
             loading="eager"
+            playsinline
+            webkit-playsinline
           ></iframe>
         </div>
       `;
@@ -2323,28 +2478,28 @@ function mediaBlock(media, placeholderText, extraClass){
     }
 
     return `
-      <div class="${cls} video-wrapper" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;">
+      <div class="${cls} video-wrapper" style="position:relative;overflow:hidden;background:#000;width:100%;height:100%;pointer-events:auto;">
         <video 
           class="magazine-video"
           src="${url}"
           ${posterAttr}
           autoplay 
-          muted 
+          muted="muted"
           loop 
           playsinline 
           webkit-playsinline 
           x5-playsinline
-          x5-video-player-type="h5"
+          disablePictureInPicture
+          controlsList="nodownload nofullscreen noremoteplayback"
+          tabindex="-1"
           preload="auto"
-          style="width:100%;height:100%;object-fit:cover;display:block;"
-          onclick="toggleVideoPlayback(this)"
-          onplay="const b=this.parentElement?.querySelector('.video-play-badge'); if(b) b.style.display='none';"
-          onpause="const b=this.parentElement?.querySelector('.video-play-badge'); if(b && !this.closest('.page.flipped')) b.style.display='flex';"
+          style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;"
+          onloadstart="this.muted=true; this.defaultMuted=true;"
+          onloadedmetadata="this.muted=true; this.defaultMuted=true; this.play().catch(function(){});"
+          onloadeddata="this.muted=true; this.defaultMuted=true; this.play().catch(function(){});"
+          oncanplay="this.muted=true; this.defaultMuted=true; this.play().catch(function(){});"
           onerror="const errBox=this.parentElement?.querySelector('.video-error-badge'); if(errBox) errBox.style.display='flex';"
-        >
-          <source src="${url}" type="video/mp4">
-        </video>
-        <div class="video-play-badge" onclick="toggleVideoPlayback(this.previousElementSibling)" style="display:none;position:absolute;inset:0;margin:auto;width:48px;height:48px;border-radius:50%;background:rgba(20,18,26,0.8);color:#FFD23F;border:2px solid #FFD23F;align-items:center;justify-content:center;font-size:18px;cursor:pointer;pointer-events:auto;z-index:4;box-shadow:0 4px 16px rgba(0,0,0,0.6);touch-action:manipulation;">▶</div>
+        ></video>
         <div class="video-error-badge" style="display:none;position:absolute;inset:0;background:rgba(20,18,26,0.92);color:#FFD23F;flex-direction:column;align-items:center;justify-content:center;padding:16px;text-align:center;font-size:11px;font-weight:700;z-index:5;line-height:1.4;">
           <span style="font-size:22px;margin-bottom:6px;">⚠️</span>
           <span>Could not load video</span>
@@ -2405,6 +2560,9 @@ function cityPage(c, idx){
   const cityName = c.name || `City ${idx + 1}`;
   const cityNum = c.num || String(idx + 1).padStart(2, '0');
   const cityTheme = c.theme || `theme-c${idx + 1}`;
+  const stampText = c.stampText || c.stamp || 'Local Spotlight';
+  const featuredFaceLabel = c.featuredFaceLabel || c.featuredLabel || 'Featured Face';
+  const businessesLabel = c.businessesLabel || "This Month's Businesses";
 
   return {
     id: 'city-' + cityNum,
@@ -2421,8 +2579,8 @@ function cityPage(c, idx){
           <span class="cnum">${cityNum} / ${String(totalCities).padStart(2,'0')}</span>
         </div>
       </div>
-      <div class="stamp">Local Spotlight</div>
-      <div class="section-label">Featured Face</div>
+      <div class="stamp">${esc(stampText)}</div>
+      <div class="section-label">${esc(featuredFaceLabel)}</div>
       <div class="spotlight-card">
         ${mediaBlock(model.media, '[ MODEL PHOTO / VIDEO ]', 'spotlight-photo')}
         <div class="spotlight-info">
@@ -2431,7 +2589,7 @@ function cityPage(c, idx){
           <p class="bio">${model.bio || ''}</p>
         </div>
       </div>
-      <div class="section-label">This Month's Businesses</div>
+      <div class="section-label">${esc(businessesLabel)}</div>
       ${adsHtml}
       <div class="footer-note" style="font-size:9px;color:#888;text-align:center;margin-top:8px;">Sample ad — reserve this spot for your business</div>
     `
@@ -2480,6 +2638,52 @@ editorCss.textContent = `
   .media-type-row label{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:700}
   .media-preview-box{margin-top:8px;display:flex;align-items:center;gap:12px;min-height:60px;}
   .media-preview-thumb{width:90px;height:65px;border-radius:8px;object-fit:cover;border:1px solid #ccc;background:#000;}
+
+  /* Image Cropper Modal & Controls */
+  #imageCropperModal{position:fixed;inset:0;z-index:10010;background:rgba(10,8,14,0.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;touch-action:none;}
+  .cropper-dialog{background:#1e1b26;color:#F5F1E8;border:2px solid #FFD23F;border-radius:14px;width:min(900px,96vw);max-height:96vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,0.85);overflow:hidden;animation:cropModalIn 0.2s cubic-bezier(0.16,1,0.3,1);}
+  @keyframes cropModalIn{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
+  .cropper-header{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.12);display:flex;justify-content:space-between;align-items:center;background:#14121A;}
+  .cropper-header h3{margin:0;font-size:15px;font-family:'Space Grotesk',sans-serif;font-weight:700;color:#FFD23F;display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:0.04em;}
+  .cropper-close-btn{background:transparent;border:none;color:#aaa;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:6px;touch-action:manipulation;line-height:1;}
+  .cropper-close-btn:hover{color:#fff;background:rgba(255,255,255,0.1);}
+  
+  .cropper-toolbar{padding:10px 16px;background:#14121A;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;}
+  .crop-ratio-group{display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+  .crop-ratio-group span{font-size:11px;font-weight:800;color:#999;text-transform:uppercase;margin-right:4px;}
+  .crop-btn-sm{background:rgba(255,255,255,0.08);color:#F5F1E8;border:1px solid rgba(255,255,255,0.18);border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.12s;display:inline-flex;align-items:center;gap:4px;touch-action:manipulation;user-select:none;}
+  .crop-btn-sm:hover{background:rgba(255,210,63,0.2);border-color:#FFD23F;color:#FFD23F;}
+  .crop-btn-sm.active{background:#FFD23F;color:#14121A;border-color:#FFD23F;font-weight:800;}
+  
+  .cropper-workspace{flex:1;min-height:300px;max-height:56vh;display:flex;align-items:center;justify-content:center;background:#0d0b12;position:relative;overflow:hidden;user-select:none;touch-action:none;padding:16px;}
+  .cropper-stage{position:relative;display:inline-block;box-shadow:0 6px 24px rgba(0,0,0,0.6);line-height:0;user-select:none;}
+  #cropperSourceImg{display:block;user-select:none;-webkit-user-drag:none;pointer-events:none;transform-origin:center center;}
+  
+  .cropper-box{position:absolute;border:2px solid #FFD23F;box-shadow:0 0 0 9999px rgba(10,8,14,0.68);cursor:move;touch-action:none;box-sizing:border-box;}
+  .cropper-box::after{content:'';position:absolute;inset:0;pointer-events:none;}
+  
+  .crop-grid-line{position:absolute;pointer-events:none;}
+  .crop-grid-h1{top:33.333%;left:0;right:0;height:1px;border-top:1px dashed rgba(255,210,63,0.45);}
+  .crop-grid-h2{top:66.666%;left:0;right:0;height:1px;border-top:1px dashed rgba(255,210,63,0.45);}
+  .crop-grid-v1{left:33.333%;top:0;bottom:0;width:1px;border-left:1px dashed rgba(255,210,63,0.45);}
+  .crop-grid-v2{left:66.666%;top:0;bottom:0;width:1px;border-left:1px dashed rgba(255,210,63,0.45);}
+  
+  .crop-handle{position:absolute;width:14px;height:14px;background:#FFD23F;border:2px solid #14121A;border-radius:3px;z-index:10;touch-action:none;}
+  .crop-handle::after{content:'';position:absolute;inset:-8px;}
+  .crop-handle-nw{top:-8px;left:-8px;cursor:nwse-resize;}
+  .crop-handle-ne{top:-8px;right:-8px;cursor:nesw-resize;}
+  .crop-handle-se{bottom:-8px;right:-8px;cursor:nwse-resize;}
+  .crop-handle-sw{bottom:-8px;left:-8px;cursor:nesw-resize;}
+  .crop-handle-n{top:-8px;left:calc(50% - 7px);cursor:ns-resize;}
+  .crop-handle-s{bottom:-8px;left:calc(50% - 7px);cursor:ns-resize;}
+  .crop-handle-w{left:-8px;top:calc(50% - 7px);cursor:ew-resize;}
+  .crop-handle-e{right:-8px;top:calc(50% - 7px);cursor:ew-resize;}
+  
+  .cropper-controls-bar{padding:10px 18px;background:#14121A;border-top:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12px;}
+  .crop-size-readout{font-size:11px;font-weight:700;color:#FFD23F;font-family:monospace;background:rgba(0,0,0,0.5);padding:4px 8px;border-radius:4px;border:1px solid rgba(255,210,63,0.3);}
+  
+  .cropper-footer{padding:14px 18px;border-top:1px solid rgba(255,255,255,0.12);display:flex;justify-content:space-between;align-items:center;gap:12px;background:#1a1722;}
+  .ed-crop-btn{display:inline-flex;align-items:center;gap:6px;touch-action:manipulation;}
 `;
 document.head.appendChild(editorCss);
 
@@ -2511,7 +2715,7 @@ document.body.appendChild(editorPanel);
 function esc(v){ return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 let activeTab = 'cover';
 
-function renderMediaPreview(url, type) {
+function renderMediaPreview(url, type, fieldName) {
   if (!url) return '';
   const detectedType = type || detectMediaType(url);
   if (detectedType === 'video') {
@@ -2525,13 +2729,28 @@ function renderMediaPreview(url, type) {
     }
     return `<video src="${url}" class="media-preview-thumb" autoplay muted loop playsinline webkit-playsinline></video><span style="font-size:11px;font-weight:700;color:#2e7d32">▶ Video ready</span>`;
   }
-  return `<img src="${url}" class="media-preview-thumb" alt="Preview"><span style="font-size:11px;font-weight:700;color:#2e7d32">✓ Image ready</span>`;
+  const cropBtn = fieldName ? `
+    <button type="button" class="ed-btn ed-crop-btn" style="padding:6px 12px;font-size:11px;background:#FFD23F;color:#14121A;border:none;margin-left:auto;font-weight:800;border-radius:6px;gap:5px;display:inline-flex;align-items:center;" onclick="window.openImageCropperForField('${fieldName}')">
+      ✂️ Crop &amp; Frame Photo
+    </button>
+  ` : '';
+  return `
+    <div style="display:flex;align-items:center;gap:12px;width:100%;flex-wrap:wrap;">
+      <img src="${url}" class="media-preview-thumb" alt="Preview" style="cursor:pointer;" onclick="${fieldName ? `window.openImageCropperForField('${fieldName}')` : ''}" title="Click to crop photo">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#2e7d32">✓ Image ready</div>
+        <div style="font-size:10px;color:#666;">Tap crop button to frame &amp; position</div>
+      </div>
+      ${cropBtn}
+    </div>
+  `;
 }
 
 function mediaFieldHTML(label, fieldName, currentMedia, typeName) {
   const url = currentMedia?.url || '';
   const poster = currentMedia?.poster || '';
   const type = currentMedia?.type || detectMediaType(url);
+  const isImage = type === 'image';
   return `
     <div class="ed-field full" data-media-container="${fieldName}">
       <label>${label}</label>
@@ -2541,14 +2760,19 @@ function mediaFieldHTML(label, fieldName, currentMedia, typeName) {
       </div>
       <input data-media-url="${fieldName}" data-image-field="${fieldName}" data-type-name="${typeName}" data-poster="${esc(poster)}" placeholder="Upload file below, or paste YouTube / Vimeo / Image URL" value="${esc(url)}">
       <div class="upload-box">
-        <label class="upload-label-btn">
-          <input type="file" accept="image/*,video/*,video/mp4,video/webm,video/quicktime,video/mov" class="upload-native-input" data-upload-target="${fieldName}" data-type-name="${typeName}">
-          <span class="upload-btn-text" id="status-text-${fieldName}">📁 Tap to Choose Photo / Video</span>
-        </label>
-        <span class="upload-hint">📸 Photos & videos upload directly to your Supabase media library. 🎥 You can also paste any YouTube (including Shorts) or Vimeo link!</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <label class="upload-label-btn" style="flex:1;min-width:200px;">
+            <input type="file" accept="image/*,video/*,video/mp4,video/webm,video/quicktime,video/mov" class="upload-native-input" data-upload-target="${fieldName}" data-type-name="${typeName}">
+            <span class="upload-btn-text" id="status-text-${fieldName}">📁 Tap to Choose Photo / Video</span>
+          </label>
+          <button type="button" class="ed-btn ed-crop-btn" id="crop-btn-${fieldName}" style="display:${url && isImage ? 'inline-flex' : 'none'};padding:10px 14px;background:#FFD23F;color:#14121A;border:none;font-size:12px;font-weight:800;gap:6px;" onclick="window.openImageCropperForField('${fieldName}')">
+            ✂️ Crop Photo
+          </button>
+        </div>
+        <span class="upload-hint">📸 Photos &amp; videos upload directly to your Supabase media library. ✂️ Tap <b>Crop Photo</b> to crop and frame images so they fit your cards!</span>
       </div>
       <div class="media-preview-box" id="preview-${fieldName}">
-        ${renderMediaPreview(url, type)}
+        ${renderMediaPreview(url, type, fieldName)}
       </div>
     </div>
   `;
@@ -2672,7 +2896,7 @@ function renderEditor(){
     const ci = +activeTab.split('-')[1];
     const c = MAGAZINE.cities[ci];
     const adsHtml = (c.ads || []).map((a, ai) => `
-      <div class="ad-editor" data-ai="${ai}">
+      <div class="ad-editor" data-ci="${ci}" data-ai="${ai}">
         <div class="ad-editor-head">
           <h4>Business ${ai + 1}</h4>
           <div class="ad-editor-actions">
@@ -2715,6 +2939,15 @@ function renderEditor(){
               <option value="theme-draper" ${c.theme === 'theme-draper' ? 'selected' : ''}>Violet (Draper)</option>
             </select>
           </div>
+          <div class="ed-field"><label>Stamp Badge Text (Top-Right)</label><input data-key="stampText" value="${esc(c.stampText || c.stamp || 'Local Spotlight')}" placeholder="Local Spotlight"></div>
+          <div class="ed-field"><label>Featured Face Label</label><input data-key="featuredFaceLabel" value="${esc(c.featuredFaceLabel || c.featuredLabel || 'Featured Face')}" placeholder="Featured Face"></div>
+          <div class="ed-field"><label>Businesses Section Label</label><input data-key="businessesLabel" value="${esc(c.businessesLabel || "This Month's Businesses")}" placeholder="This Month's Businesses"></div>
+        </div>
+        <div style="font-size:11px;color:#555;margin:8px 0 14px;padding:8px 12px;background:rgba(255,210,63,0.15);border:1px dashed #FFD23F;border-radius:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <span>💡 Want these badges &amp; labels copied across all other cities?</span>
+          <button type="button" class="ed-btn ed-light" style="padding:4px 10px;font-size:11px;min-height:30px;background:#14121A;color:#FFD23F;border:none;" onclick="applyLabelsToAllCities(${ci})">
+            📋 Apply to All Cities
+          </button>
         </div>
         <h4>Featured Person</h4>
         <div class="ed-grid">
@@ -2749,6 +2982,25 @@ function renderEditor(){
   }
   bindUploadInputs();
 }
+
+window.applyLabelsToAllCities = function(sourceCi) {
+  saveActiveTabFields();
+  const source = MAGAZINE.cities && MAGAZINE.cities[+sourceCi];
+  if (!source) return;
+  const stamp = source.stampText || 'Local Spotlight';
+  const featured = source.featuredFaceLabel || 'Featured Face';
+  const biz = source.businessesLabel || "This Month's Businesses";
+  MAGAZINE.cities.forEach(c => {
+    c.stampText = stamp;
+    c.featuredFaceLabel = featured;
+    c.businessesLabel = biz;
+  });
+  renderEditor();
+  bindEditor();
+  if (typeof showToast === 'function') {
+    showToast(`✅ Copied "${stamp}" & "${featured}" to all cities!`);
+  }
+};
 
 function saveActiveTabFields() {
   if (!MAGAZINE) return;
@@ -2878,11 +3130,20 @@ function bindUploadInputs(){
 
         const previewContainer = document.getElementById('preview-' + targetName);
         if (previewContainer) {
-          previewContainer.innerHTML = renderMediaPreview(finalUrl, finalType);
+          previewContainer.innerHTML = renderMediaPreview(finalUrl, finalType, targetName);
+        }
+
+        const cropBtn = document.getElementById('crop-btn-' + targetName);
+        if (cropBtn) {
+          cropBtn.style.display = (finalType === 'image' && finalUrl) ? 'inline-flex' : 'none';
         }
 
         if (statusLabel) {
-          statusLabel.textContent = `✅ ${isVideo ? 'Video' : 'Photo'} Ready! Tap to change`;
+          if (finalType === 'image') {
+            statusLabel.innerHTML = `✅ Photo Ready! &nbsp;<button type="button" style="background:#FFD23F;color:#14121A;border:none;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:800;cursor:pointer;" onclick="event.stopPropagation(); window.openImageCropperForField('${targetName}')">Crop Photo ✂️</button>`;
+          } else {
+            statusLabel.textContent = `✅ Video Ready! Tap to change`;
+          }
         }
       } catch (err) {
         console.error('Upload failed', err);
@@ -2914,7 +3175,11 @@ function bindUploadInputs(){
 
       const previewContainer = document.getElementById('preview-' + targetName);
       if (previewContainer) {
-        previewContainer.innerHTML = renderMediaPreview(val, effectiveType);
+        previewContainer.innerHTML = renderMediaPreview(val, effectiveType, targetName);
+      }
+      const cropBtn = document.getElementById('crop-btn-' + targetName);
+      if (cropBtn) {
+        cropBtn.style.display = (effectiveType === 'image' && val) ? 'inline-flex' : 'none';
       }
     };
 
@@ -2930,9 +3195,14 @@ function bindUploadInputs(){
       if (!container) return;
       const input = container.querySelector('input[data-image-field]');
       if (!input) return;
+      const fieldName = input.dataset.imageField;
       const previewContainer = container.querySelector('.media-preview-box');
       if (previewContainer) {
-        previewContainer.innerHTML = renderMediaPreview(input.value.trim(), radio.value);
+        previewContainer.innerHTML = renderMediaPreview(input.value.trim(), radio.value, fieldName);
+      }
+      const cropBtn = document.getElementById('crop-btn-' + fieldName);
+      if (cropBtn) {
+        cropBtn.style.display = (radio.value === 'image' && input.value.trim()) ? 'inline-flex' : 'none';
       }
     });
   });
@@ -3793,7 +4063,7 @@ function renderPageContent(){
   dotsEl.innerHTML = '';
   PAGES.forEach((p, idx) => {
     const pageEl = document.createElement('div');
-    pageEl.className = 'page';
+    pageEl.className = 'page' + (idx === current ? ' active-page' : '');
     pageEl.id = 'page-' + idx;
     const html = typeof p.html === 'function' ? p.html() : p.html;
     pageEl.innerHTML = `
@@ -4032,6 +4302,8 @@ window.triggerAdShareByIndex = function(cityIdx, adIdx, pageIdx, event) {
 };
 
 window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
+  // Clear any spot editing pointer to avoid cross-tour bleeding
+  window.currentEditingSpotId = null;
   const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
   const ad = (city && Array.isArray(city.ads)) ? city.ads[adIdx] : (MAGAZINE && Array.isArray(MAGAZINE.ads) ? MAGAZINE.ads[adIdx] : null);
   window.currentEditingAdRef = ad || null;
@@ -4046,6 +4318,9 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
   try {
     if (ad) {
       openTour({
+        tourId: `city-${cityIdx}-ad-${adIdx}`,
+        cityIdx: cityIdx,
+        adIdx: adIdx,
         title: ad.name || 'Featured Spot',
         tag: ad.tag || (city ? city.name : 'Local Spot'),
         location: city ? (city.name + ', UT') : 'Wasatch Front, UT',
@@ -4057,7 +4332,13 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
         scenes: (ad.tourConfig && ad.tourConfig.scenes) ? ad.tourConfig.scenes : undefined
       });
     } else {
-      openTour();
+      openTour({
+        tourId: `city-${cityIdx}-ad-${adIdx}`,
+        cityIdx: cityIdx,
+        adIdx: adIdx,
+        title: 'Featured Spot',
+        location: city ? (city.name + ', UT') : 'Wasatch Front, UT'
+      });
     }
     if (startInEditMode && typeof window.toggleTourEditorMode === 'function') {
       setTimeout(function () { window.toggleTourEditorMode(true); }, 250);
@@ -4069,6 +4350,10 @@ window.openCityAd3dTour = function(cityIdx, adIdx, startInEditMode = false) {
 };
 
 window.openSpot3dTour = function(spotId) {
+  // Clear any city ad editing pointers so community spots never bleed into or overwrite city ads
+  window.currentEditingAdRef = null;
+  window.currentEditingCityIdx = null;
+  window.currentEditingAdIdx = null;
   window.currentEditingSpotId = spotId;
   const p = (Array.isArray(COMMUNITY_POSTS)) ? COMMUNITY_POSTS.find(item => String(item.id) === String(spotId)) : null;
   const openTour = window.open3dTourModal || (typeof open3dTourModal === 'function' ? open3dTourModal : null);
@@ -4080,15 +4365,23 @@ window.openSpot3dTour = function(spotId) {
   try {
     if (p) {
       openTour({
+        tourId: `spot-${spotId}`,
+        spotId: spotId,
         title: p.title || 'Community Spot',
         tag: p.category || 'Community Spot',
         location: p.location || 'Wasatch Front, UT',
         blurb: p.description || '',
         link: p.link || '#',
-        tourUrl: p.tour3d || p.tourUrl || ''
+        tourUrl: p.tour3d || p.tourUrl || '',
+        panoUrl: p.pano3d || p.panoUrl || '',
+        scenes: (p.tourConfig && p.tourConfig.scenes) ? p.tourConfig.scenes : undefined
       });
     } else {
-      openTour();
+      openTour({
+        tourId: `spot-${spotId}`,
+        spotId: spotId,
+        title: 'Community Spot'
+      });
     }
   } catch (err) {
     console.error('[SpotLIGHT] openSpot3dTour error:', err);
@@ -4248,7 +4541,10 @@ function render(){
   nextBtn.disabled = current === total - 1;
   pageCountEl.textContent = `Page ${current + 1} of ${total}`;
   
-  setTimeout(syncActiveVideos, 100);
+  syncActiveVideos();
+  setTimeout(syncActiveVideos, 120);
+  setTimeout(syncActiveVideos, 500);
+  setTimeout(syncActiveVideos, 1200);
 
   const activePage = document.getElementById('page-' + current);
   if (activePage) {
@@ -4268,19 +4564,21 @@ function unlockAndPlayVisibleVideos() {
       v.playsInline = true;
       v.setAttribute('playsinline', '');
       v.setAttribute('webkit-playsinline', '');
-      const badge = v.parentElement?.querySelector('.video-play-badge');
       if (v.paused) {
-        const p = v.play();
-        if (p !== undefined) {
-          p.then(() => { if (badge) badge.style.display = 'none'; }).catch(() => { if (badge) badge.style.display = 'flex'; });
-        }
+        v.play().catch(() => {});
       }
+    });
+
+    const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
+    ytIframes.forEach(iframe => {
+      playYouTubeIframe(iframe);
     });
   }
 }
 
-['touchstart', 'touchend', 'pointerdown', 'click'].forEach(evt => {
-  document.addEventListener(evt, unlockAndPlayVisibleVideos, { passive: true });
+['touchstart', 'touchend', 'pointerdown', 'pointerup', 'click', 'scroll', 'touchmove', 'mousemove', 'wheel', 'focus', 'pageshow'].forEach(evt => {
+  window.addEventListener(evt, unlockAndPlayVisibleVideos, { passive: true, capture: true });
+  document.addEventListener(evt, unlockAndPlayVisibleVideos, { passive: true, capture: true });
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -4290,8 +4588,15 @@ document.addEventListener('visibilitychange', () => {
 function nextPage(){ if(current < total - 1){ current++; render(); } }
 function prevPage(){ if(current > 0){ current--; render(); } }
 
-function applyMagazineUpdates() {
+let lastAppliedMagJson = '';
+function applyMagazineUpdates(force) {
   window.MAGAZINE = MAGAZINE;
+  const currentJson = JSON.stringify(MAGAZINE);
+  if (!force && lastAppliedMagJson === currentJson && bookEl && bookEl.children.length > 0) {
+    render();
+    return;
+  }
+  lastAppliedMagJson = currentJson;
   buildPages();
   renderPageContent();
   render();
@@ -4510,7 +4815,593 @@ async function start() {
   }
 }
 
+/* =========================================================
+   INTERACTIVE IMAGE CROPPER ENGINE
+   ========================================================= */
+const cropperState = {
+  activeField: null,
+  sourceUrl: '',
+  aspectRatio: '16/9',
+  rotation: 0,
+  flipH: 1,
+  naturalW: 0,
+  naturalH: 0,
+  stageW: 300,
+  stageH: 200,
+  box: { x: 0, y: 0, w: 100, h: 100 },
+  isDragging: false,
+  dragMode: null,
+  dragStartPointer: { x: 0, y: 0 },
+  dragStartBox: { x: 0, y: 0, w: 0, h: 0 }
+};
+
+window.openImageCropperForField = function(fieldName) {
+  const input = document.querySelector(`[data-image-field="${fieldName}"]`) || document.querySelector(`[data-media-url="${fieldName}"]`);
+  let url = input ? input.value.trim() : '';
+  
+  if (!url) {
+    const fileInput = document.querySelector(`input[type="file"][data-upload-target="${fieldName}"]`);
+    if (fileInput) {
+      fileInput.click();
+      return;
+    }
+  }
+
+  let recRatio = '16/9';
+  if (fieldName.includes('model') || fieldName.includes('face') || fieldName.includes('avatar')) {
+    recRatio = '1/1';
+  } else if (fieldName.includes('cover-photo') || fieldName.includes('story')) {
+    recRatio = '3/4';
+  } else if (fieldName.includes('background')) {
+    recRatio = '9/16';
+  } else if (fieldName.includes('ad')) {
+    recRatio = '16/9';
+  }
+
+  cropperState.activeField = fieldName;
+  window.loadCropperImage(url, recRatio);
+};
+
+window.closeImageCropper = function() {
+  const modal = document.getElementById('imageCropperModal');
+  if (modal) modal.style.display = 'none';
+  cropperState.isDragging = false;
+  cropperState.dragMode = null;
+};
+
+window.handleCropperLocalFile = function(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    window.loadCropperImage(e.target.result, cropperState.aspectRatio);
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+};
+
+window.loadCropperImage = function(url, initialRatio) {
+  if (!url) return;
+  const modal = document.getElementById('imageCropperModal');
+  const loading = document.getElementById('cropperLoading');
+  const stage = document.getElementById('cropperStage');
+  const img = document.getElementById('cropperSourceImg');
+
+  if (modal) modal.style.display = 'flex';
+  if (loading) loading.style.display = 'flex';
+  if (stage) stage.style.visibility = 'hidden';
+
+  cropperState.sourceUrl = url;
+  cropperState.rotation = 0;
+  cropperState.flipH = 1;
+
+  if (initialRatio) cropperState.aspectRatio = initialRatio;
+  updateRatioButtonsUI();
+
+  const testImg = new Image();
+  testImg.crossOrigin = 'anonymous';
+  
+  testImg.onload = function() {
+    let tainted = false;
+    try {
+      const c = document.createElement('canvas');
+      c.width = 1; c.height = 1;
+      c.getContext('2d').drawImage(testImg, 0, 0, 1, 1);
+      c.toDataURL();
+    } catch (err) {
+      tainted = true;
+    }
+
+    if (tainted && !url.includes('/api/proxy-image') && !url.startsWith('data:')) {
+      window.loadCropperImage('/api/proxy-image?url=' + encodeURIComponent(url), initialRatio);
+      return;
+    }
+
+    img.crossOrigin = 'anonymous';
+    img.src = testImg.src;
+    img.onload = function() {
+      cropperState.naturalW = img.naturalWidth || 800;
+      cropperState.naturalH = img.naturalHeight || 600;
+      initCropperStageGeometry();
+      if (loading) loading.style.display = 'none';
+      if (stage) stage.style.visibility = 'visible';
+    };
+  };
+
+  testImg.onerror = function() {
+    if (!url.includes('/api/proxy-image') && !url.startsWith('data:')) {
+      window.loadCropperImage('/api/proxy-image?url=' + encodeURIComponent(url), initialRatio);
+    } else {
+      if (loading) loading.style.display = 'none';
+      alert('Could not load this image for cropping. You can pick another photo using the "Replace Photo" button.');
+    }
+  };
+
+  testImg.src = url;
+};
+
+function updateRatioButtonsUI() {
+  document.querySelectorAll('.crop-btn-sm[data-ratio]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ratio === cropperState.aspectRatio);
+  });
+}
+
+function initCropperStageGeometry() {
+  const ws = document.getElementById('cropperWorkspace');
+  const stage = document.getElementById('cropperStage');
+  const img = document.getElementById('cropperSourceImg');
+  if (!ws || !stage || !img) return;
+
+  const isRotated90 = (cropperState.rotation === 90 || cropperState.rotation === 270);
+  const effW = isRotated90 ? cropperState.naturalH : cropperState.naturalW;
+  const effH = isRotated90 ? cropperState.naturalW : cropperState.naturalH;
+
+  const maxW = Math.max(260, ws.clientWidth - 40);
+  const maxH = Math.max(220, ws.clientHeight - 40);
+
+  const scale = Math.min(maxW / effW, maxH / effH, 1);
+  cropperState.stageW = Math.max(160, Math.round(effW * scale));
+  cropperState.stageH = Math.max(120, Math.round(effH * scale));
+
+  stage.style.width = cropperState.stageW + 'px';
+  stage.style.height = cropperState.stageH + 'px';
+
+  img.style.width = (isRotated90 ? cropperState.stageH : cropperState.stageW) + 'px';
+  img.style.height = (isRotated90 ? cropperState.stageW : cropperState.stageH) + 'px';
+  img.style.transform = `rotate(${cropperState.rotation}deg) scaleX(${cropperState.flipH})`;
+
+  window.setCropAspectRatio(cropperState.aspectRatio);
+}
+
+window.setCropAspectRatio = function(ratioStr) {
+  cropperState.aspectRatio = ratioStr;
+  updateRatioButtonsUI();
+
+  const sw = cropperState.stageW;
+  const sh = cropperState.stageH;
+
+  let targetW = Math.round(sw * 0.85);
+  let targetH = Math.round(sh * 0.85);
+
+  if (ratioStr !== 'free') {
+    const parts = ratioStr.split('/');
+    const r = parseFloat(parts[0]) / parseFloat(parts[1]);
+    targetW = sw * 0.88;
+    targetH = targetW / r;
+    if (targetH > sh * 0.88) {
+      targetH = sh * 0.88;
+      targetW = targetH * r;
+    }
+  }
+
+  cropperState.box.w = Math.max(40, Math.round(targetW));
+  cropperState.box.h = Math.max(40, Math.round(targetH));
+  cropperState.box.x = Math.max(0, Math.round((sw - cropperState.box.w) / 2));
+  cropperState.box.y = Math.max(0, Math.round((sh - cropperState.box.h) / 2));
+
+  syncCropBoxDOM();
+  updateSliderFromBox();
+};
+
+window.rotateCropper = function(deg) {
+  cropperState.rotation = (cropperState.rotation + deg) % 360;
+  initCropperStageGeometry();
+};
+
+window.flipCropperH = function() {
+  cropperState.flipH = cropperState.flipH === 1 ? -1 : 1;
+  const img = document.getElementById('cropperSourceImg');
+  if (img) {
+    img.style.transform = `rotate(${cropperState.rotation}deg) scaleX(${cropperState.flipH})`;
+  }
+};
+
+window.centerCropBox = function() {
+  cropperState.box.x = Math.max(0, Math.round((cropperState.stageW - cropperState.box.w) / 2));
+  cropperState.box.y = Math.max(0, Math.round((cropperState.stageH - cropperState.box.h) / 2));
+  syncCropBoxDOM();
+};
+
+window.maximizeCropBox = function() {
+  const sw = cropperState.stageW;
+  const sh = cropperState.stageH;
+  if (cropperState.aspectRatio === 'free') {
+    cropperState.box = { x: 0, y: 0, w: sw, h: sh };
+  } else {
+    const parts = cropperState.aspectRatio.split('/');
+    const r = parseFloat(parts[0]) / parseFloat(parts[1]);
+    let w = sw;
+    let h = w / r;
+    if (h > sh) {
+      h = sh;
+      w = h * r;
+    }
+    cropperState.box.w = Math.round(w);
+    cropperState.box.h = Math.round(h);
+    cropperState.box.x = Math.round((sw - w) / 2);
+    cropperState.box.y = Math.round((sh - h) / 2);
+  }
+  syncCropBoxDOM();
+  updateSliderFromBox();
+};
+
+window.setCropBoxScale = function(valPercent) {
+  const pct = Math.max(20, Math.min(100, parseFloat(valPercent))) / 100;
+  const valEl = document.getElementById('cropBoxScaleVal');
+  if (valEl) valEl.textContent = Math.round(pct * 100) + '%';
+
+  const sw = cropperState.stageW;
+  const sh = cropperState.stageH;
+  const cx = cropperState.box.x + cropperState.box.w / 2;
+  const cy = cropperState.box.y + cropperState.box.h / 2;
+
+  let newW, newH;
+  if (cropperState.aspectRatio === 'free') {
+    newW = sw * pct;
+    newH = sh * pct;
+  } else {
+    const parts = cropperState.aspectRatio.split('/');
+    const r = parseFloat(parts[0]) / parseFloat(parts[1]);
+    newW = sw * pct;
+    newH = newW / r;
+    if (newH > sh) {
+      newH = sh * pct;
+      newW = newH * r;
+    }
+  }
+
+  cropperState.box.w = Math.max(40, Math.min(sw, Math.round(newW)));
+  cropperState.box.h = Math.max(40, Math.min(sh, Math.round(newH)));
+  cropperState.box.x = Math.max(0, Math.min(sw - cropperState.box.w, Math.round(cx - cropperState.box.w / 2)));
+  cropperState.box.y = Math.max(0, Math.min(sh - cropperState.box.h, Math.round(cy - cropperState.box.h / 2)));
+
+  syncCropBoxDOM();
+};
+
+window.adjustCropBoxScale = function(delta) {
+  const slider = document.getElementById('cropBoxScaleSlider');
+  if (!slider) return;
+  let cur = parseFloat(slider.value);
+  slider.value = Math.max(20, Math.min(100, cur + delta * 100));
+  window.setCropBoxScale(slider.value);
+};
+
+function updateSliderFromBox() {
+  const slider = document.getElementById('cropBoxScaleSlider');
+  const valEl = document.getElementById('cropBoxScaleVal');
+  if (!slider || !cropperState.stageW) return;
+  const pct = Math.round((cropperState.box.w / cropperState.stageW) * 100);
+  slider.value = pct;
+  if (valEl) valEl.textContent = pct + '%';
+}
+
+function syncCropBoxDOM() {
+  const boxEl = document.getElementById('cropperCropBox');
+  if (!boxEl) return;
+  boxEl.style.left = cropperState.box.x + 'px';
+  boxEl.style.top = cropperState.box.y + 'px';
+  boxEl.style.width = cropperState.box.w + 'px';
+  boxEl.style.height = cropperState.box.h + 'px';
+
+  const readout = document.getElementById('cropDimensionsReadout');
+  if (readout && cropperState.stageW > 0) {
+    const isRotated90 = (cropperState.rotation === 90 || cropperState.rotation === 270);
+    const effW = isRotated90 ? cropperState.naturalH : cropperState.naturalW;
+    const effH = isRotated90 ? cropperState.naturalW : cropperState.naturalH;
+    const factorX = effW / cropperState.stageW;
+    const factorY = effH / cropperState.stageH;
+    const outPxW = Math.round(cropperState.box.w * factorX);
+    const outPxH = Math.round(cropperState.box.h * factorY);
+    readout.textContent = `${outPxW} × ${outPxH} px (${cropperState.aspectRatio})`;
+  }
+}
+
+// Drag & Resize Pointer Interaction
+(function initCropperPointerEvents() {
+  function onPointerDown(e) {
+    const handle = e.target.closest('.crop-handle');
+    const box = e.target.closest('#cropperCropBox');
+    if (!handle && !box) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    cropperState.isDragging = true;
+    cropperState.dragMode = handle ? handle.dataset.handle : 'move';
+    cropperState.dragStartPointer = { x: e.clientX, y: e.clientY };
+    cropperState.dragStartBox = { ...cropperState.box };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  }
+
+  function onPointerMove(e) {
+    if (!cropperState.isDragging) return;
+    e.preventDefault();
+
+    const dx = e.clientX - cropperState.dragStartPointer.x;
+    const dy = e.clientY - cropperState.dragStartPointer.y;
+    const start = cropperState.dragStartBox;
+    const sw = cropperState.stageW;
+    const sh = cropperState.stageH;
+    const mode = cropperState.dragMode;
+
+    if (mode === 'move') {
+      cropperState.box.x = Math.max(0, Math.min(sw - start.w, start.x + dx));
+      cropperState.box.y = Math.max(0, Math.min(sh - start.h, start.y + dy));
+      syncCropBoxDOM();
+      return;
+    }
+
+    let newX = start.x;
+    let newY = start.y;
+    let newW = start.w;
+    let newH = start.h;
+
+    const hasRatio = cropperState.aspectRatio !== 'free';
+    let ratio = 1;
+    if (hasRatio) {
+      const parts = cropperState.aspectRatio.split('/');
+      ratio = parseFloat(parts[0]) / parseFloat(parts[1]);
+    }
+
+    if (mode === 'se') {
+      newW = Math.max(40, Math.min(sw - start.x, start.w + dx));
+      newH = hasRatio ? newW / ratio : Math.max(40, Math.min(sh - start.y, start.h + dy));
+      if (hasRatio && newH > sh - start.y) {
+        newH = sh - start.y;
+        newW = newH * ratio;
+      }
+    } else if (mode === 'sw') {
+      newW = Math.max(40, Math.min(start.x + start.w, start.w - dx));
+      newH = hasRatio ? newW / ratio : Math.max(40, Math.min(sh - start.y, start.h + dy));
+      if (hasRatio && newH > sh - start.y) {
+        newH = sh - start.y;
+        newW = newH * ratio;
+      }
+      newX = start.x + (start.w - newW);
+    } else if (mode === 'ne') {
+      newW = Math.max(40, Math.min(sw - start.x, start.w + dx));
+      newH = hasRatio ? newW / ratio : Math.max(40, Math.min(start.y + start.h, start.h - dy));
+      if (hasRatio && newH > start.y + start.h) {
+        newH = start.y + start.h;
+        newW = newH * ratio;
+      }
+      newY = start.y + (start.h - newH);
+    } else if (mode === 'nw') {
+      newW = Math.max(40, Math.min(start.x + start.w, start.w - dx));
+      newH = hasRatio ? newW / ratio : Math.max(40, Math.min(start.y + start.h, start.h - dy));
+      if (hasRatio && newH > start.y + start.h) {
+        newH = start.y + start.h;
+        newW = newH * ratio;
+      }
+      newX = start.x + (start.w - newW);
+      newY = start.y + (start.h - newH);
+    } else if (mode === 'e') {
+      newW = Math.max(40, Math.min(sw - start.x, start.w + dx));
+      if (hasRatio) {
+        newH = newW / ratio;
+        newY = Math.max(0, Math.min(sh - newH, start.y + (start.h - newH) / 2));
+      }
+    } else if (mode === 'w') {
+      newW = Math.max(40, Math.min(start.x + start.w, start.w - dx));
+      newX = start.x + (start.w - newW);
+      if (hasRatio) {
+        newH = newW / ratio;
+        newY = Math.max(0, Math.min(sh - newH, start.y + (start.h - newH) / 2));
+      }
+    } else if (mode === 's') {
+      newH = Math.max(40, Math.min(sh - start.y, start.h + dy));
+      if (hasRatio) {
+        newW = newH * ratio;
+        newX = Math.max(0, Math.min(sw - newW, start.x + (start.w - newW) / 2));
+      }
+    } else if (mode === 'n') {
+      newH = Math.max(40, Math.min(start.y + start.h, start.h - dy));
+      newY = start.y + (start.h - newH);
+      if (hasRatio) {
+        newW = newH * ratio;
+        newX = Math.max(0, Math.min(sw - newW, start.x + (start.w - newW) / 2));
+      }
+    }
+
+    cropperState.box = {
+      x: Math.max(0, Math.round(newX)),
+      y: Math.max(0, Math.round(newY)),
+      w: Math.max(40, Math.min(sw, Math.round(newW))),
+      h: Math.max(40, Math.min(sh, Math.round(newH)))
+    };
+
+    syncCropBoxDOM();
+    updateSliderFromBox();
+  }
+
+  function onPointerUp() {
+    cropperState.isDragging = false;
+    cropperState.dragMode = null;
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('pointercancel', onPointerUp);
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const ws = document.getElementById('cropperWorkspace');
+    if (ws) ws.addEventListener('pointerdown', onPointerDown);
+  });
+  window.addEventListener('load', () => {
+    const ws = document.getElementById('cropperWorkspace');
+    if (ws) ws.addEventListener('pointerdown', onPointerDown);
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('imageCropperModal');
+      if (modal && modal.style.display === 'flex') {
+        window.closeImageCropper();
+      }
+    }
+  });
+})();
+
+window.applyCroppedImage = async function() {
+  const applyBtn = document.getElementById('cropApplyBtn');
+  if (applyBtn) {
+    applyBtn.disabled = true;
+    applyBtn.textContent = '⏳ Rendering & Saving...';
+  }
+
+  try {
+    const img = document.getElementById('cropperSourceImg');
+    if (!img) throw new Error('Image not found');
+
+    const origW = cropperState.naturalW;
+    const origH = cropperState.naturalH;
+    const isRotated90 = (cropperState.rotation === 90 || cropperState.rotation === 270);
+    const effW = isRotated90 ? origH : origW;
+    const effH = isRotated90 ? origW : origH;
+
+    const rotCanvas = document.createElement('canvas');
+    rotCanvas.width = effW;
+    rotCanvas.height = effH;
+    const rCtx = rotCanvas.getContext('2d');
+    rCtx.imageSmoothingEnabled = true;
+    rCtx.imageSmoothingQuality = 'high';
+
+    rCtx.translate(effW / 2, effH / 2);
+    rCtx.rotate((cropperState.rotation * Math.PI) / 180);
+    rCtx.scale(cropperState.flipH, 1);
+    rCtx.drawImage(img, -origW / 2, -origH / 2);
+
+    const factorX = effW / cropperState.stageW;
+    const factorY = effH / cropperState.stageH;
+
+    let sx = Math.max(0, Math.round(cropperState.box.x * factorX));
+    let sy = Math.max(0, Math.round(cropperState.box.y * factorY));
+    let sw = Math.min(effW - sx, Math.round(cropperState.box.w * factorX));
+    let sh = Math.min(effH - sy, Math.round(cropperState.box.h * factorY));
+
+    let outW = sw;
+    let outH = sh;
+    const maxDim = 1920;
+    if (outW > maxDim || outH > maxDim) {
+      const scaleDown = Math.min(maxDim / outW, maxDim / outH);
+      outW = Math.round(outW * scaleDown);
+      outH = Math.round(outH * scaleDown);
+    }
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = outW;
+    outCanvas.height = outH;
+    const outCtx = outCanvas.getContext('2d');
+    outCtx.imageSmoothingEnabled = true;
+    outCtx.imageSmoothingQuality = 'high';
+
+    outCtx.drawImage(rotCanvas, sx, sy, sw, sh, 0, 0, outW, outH);
+
+    const blob = await new Promise((resolve, reject) => {
+      outCanvas.toBlob(b => {
+        if (b) resolve(b);
+        else reject(new Error('Failed to create image blob'));
+      }, 'image/jpeg', 0.92);
+    });
+
+    const file = new File([blob], `crop-${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+    let finalUrl = '';
+    try {
+      if (typeof uploadToSupabaseStorage === 'function') {
+        const res = await uploadToSupabaseStorage(file);
+        if (res && res.url) finalUrl = res.url;
+      }
+    } catch (supaErr) {
+      console.warn('Supabase storage upload failed, attempting local server:', supaErr);
+    }
+
+    if (!finalUrl) {
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const resp = await fetch('/api/upload', { method: 'POST', body: fd });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.url) finalUrl = data.url;
+        }
+      } catch (locErr) {
+        console.warn('Local upload failed:', locErr);
+      }
+    }
+
+    if (!finalUrl) {
+      finalUrl = outCanvas.toDataURL('image/jpeg', 0.92);
+    }
+
+    const targetName = cropperState.activeField;
+    if (targetName) {
+      const input = document.querySelector(`[data-image-field="${targetName}"]`) || document.querySelector(`[data-media-url="${targetName}"]`);
+      if (input) {
+        input.value = finalUrl;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      const preview = document.getElementById('preview-' + targetName);
+      if (preview) {
+        preview.innerHTML = renderMediaPreview(finalUrl, 'image', targetName);
+      }
+      const statusLabel = document.getElementById('status-text-' + targetName);
+      if (statusLabel) {
+        statusLabel.innerHTML = `✅ Cropped Photo Ready! &nbsp;<button type="button" style="background:#FFD23F;color:#14121A;border:none;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:800;cursor:pointer;" onclick="event.stopPropagation(); window.openImageCropperForField('${targetName}')">Re-Crop ✂️</button>`;
+      }
+      const cropBtn = document.getElementById('crop-btn-' + targetName);
+      if (cropBtn) {
+        cropBtn.style.display = 'inline-flex';
+      }
+    }
+
+    if (typeof showToast === 'function') {
+      showToast('✂️ Photo cropped and applied!');
+    }
+    window.closeImageCropper();
+  } catch (err) {
+    console.error('Crop failed:', err);
+    alert('Could not save cropped photo: ' + (err.message || 'Unknown error'));
+  } finally {
+    if (applyBtn) {
+      applyBtn.disabled = false;
+      applyBtn.textContent = '✂️ APPLY CROP & SAVE';
+    }
+  }
+};
+
+let hasBooted = false;
 function boot() {
+  if (hasBooted) return;
+  hasBooted = true;
+  try {
+    const cached = localStorage.getItem(STORAGE_KEY);
+    if (cached) {
+      MAGAZINE = normalizeMagazine(JSON.parse(cached));
+    }
+  } catch (e) {}
+
   try {
     applyMagazineUpdates();
   } catch (e) {

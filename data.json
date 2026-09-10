@@ -25,6 +25,9 @@
       "theme": "theme-slc",
       "num": "01",
       "name": "Salt Lake City",
+      "stampText": "Local Spotlight",
+      "featuredFaceLabel": "Featured Face",
+      "businessesLabel": "This Month's Businesses",
       "model": {
         "name": "Ava Sinclair",
         "role": "Cover-Featured Model",
@@ -89,6 +92,9 @@
       "theme": "theme-wj",
       "num": "02",
       "name": "West Jordan",
+      "stampText": "Local Spotlight",
+      "featuredFaceLabel": "Featured Face",
+      "businessesLabel": "This Month's Businesses",
       "model": {
         "name": "Devon Marsh",
         "role": "Featured Model",
@@ -116,6 +122,9 @@
       "theme": "theme-mc",
       "num": "03",
       "name": "Millcreek",
+      "stampText": "Local Spotlight",
+      "featuredFaceLabel": "Featured Face",
+      "businessesLabel": "This Month's Businesses",
       "model": {
         "name": "Jordan Reyes",
         "role": "Featured Model",
@@ -143,6 +152,9 @@
       "theme": "theme-ch",
       "num": "04",
       "name": "Cottonwood Heights",
+      "stampText": "Local Spotlight",
+      "featuredFaceLabel": "Featured Face",
+      "businessesLabel": "This Month's Businesses",
       "model": {
         "name": "Sienna Cole",
         "role": "Featured Model",
@@ -170,6 +182,9 @@
       "theme": "theme-sandy",
       "num": "05",
       "name": "Sandy",
+      "stampText": "Local Spotlight",
+      "featuredFaceLabel": "Featured Face",
+      "businessesLabel": "This Month's Businesses",
       "model": {
         "name": "Marcus Bell",
         "role": "Featured Model",
@@ -197,6 +212,9 @@
       "theme": "theme-draper",
       "num": "06",
       "name": "Draper",
+      "stampText": "Local Spotlight",
+      "featuredFaceLabel": "Featured Face",
+      "businessesLabel": "This Month's Businesses",
       "model": {
         "name": "Talia Fenwick",
         "role": "Featured Model",

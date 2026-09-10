@@ -208,6 +208,33 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   });
 });
 
+// Image proxy endpoint to avoid CORS issues during canvas cropping
+app.get('/api/proxy-image', async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl || typeof targetUrl !== 'string') {
+    return res.status(400).json({ error: 'Missing url query parameter' });
+  }
+  try {
+    const parsed = new URL(targetUrl);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return res.status(400).json({ error: 'Invalid URL protocol' });
+    }
+    const response = await fetch(targetUrl);
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch upstream image' });
+    }
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    const arrayBuffer = await response.arrayBuffer();
+    return res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    console.error('Error proxying image:', err);
+    return res.status(500).json({ error: 'Failed to proxy image' });
+  }
+});
+
 // Save magazine data directly to data.json on server
 app.post(['/api/save', '/api/data'], async (req, res) => {
   try {
