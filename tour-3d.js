@@ -108,7 +108,9 @@
       return {
         isEmbed: true,
         isImage: false,
-        url: `https://www.youtube.com/embed/${ytId}?autoplay=1&enablejsapi=1`,
+        // mute=1 is required for autoplay=1 to actually be allowed to fire —
+        // same browser policy as every other video embed in this app.
+        url: `https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&muted=1&playsinline=1&enablejsapi=1`,
         provider: 'YouTube VR',
         originalUrl: trimmed
       };
@@ -549,17 +551,13 @@
   let currentTourData = null;
   let isEditorMode = false;
 
-  // Camera & Navigation State (Default 75° human optical FOV prevents digital zoom blur)
+  // Camera & Navigation State
   let yaw = 0;
   let pitch = 0;
-  let fov = 75;
+  let fov = 65;
   let targetYaw = 0;
   let targetPitch = 0;
-  let targetFov = 75;
-
-  function isPowerOfTwo(val) {
-    return typeof val === 'number' && val > 0 && (val & (val - 1)) === 0;
-  }
+  let targetFov = 65;
 
   let isDragging = false;
   let startX = 0;
@@ -771,44 +769,21 @@
       const height = Math.max(100, Math.floor(rect.height || window.innerHeight || 600));
 
       canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); console.warn('[SpotLIGHT 360] Panorama WebGL context loss prevented'); }, false);
+      const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       threeRenderer = new THREE.WebGLRenderer({
         canvas: canvas,
-        antialias: true,
+        antialias: !isMobileDevice,
         alpha: false,
-        powerPreference: 'high-performance',
-        precision: 'highp',
-        stencil: false,
-        depth: true
+        powerPreference: isMobileDevice ? 'default' : 'high-performance'
       });
-      // Ultra-crisp native retina resolution (up to 3x DPR for modern Retina / OLED / 4K displays)
-      const initialDpr = Math.min(window.devicePixelRatio || 1, 3.0);
-      threeRenderer.setPixelRatio(initialDpr);
-      // updateStyle: false lets CSS inset:0 manage responsive layout without sub-pixel buffer stretching
-      threeRenderer.setSize(width, height, false);
-      if (typeof THREE.sRGBEncoding !== 'undefined') {
-        threeRenderer.outputEncoding = THREE.sRGBEncoding;
-      }
-      if ('outputColorSpace' in threeRenderer && typeof THREE.SRGBColorSpace !== 'undefined') {
-        threeRenderer.outputColorSpace = THREE.SRGBColorSpace;
-      }
-      // Pure Photographic Fidelity: NoToneMapping keeps 100% natural photo contrast without highlight roll-off or micro-blur
-      if (typeof THREE.NoToneMapping !== 'undefined') {
-        threeRenderer.toneMapping = THREE.NoToneMapping;
-      }
-
-      // Responsive Container Observer: keeps canvas buffer in perfect 1:1 pixel sync on any resize
-      if (window.ResizeObserver && !window._tourContainerResizeObserver) {
-        window._tourContainerResizeObserver = new ResizeObserver(() => {
-          resizeThreeViewport();
-        });
-        window._tourContainerResizeObserver.observe(container);
-      }
+      threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileDevice ? 1.5 : 2.0));
+      threeRenderer.setSize(width, height);
 
       threeScene = new THREE.Scene();
       threeCamera = new THREE.PerspectiveCamera(targetFov, width / height, 1, 1500);
 
-      // Inverted Sphere Geometry: 128 width segments x 64 height segments for seamless, ultra-crisp curved interpolation
-      const geometry = new THREE.SphereGeometry(500, 128, 64);
+      // Inverted Sphere Geometry (inside of sphere faces the camera)
+      const geometry = new THREE.SphereGeometry(500, 64, 32);
       geometry.scale(-1, 1, 1);
 
       const material = new THREE.MeshBasicMaterial();
@@ -905,40 +880,50 @@
         const nh = img.naturalHeight || img.height || 1024;
         const ar = nw / nh;
 
-        // A true equirectangular 360 image is ~2:1 (aspect ratio 1.80 to 2.22) or explicitly 360.
-        // Keep the original pixels 100% intact instead of forcing it through the arc/crop/fill pipeline.
-        const isTrueEquirectangular = (ar >= 1.80 && ar <= 2.22) ||
-          curScene.is360 ||
-          curScene.aspectMode === 'full-360' ||
-          /360|equirectangular|sphere/i.test(curScene.tag || '') ||
-          /pannellum|\.360|insta360|ricoh|theta|alma|cerro/i.test(curScene.panoUrl || curScene.tourUrl || '');
+        // A true 2:1 equirectangular image is already a complete 360° master.
+        // Keep the original pixels intact instead of forcing it through the
+        // arc/crop/fill pipeline. This gives the sphere clean, natural
+        // perspective while preserving the existing Matterport-style UI.
+        const isTrueEquirectangular = ar >= 1.98 && ar <= 2.02;
         const renderAspectMode = isTrueEquirectangular ? 'full-360' : aspectMode;
         const isWidePano = !isTrueEquirectangular && (
           renderAspectMode === 'matterport-arc' ||
           renderAspectMode === 'iphone-pano' ||
           renderAspectMode === '360-loop' ||
-          (renderAspectMode !== 'full-360' && ar > 2.22)
+          (renderAspectMode !== 'full-360' && ar > 2.0)
         );
 
         if (typeBadge) {
-          typeBadge.style.display = 'none';
+          if (renderAspectMode === 'matterport-arc' || (isWidePano && renderAspectMode !== '360-loop' && renderAspectMode !== 'full-360')) {
+            typeBadge.textContent = '✨ MATTERPORT PRO (0% SEAM)';
+            typeBadge.style.background = 'rgba(6, 214, 160, 0.18)';
+            typeBadge.style.borderColor = '#06D6A0';
+            typeBadge.style.color = '#06D6A0';
+          } else if (renderAspectMode === '360-loop' || renderAspectMode === 'iphone-pano') {
+            typeBadge.textContent = '🔄 360° LOOP WALKTHROUGH';
+            typeBadge.style.background = 'rgba(255, 210, 63, 0.18)';
+            typeBadge.style.borderColor = '#FFD23F';
+            typeBadge.style.color = '#FFD23F';
+          } else {
+            typeBadge.textContent = '🌐 360° PHOTOSPHERE (2:1)';
+            typeBadge.style.background = 'rgba(255, 210, 63, 0.15)';
+            typeBadge.style.borderColor = 'rgba(255, 210, 63, 0.35)';
+            typeBadge.style.color = '#FFD23F';
+          }
         }
 
         let finalTexture = null;
 
         if (isWidePano) {
-          // Construct Ultra-HD 2:1 Master Canvas to eliminate vertical stretching & blurriness
-          const maxGpu = threeRenderer ? (threeRenderer.capabilities.maxTextureSize || 8192) : 8192;
-          const maxGpuSize = Math.min(maxGpu, 8192);
-          const canvasW = Math.min(Math.max(nw, 4096), maxGpuSize);
+          // Construct Ultra-HD 2:1 Master Canvas to eliminate vertical stretching
+          const maxGpuSize = threeRenderer ? Math.min(threeRenderer.capabilities.maxTextureSize || 4096, 4096) : 4096;
+          const canvasW = Math.min(Math.max(nw, 2048), maxGpuSize);
           const canvasH = Math.floor(canvasW / 2); // Exact 2:1 Equirectangular Sphere Ratio
 
           const canvas = document.createElement('canvas');
           canvas.width = canvasW;
           canvas.height = canvasH;
           const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
 
           const isArcMode = (renderAspectMode === 'matterport-arc');
 
@@ -1169,45 +1154,32 @@
 
           finalTexture = new THREE.CanvasTexture(canvas);
         } else {
-          // Native 2:1 Equirectangular Photosphere - Full Optical Resolution
-          const maxGpu = threeRenderer ? Math.min(threeRenderer.capabilities.maxTextureSize || 8192, 8192) : 8192;
-
-          if (nw > maxGpu || nh > Math.floor(maxGpu / 2)) {
-            // Hardware Max Safe Downscaling: Prevent GPU driver crash on oversized 12K+ images
-            const targetW = maxGpu;
-            const targetH = Math.floor(targetW / 2);
-            const cCanvas = document.createElement('canvas');
-            cCanvas.width = targetW;
-            cCanvas.height = targetH;
-            const cCtx = cCanvas.getContext('2d');
-            cCtx.imageSmoothingEnabled = true;
-            cCtx.imageSmoothingQuality = 'high';
-            cCtx.drawImage(img, 0, 0, targetW, targetH);
-            finalTexture = new THREE.CanvasTexture(cCanvas);
-          } else {
-            // Direct zero-copy GPU texture upload: 100% pure pixel-for-pixel fidelity
-            // Bypasses 2D canvas context and GPU tile boundaries to completely eliminate cross seams
-            finalTexture = new THREE.Texture(img);
-            finalTexture.needsUpdate = true;
-          }
+          finalTexture = new THREE.Texture(img);
+          finalTexture.needsUpdate = true;
         }
 
-        // Seamless 360° Wrap Setup:
-        // Set wrapS to RepeatWrapping so 0° and 360° meet smoothly without edge clamping.
-        // Disable mipmaps on equirectangular photospheres to prevent GPU screen-space derivative (dFdx)
-        // seam spikes at the 0°/360° UV boundary. LinearFilter ensures pure 1:1 photographic clarity.
-        finalTexture.wrapS = THREE.RepeatWrapping;
-        finalTexture.wrapT = THREE.ClampToEdgeWrapping;
-        finalTexture.generateMipmaps = false;
-        finalTexture.minFilter = THREE.LinearFilter;
+        // Ultra-HD Crisp Texture Filtering Setup
+        finalTexture.generateMipmaps = true;
+        finalTexture.minFilter = THREE.LinearMipmapLinearFilter;
         finalTexture.magFilter = THREE.LinearFilter;
-        finalTexture.anisotropy = 1;
-
-        if (typeof THREE.sRGBEncoding !== 'undefined') {
-          finalTexture.encoding = THREE.sRGBEncoding;
-        }
+        // Explicitly clamp instead of repeat at the texture edges. On a sphere,
+        // the left/right edges of the equirect image meet at a hard seam —
+        // without clamping, mipmap generation can sample across that seam and
+        // blend in content from the opposite side, which is what was showing
+        // up as a thin, glass-like distorted line when rotating.
+        finalTexture.wrapS = THREE.ClampToEdgeWrapping;
+        finalTexture.wrapT = THREE.ClampToEdgeWrapping;
+        // Preserve the captured image's intended color/brightness on modern Three.js.
         if ('colorSpace' in finalTexture && typeof THREE.SRGBColorSpace !== 'undefined') {
           finalTexture.colorSpace = THREE.SRGBColorSpace;
+        }
+        if (threeRenderer) {
+          // Very high anisotropy (16x) samples a wide footprint per pixel at
+          // grazing angles — right at the sphere's texture seam, that wide
+          // sample footprint is what pulls in mismatched pixels from the other
+          // side and reads as a warping "crack". A moderate level keeps most
+          // of the sharpness benefit without reaching across the seam as far.
+          finalTexture.anisotropy = Math.min(4, threeRenderer.capabilities.getMaxAnisotropy() || 1);
         }
 
         if (currentTexture && currentTexture !== finalTexture && !isTextureCached(currentTexture)) currentTexture.dispose();
@@ -1249,9 +1221,6 @@
         console.warn('[SpotLIGHT 360] Image load fallback:', err);
         const fallbackCanvas = getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-fallback');
         const texture = new THREE.CanvasTexture(fallbackCanvas);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.ClampToEdgeWrapping;
-        texture.generateMipmaps = false;
         texture.minFilter = THREE.LinearFilter;
         texture.magFilter = THREE.LinearFilter;
         if (currentTexture && currentTexture !== texture && !isTextureCached(currentTexture)) currentTexture.dispose();
@@ -1268,9 +1237,6 @@
     } else {
       const srcCanvas = (urlOrCanvas instanceof HTMLCanvasElement) ? urlOrCanvas : getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-main');
       const texture = new THREE.CanvasTexture(srcCanvas);
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.ClampToEdgeWrapping;
-      texture.generateMipmaps = false;
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
 
@@ -1417,7 +1383,6 @@
         50% { opacity: 0.8; transform: scale(0.96); }
       }
       .tour-type-badge {
-        display: none !important;
         background: rgba(255, 210, 63, 0.15);
         color: #FFD23F;
         border: 1px solid rgba(255, 210, 63, 0.35);
@@ -1513,7 +1478,6 @@
         width: 100%;
         height: 100%;
         display: block;
-        touch-action: none;
       }
       .tour-embed-frame {
         position: absolute;
@@ -2574,88 +2538,6 @@
         font-size: 9px;
         color: rgba(255, 255, 255, 0.6);
       }
-      /* Saved 360 Tours & Page Sync Spots */
-      .tour-saved-card {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1.5px solid rgba(255, 255, 255, 0.12);
-        border-radius: 8px;
-        padding: 8px 10px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        transition: all 0.15s ease;
-      }
-      .tour-saved-card:hover {
-        border-color: rgba(6, 214, 160, 0.5);
-        background: rgba(6, 214, 160, 0.06);
-      }
-      .tour-saved-card.highlight {
-        border-color: #06D6A0;
-        background: rgba(6, 214, 160, 0.1);
-        box-shadow: 0 0 12px rgba(6, 214, 160, 0.2);
-      }
-      .tour-saved-thumb {
-        width: 50px;
-        height: 50px;
-        border-radius: 6px;
-        object-fit: cover;
-        background: #14121a;
-        flex-shrink: 0;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-      }
-      .tour-saved-info {
-        flex: 1;
-        min-width: 0;
-      }
-      .tour-saved-title {
-        font-size: 11px;
-        font-weight: 800;
-        color: #FFD23F;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .tour-saved-meta {
-        font-size: 10px;
-        color: rgba(255, 255, 255, 0.7);
-        margin-top: 2px;
-        line-height: 1.3;
-      }
-      .tour-saved-actions {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        flex-shrink: 0;
-      }
-      .tour-saved-action-btn {
-        padding: 5px 9px;
-        font-size: 9px;
-        font-weight: 800;
-        border-radius: 5px;
-        cursor: pointer;
-        border: 1px solid transparent;
-        white-space: nowrap;
-        transition: all 0.15s ease;
-      }
-      .tour-sync-spot-card {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 6px;
-        padding: 7px 10px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        cursor: pointer;
-        transition: background 0.15s;
-        user-select: none;
-      }
-      .tour-sync-spot-card:hover {
-        background: rgba(255, 255, 255, 0.08);
-      }
-      .tour-sync-spot-card.current {
-        border-color: rgba(6, 214, 160, 0.45);
-        background: rgba(6, 214, 160, 0.08);
-      }
       .tour-dialog-footer {
         padding: 10px 16px;
         border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -3414,16 +3296,13 @@
         <div class="tour-brand-group">
           <div class="tour-badge-row">
             <span class="tour-live-badge">● 360° LIVE VIEW</span>
-            <span class="tour-type-badge" id="tourTypeBadge" style="display:none !important;"></span>
+            <span class="tour-type-badge" id="tourTypeBadge">360° PHOTOSPHERE</span>
           </div>
           <h2 class="tour-spot-title" id="tourSpotTitle">SpotLIGHT 360° Tour</h2>
           <span class="tour-spot-tag" id="tourSpotTag">Downtown Salt Lake City, UT</span>
         </div>
 
         <div class="tour-top-controls">
-          <button type="button" class="tour-hud-btn" id="tourHdBtn" onclick="window.toggleTourHdQuality()" title="Toggle Ultra-HD Sharpness & Anti-Blur (Editor Only)" style="display:none;border-color:#06D6A0;color:#06D6A0;background:rgba(6,214,160,0.18);">
-            <span>✨</span><span class="hud-btn-lbl" id="tourHdLbl">HD: ULTRA</span>
-          </button>
           <button type="button" class="tour-hud-btn" id="tourEditModeBtn" title="Place & Edit Navigation Hotspots">
             <span>✏️</span><span class="hud-btn-lbl">BUILD TOUR</span>
           </button>
@@ -3564,27 +3443,6 @@
             </button>
           </div>
 
-          <div class="prop-tool-box" style="border: 1px solid rgba(6,214,160,0.35); background: rgba(6,214,160,0.08); border-radius: 8px; padding: 10px;">
-            <div class="prop-section-label" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-              <span style="color:#06D6A0;font-weight:900;">✨ IMAGE SHARPNESS & ANTI-BLUR ENGINE</span>
-              <span id="propHdQualityBadge" style="color:#06D6A0;font-family:monospace;font-weight:900;">ULTRA-HD</span>
-            </div>
-            <div style="font-size:10.5px;color:rgba(255,255,255,0.75);line-height:1.35;margin-bottom:8px;">
-              Renders at native Retina/4K pixel resolution with micro-clarity filtering to eliminate fuzzy or blurry phone panorama photos:
-            </div>
-            <div style="display:flex;gap:6px;">
-              <button type="button" class="prop-sharp-btn" id="propQualityUltraBtn" style="flex:1;padding:8px 6px;text-align:center;background:rgba(6,214,160,0.25);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;" onclick="window.setTourQualityMode('ultra')">
-                ✨ ULTRA-HD
-              </button>
-              <button type="button" class="prop-sharp-btn" id="propQualityHighBtn" style="flex:1;padding:8px 6px;text-align:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.2);color:#fff;" onclick="window.setTourQualityMode('balanced')">
-                HIGH
-              </button>
-              <button type="button" class="prop-sharp-btn" id="propQualityStdBtn" style="flex:1;padding:8px 6px;text-align:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.2);color:#fff;" onclick="window.setTourQualityMode('standard')">
-                STANDARD
-              </button>
-            </div>
-          </div>
-
           <div style="margin-top:2px;">
             <button type="button" class="tour-dialog-btn" style="width:100%;background:rgba(255,210,63,0.2);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;padding:8px 10px;font-size:11px;border-radius:8px;" onclick="window.setTourStartingView()">
               📍 LOCK CURRENT CAMERA AS STARTING VIEW
@@ -3637,9 +3495,6 @@
             <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openEditRoomDialog()" title="Edit current room name, 360 photo, or blurb">
               ✏️ EDIT THIS ROOM
             </button>
-            <button type="button" class="tour-ed-btn" onclick="window.openSyncPageSpotsDialog()" title="Apply this exact 360 tour to other spots on this business page" style="background:rgba(6,214,160,0.18);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;">
-              🏢 SYNC PAGE SPOTS
-            </button>
             <button type="button" class="tour-ed-btn tour-ed-danger" onclick="window.confirmDeleteCurrentRoom()" title="Delete this room from tour">
               🗑️ DELETE THIS ROOM
             </button>
@@ -3687,10 +3542,6 @@
               <span>✏️ Edit This Room</span>
               <span class="tour-tool-grid-item-desc">Rename, swap photo, or blurb</span>
             </div>
-            <div class="tour-tool-grid-item highlight" onclick="window.openSyncPageSpotsDialog(); window.toggleTourToolsDropdown(false);">
-              <span>🏢 Sync Page Spots</span>
-              <span class="tour-tool-grid-item-desc">Apply tour across business page</span>
-            </div>
             <div class="tour-tool-grid-item" onclick="window.openManageRoomsDialog(); window.toggleTourToolsDropdown(false);">
               <span>📑 Manage All Rooms</span>
               <span class="tour-tool-grid-item-desc">List, reorder, and review rooms</span>
@@ -3712,7 +3563,7 @@
         <canvas class="tour-3d-canvas" id="tour3dCanvas"></canvas>
 
         <!-- External Embed Frame (ThingLink, Matterport, 360Cities, YouTube VR) -->
-        <iframe class="tour-embed-frame" id="tourEmbedFrame" style="display:none;" allow="xr-spatial-tracking; vr; accelerometer; gyroscope; fullscreen" allowfullscreen></iframe>
+        <iframe class="tour-embed-frame" id="tourEmbedFrame" style="display:none;" allow="autoplay; xr-spatial-tracking; vr; accelerometer; gyroscope; fullscreen" allowfullscreen></iframe>
 
         <!-- Hotspots Layer -->
         <div class="tour-hotspots-layer" id="tourHotspotsLayer"></div>
@@ -4037,7 +3888,7 @@
         </div>
 
         <!-- HOTSPOT INFO & ITEM SHOWCASE POPUP (3D Model / Close-Up Photo / Video) -->
-        <div class="tour-dialog-overlay" id="tourHotspotInfoModal" style="display:none; z-index:95;">
+        <div class="tour-dialog-overlay" id="tourHotspotInfoModal" onclick="if(event.target===this)window.closeHotspotInfoModal();" style="display:none; z-index:95;">
           <div class="tour-dialog-card" id="tourHotspotInfoCard" style="max-width:min(980px,96vw);width:min(980px,96vw);text-align:center;border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,0.85);border:1.5px solid rgba(63,221,224,0.35);padding:0;background:rgba(18,16,26,0.96);">
             <div class="tour-dialog-header" style="justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.08);padding:10px 16px;background:rgba(255,255,255,0.02);">
               <div id="tourInfoModalHeaderTag" style="font-size:11px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#3FDDE0;display:flex;align-items:center;gap:6px;">
@@ -4131,7 +3982,6 @@
               <!-- Source Tabs -->
               <div class="tour-source-tabs">
                 <button type="button" class="tour-src-tab active" id="tabBtnUpload" onclick="window.switchAddRoomTab('upload')">📸 Upload 360 Photo</button>
-                <button type="button" class="tour-src-tab" id="tabBtnSaved" onclick="window.switchAddRoomTab('saved')" style="color:#06D6A0;font-weight:900;">⭐ My 360 Tours & Rooms</button>
                 <button type="button" class="tour-src-tab" id="tabBtnCamera" onclick="window.switchAddRoomTab('camera')">📷 360 Camera Scan</button>
                 <button type="button" class="tour-src-tab" id="tabBtnPreset" onclick="window.switchAddRoomTab('preset')">🌄 Utah 360 Presets</button>
                 <button type="button" class="tour-src-tab" id="tabBtnUrl" onclick="window.switchAddRoomTab('url')">🔗 Paste 360 URL / Embed</button>
@@ -4146,14 +3996,6 @@
                   <input type="file" id="roomFileInput" accept="image/*" style="display:none;" onchange="window.handleRoomFileUpload(event)">
                 </div>
                 <div id="roomUploadStatus" class="tour-upload-status" style="display:none;"></div>
-              </div>
-
-              <!-- Tab 1.2: Saved / Built Tours & Rooms -->
-              <div id="roomTabSaved" style="display:none;">
-                <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-bottom:8px;">
-                  Pick a 360° photo or complete tour you've already built or saved in this magazine:
-                </div>
-                <div id="addRoomSavedToursList" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;padding-right:4px;"></div>
               </div>
 
               <!-- Tab 1.5: In-Room Camera Scanner -->
@@ -4214,7 +4056,6 @@
                 <!-- Source Tabs -->
                 <div class="tour-source-tabs">
                   <button type="button" class="tour-src-tab active" id="editTabBtnUpload" onclick="window.switchEditRoomTab('upload')">📸 Upload New 360</button>
-                  <button type="button" class="tour-src-tab" id="editTabBtnSaved" onclick="window.switchEditRoomTab('saved')" style="color:#06D6A0;font-weight:900;">⭐ My 360 Tours & Rooms</button>
                   <button type="button" class="tour-src-tab" id="editTabBtnCamera" onclick="window.switchEditRoomTab('camera')">📷 360 Camera Scan</button>
                   <button type="button" class="tour-src-tab" id="editTabBtnAi" onclick="window.closeEditRoomDialog(); window.openAiOutpaintModal();" style="color:#3FDDE0;font-weight:900;">✨ AI Outpaint</button>
                   <button type="button" class="tour-src-tab" id="editTabBtnPreset" onclick="window.switchEditRoomTab('preset')">🌄 Utah Presets</button>
@@ -4230,14 +4071,6 @@
                     <input type="file" id="editRoomFileInput" accept="image/*" style="display:none;" onchange="window.handleEditRoomFileUpload(event)">
                   </div>
                   <div id="editRoomUploadStatus" class="tour-upload-status" style="display:none;"></div>
-                </div>
-
-                <!-- Tab 1.2: Saved / Built Tours & Rooms -->
-                <div id="editRoomTabSaved" style="display:none;">
-                  <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-bottom:8px;">
-                    Pick a 360° photo or complete tour you've already built or saved in this magazine:
-                  </div>
-                  <div id="editRoomSavedToursList" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;padding-right:4px;"></div>
                 </div>
 
                 <!-- Tab 1.5: In-Room Camera Scanner -->
@@ -4296,26 +4129,6 @@
                 </label>
                 <div id="editRoomHotspotsList" style="max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;"></div>
               </div>
-
-              <!-- Apply Tour to Other Spots on This Business Page -->
-              <div class="tour-field-group" style="background:rgba(6,214,160,0.06);border:1.5px solid rgba(6,214,160,0.3);border-radius:10px;padding:12px 14px;margin-top:14px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                  <label class="tour-field-label" style="margin:0;color:#06D6A0;font-weight:900;display:flex;align-items:center;gap:6px;font-size:12px;">
-                    <span>🏢 Apply 360 Tour to Other Spots on This Page</span>
-                  </label>
-                  <div style="display:flex;gap:6px;">
-                    <button type="button" class="tour-mini-btn" onclick="window.toggleAllEditRoomPageSpots(true)" style="font-size:9px;padding:2px 8px;background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;">Select All</button>
-                    <button type="button" class="tour-mini-btn" onclick="window.toggleAllEditRoomPageSpots(false)" style="font-size:9px;padding:2px 8px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);border:none;border-radius:4px;cursor:pointer;">Clear</button>
-                  </div>
-                </div>
-                <p style="font-size:11px;color:rgba(255,255,255,0.8);margin:0 0 10px 0;line-height:1.4;">
-                  Doing a whole page for one business? Check the spots below to show this same 360 tour so you don't rebuild it:
-                </p>
-                <div id="editRoomPageSpotsList" style="display:flex;flex-direction:column;gap:6px;max-height:140px;overflow-y:auto;margin-bottom:10px;padding-right:2px;"></div>
-                <button type="button" class="tour-dialog-btn" onclick="window.applyCurrentTourToSelectedSpots()" style="width:100%;font-size:11px;padding:9px 12px;background:#06D6A0;color:#0d1b1e;font-weight:900;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 4px 14px rgba(6,214,160,0.25);">
-                  ⚡ APPLY SAME 360 TOUR TO SELECTED SPOTS
-                </button>
-              </div>
             </div>
             <div class="tour-dialog-footer" style="justify-content:space-between;">
               <button type="button" class="tour-dialog-btn tour-dialog-btn-danger" id="editRoomDeleteBtn" onclick="window.confirmDeleteFromEditModal()" title="Delete this room permanently">
@@ -4325,46 +4138,6 @@
                 <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeEditRoomDialog()">CANCEL</button>
                 <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.confirmSaveEditRoom()">💾 SAVE ROOM CHANGES</button>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3.5. STANDALONE SYNC TOUR ACROSS BUSINESS PAGE MODAL -->
-        <div class="tour-dialog-overlay" id="tourSyncPageSpotsModal" style="display:none; z-index:99;">
-          <div class="tour-dialog-card" style="max-width:540px;">
-            <div class="tour-dialog-header">
-              <span class="tour-dialog-title">🏢 Apply 360 Tour Across Business Page</span>
-              <button type="button" class="tour-dialog-close" onclick="window.closeSyncPageSpotsDialog()">✕</button>
-            </div>
-            <div class="tour-dialog-body">
-              <div style="background:rgba(6,214,160,0.1);border:1px solid rgba(6,214,160,0.3);border-radius:8px;padding:12px;margin-bottom:12px;">
-                <div style="font-weight:800;color:#06D6A0;font-size:13px;margin-bottom:4px;">✨ Share One 360 Tour with Multiple Spots</div>
-                <p style="font-size:11px;color:rgba(255,255,255,0.85);margin:0;line-height:1.4;">
-                  Doing a whole magazine page for this business? Select the spots below to attach this exact same 360 tour without rebuilding it. All selected spots will launch this tour for visitors.
-                </p>
-              </div>
-
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-                <label class="tour-field-label" style="margin:0;">Magazine Page:</label>
-                <select id="tourSyncCitySelectStandalone" class="tour-dialog-input" style="width:auto;padding:5px 10px;font-size:11px;" onchange="window.populatePageSpotsList(parseInt(this.value, 10))">
-                </select>
-              </div>
-
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                <span style="font-size:11px;color:rgba(255,255,255,0.7);font-weight:700;">Spots to attach this 360 tour to:</span>
-                <div style="display:flex;gap:6px;">
-                  <button type="button" class="tour-mini-btn" onclick="window.selectAllSyncSpots(true)" style="font-size:10px;padding:3px 8px;background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;">Select All</button>
-                  <button type="button" class="tour-mini-btn" onclick="window.selectAllSyncSpots(false)" style="font-size:10px;padding:3px 8px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);border:none;border-radius:4px;cursor:pointer;">Clear</button>
-                </div>
-              </div>
-
-              <div id="standalonePageSpotsList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;padding-right:2px;margin-bottom:6px;"></div>
-            </div>
-            <div class="tour-dialog-footer" style="justify-content:space-between;">
-              <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeSyncPageSpotsDialog()">CANCEL</button>
-              <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.confirmSyncPageSpots()" style="background:#06D6A0;color:#0d1b1e;font-weight:900;">
-                ⚡ APPLY SAME TOUR TO SELECTED SPOTS
-              </button>
             </div>
           </div>
         </div>
@@ -5155,13 +4928,26 @@
     const height = Math.max(100, Math.floor(rect.height || window.innerHeight || 600));
 
     if (threeRenderer && threeCamera) {
-      const mode = window._tourHdQualityMode || 'ultra';
-      const maxDpr = mode === 'ultra' ? 3.0 : (mode === 'balanced' ? 2.0 : 1.0);
-      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
-      threeRenderer.setPixelRatio(dpr);
-      threeRenderer.setSize(width, height, false);
+      threeRenderer.setSize(width, height);
       threeCamera.aspect = width / height;
       threeCamera.updateProjectionMatrix();
+    }
+  }
+
+  let isPanoLoopPaused = false;
+  function pausePanoRenderLoop() {
+    isPanoLoopPaused = true;
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+  }
+
+  function resumePanoRenderLoop() {
+    isPanoLoopPaused = false;
+    const modal = document.getElementById('tour3dModal');
+    if (modal && modal.classList.contains('active') && !animFrameId) {
+      animFrameId = requestAnimationFrame(renderFrame);
     }
   }
 
@@ -5171,6 +4957,11 @@
   function renderFrame() {
     const modal = document.getElementById('tour3dModal');
     if (!modal || !modal.classList.contains('active')) {
+      animFrameId = null;
+      return;
+    }
+
+    if (isPanoLoopPaused) {
       animFrameId = null;
       return;
     }
@@ -5186,6 +4977,7 @@
     const infoModal = document.getElementById('tourHotspotInfoModal');
     if (infoModal && infoModal.style.display !== 'none' && infoModal.style.display !== '') {
       animFrameId = null;
+      isPanoLoopPaused = true;
       return;
     }
 
@@ -5386,11 +5178,22 @@
     if (!layer || !container) return;
 
     const curScene = activeSceneList[activeSceneIndex];
-    if (!curScene || !Array.isArray(curScene.hotspots)) return;
-
-    const w = container.clientWidth || window.innerWidth;
-    const h = container.clientHeight || window.innerHeight;
     const pins = layer.querySelectorAll('.tour-hotspot-pin');
+    if (!curScene || !Array.isArray(curScene.hotspots) || curScene.hotspots.length === 0) {
+      for (let i = 0; i < pins.length; i++) {
+        pins[i].style.display = 'none';
+      }
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const w = rect.width || window.innerWidth;
+    const h = rect.height || window.innerHeight;
+
+    // Hide any orphan pins that exceed the current scene's hotspots count
+    for (let i = curScene.hotspots.length; i < pins.length; i++) {
+      pins[i].style.display = 'none';
+    }
 
     curScene.hotspots.forEach((hs, idx) => {
       const pin = pins[idx];
@@ -5476,35 +5279,8 @@
     const norm = normalize3dTourUrl(scene.tourUrl || scene.panoUrl || currentTourData?.tourUrl || currentTourData?.panoUrl || '');
 
     if (titleEl) titleEl.textContent = scene.name || currentTourData?.title || 'SpotLIGHT 360° Space';
-
-    const loc = (scene.location || currentTourData?.location || 'Salt Lake City, UT').trim();
-    const rawTag = (scene.tag || '').trim();
-    const isGenericTag = !rawTag ||
-      /custom\s*360/i.test(rawTag) ||
-      /360\s*space/i.test(rawTag) ||
-      /equirectangular/i.test(rawTag) ||
-      /photosphere/i.test(rawTag) ||
-      /360°\s*walkthrough/i.test(rawTag) ||
-      rawTag.toLowerCase() === 'custom 360° space' ||
-      rawTag.toLowerCase() === '360° space' ||
-      rawTag.toLowerCase() === 'equirectangular photo';
-
-    const cleanTag = isGenericTag ? '' : rawTag;
-
-    if (tagEl) {
-      if (cleanTag && cleanTag.toLowerCase() !== loc.toLowerCase()) {
-        tagEl.textContent = `📍 ${loc} · ${cleanTag}`;
-      } else if (loc) {
-        tagEl.textContent = `📍 ${loc}`;
-      } else {
-        tagEl.textContent = '';
-      }
-    }
-
-    if (badgeEl) {
-      badgeEl.style.display = 'none';
-      badgeEl.textContent = '';
-    }
+    if (tagEl) tagEl.textContent = `📍 ${scene.location || 'Wasatch Front, UT'} · ${scene.tag || norm.provider || '360° Spatial Photosphere'}`;
+    if (badgeEl) badgeEl.textContent = norm.provider && norm.provider !== 'none' ? `360° ${norm.provider.toUpperCase()}` : '360° PHOTOSPHERE';
 
     if (ctaEl) {
       if (currentTourData?.link && currentTourData.link !== '#') {
@@ -5516,22 +5292,15 @@
       }
     }
 
-    const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
-
     if (externalLaunchBtn) {
       const orig = scene.originalUrl || norm.originalUrl || norm.url;
-      if (unlocked && orig && (orig.startsWith('http://') || orig.startsWith('https://'))) {
+      if (orig && (orig.startsWith('http://') || orig.startsWith('https://'))) {
         externalLaunchBtn.href = orig;
         externalLaunchBtn.style.display = 'inline-flex';
         externalLaunchBtn.querySelector('.hud-btn-lbl').textContent = norm.provider === '360Cities' ? '360CITIES ↗' : 'EXTERNAL ↗';
       } else {
         externalLaunchBtn.style.display = 'none';
       }
-    }
-
-    const hdBtn = document.getElementById('tourHdBtn');
-    if (hdBtn) {
-      hdBtn.style.display = unlocked ? 'inline-flex' : 'none';
     }
 
     renderSceneSelector();
@@ -5548,17 +5317,6 @@
     activeSceneIndex = index;
     const scene = activeSceneList[index];
     if (!scene) return;
-
-    // Load active quality configured by the editor (defaults to ultra-sharp)
-    const activeQuality = scene.clarityMode || scene.hdQuality || (currentTourData && currentTourData.hdQuality) || (window.currentEditingAdRef && window.currentEditingAdRef.tourHdQuality) || 'ultra';
-    window._tourHdQualityMode = activeQuality;
-
-    const hdLbl = document.getElementById('tourHdLbl');
-    if (hdLbl) {
-      if (activeQuality === 'ultra') hdLbl.textContent = 'HD: ULTRA';
-      else if (activeQuality === 'balanced') hdLbl.textContent = 'HD: HIGH';
-      else hdLbl.textContent = 'HD: STD';
-    }
 
     updateTourSceneHud(index);
 
@@ -5633,8 +5391,8 @@
       fov = scene.startFov;
       targetFov = scene.startFov;
     } else {
-      fov = 75;
-      targetFov = 75;
+      fov = 65;
+      targetFov = 65;
     }
 
     const targetUrl = norm.isImage ? norm.url : (scene.panoUrl || currentTourData?.panoUrl);
@@ -6039,6 +5797,16 @@
     const reader = new FileReader();
 
     if (type === 'model3d') {
+      // Same 30MB ceiling the viewer itself enforces (see init3dItemViewer) —
+      // warn upfront rather than let someone upload a model that will just
+      // fail to preview (for themselves and every visitor) later.
+      const MAX_SAFE_MODEL_BYTES = 30 * 1024 * 1024;
+      if (file.size > MAX_SAFE_MODEL_BYTES) {
+        if (typeof showToast === 'function') {
+          showToast(`⚠️ "${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)}MB — over the 30MB safe limit for mobile. Try a compressed .glb.`);
+        }
+        return;
+      }
       // IMPORTANT: never use readAsDataURL for .glb files — they can be many MB,
       // and base64-encoding a large binary file into one giant string (then
       // stuffing it into an <input> value) is exactly what was crashing the
@@ -6220,26 +5988,26 @@
       metalness: 0.05
     });
 
-    // 1. Carabiner curved D-body (Torus arc)
-    const spineGeom = new THREE.TorusGeometry(0.9, 0.14, 20, 50, Math.PI * 1.55);
+    // 1. Carabiner curved D-body (Torus arc with optimized vertex count)
+    const spineGeom = new THREE.TorusGeometry(0.9, 0.14, 12, 28, Math.PI * 1.55);
     const spineMesh = new THREE.Mesh(spineGeom, goldMetalMat);
     spineMesh.rotation.z = Math.PI * 0.75;
-    group.appendChild ? null : group.add(spineMesh);
+    group.add(spineMesh);
 
     // Straight back spine
-    const backGeom = new THREE.CylinderGeometry(0.14, 0.14, 1.35, 20);
+    const backGeom = new THREE.CylinderGeometry(0.14, 0.14, 1.35, 14);
     const backMesh = new THREE.Mesh(backGeom, goldMetalMat);
     backMesh.position.set(-0.9, 0.05, 0);
     group.add(backMesh);
 
     // 2. Spring Gate (Straight silver bar across opening)
-    const gateGeom = new THREE.CylinderGeometry(0.11, 0.11, 1.25, 20);
+    const gateGeom = new THREE.CylinderGeometry(0.11, 0.11, 1.25, 14);
     const gateMesh = new THREE.Mesh(gateGeom, silverSteelMat);
     gateMesh.position.set(0.68, 0.05, 0);
     group.add(gateMesh);
 
     // Locking screw sleeve
-    const sleeveGeom = new THREE.CylinderGeometry(0.19, 0.19, 0.5, 24);
+    const sleeveGeom = new THREE.CylinderGeometry(0.19, 0.19, 0.5, 16);
     const sleeveMesh = new THREE.Mesh(sleeveGeom, darkKnurlMat);
     sleeveMesh.position.set(0.68, 0.05, 0);
     group.add(sleeveMesh);
@@ -6280,13 +6048,12 @@
       metalness: 0.85,
       roughness: 0.25
     });
-    const glassLensMat = new THREE.MeshPhysicalMaterial({
-      color: 0x113366,
-      metalness: 0.1,
-      roughness: 0.02,
-      transmission: 0.8,
-      ior: 1.52,
-      clearcoat: 1.0
+    const glassLensMat = new THREE.MeshStandardMaterial({
+      color: 0x143464,
+      metalness: 0.9,
+      roughness: 0.1,
+      transparent: true,
+      opacity: 0.85
     });
 
     // 1. Camera Body (Leatherette base)
@@ -6407,7 +6174,7 @@
     const group = new THREE.Group();
 
     const caseMat = new THREE.MeshStandardMaterial({ color: 0x22242A, metalness: 0.85, roughness: 0.25 });
-    const screenGlassMat = new THREE.MeshPhysicalMaterial({ color: 0x050A14, roughness: 0.05, clearcoat: 1.0 });
+    const screenGlassMat = new THREE.MeshStandardMaterial({ color: 0x050A14, roughness: 0.05, metalness: 0.8 });
     const strapMat = new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.8 });
     const crownMat = new THREE.MeshStandardMaterial({ color: 0xDDDFE5, metalness: 0.9, roughness: 0.2 });
 
@@ -6452,7 +6219,7 @@
     group.add(dialPlate);
 
     // Digital Crown Knob
-    const crownGeom = new THREE.CylinderGeometry(0.16, 0.16, 0.2, 24);
+    const crownGeom = new THREE.CylinderGeometry(0.16, 0.16, 0.2, 16);
     const crownMesh = new THREE.Mesh(crownGeom, crownMat);
     crownMesh.rotation.z = Math.PI / 2;
     crownMesh.position.set(0.85, 0.4, 0);
@@ -6477,23 +6244,16 @@
 
     // Brilliant Faceted Gemstone Geometry
     const gemGeom = new THREE.IcosahedronGeometry(1.4, 0);
-    const gemMat = new THREE.MeshPhysicalMaterial({
-      color: 0xE8F8FF,
-      roughness: 0.02,
-      transmission: 0.95,
-      ior: 2.417, // Pure diamond refractive index
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.05,
+    const gemMat = new THREE.MeshStandardMaterial({
+      color: 0xDDF4FF,
+      roughness: 0.08,
+      metalness: 0.2,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.9,
       flatShading: true
     });
     const gemMesh = new THREE.Mesh(gemGeom, gemMat);
     group.add(gemMesh);
-
-    // Internal Sparkle Core
-    const innerLight = new THREE.PointLight(0x3FDDE0, 1.5, 3);
-    group.add(innerLight);
 
     return group;
   }
@@ -6849,16 +6609,13 @@
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.05, 100);
     camera.position.set(0, 0.6, 4.5);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.15));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.65);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.25));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
     keyLight.position.set(5, 7, 5);
     scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0x3FDDE0, 0.7);
+    const fillLight = new THREE.DirectionalLight(0x3FDDE0, 0.65);
     fillLight.position.set(-5, -2, -3);
     scene.add(fillLight);
-    const rimLight = new THREE.PointLight(0xFFD23F, 1.1, 12);
-    rimLight.position.set(0, 4, -4);
-    scene.add(rimLight);
 
     const modelRoot = new THREE.Group();
     scene.add(modelRoot);
@@ -6894,85 +6651,162 @@
       active3dLoadController = loadController;
       if (typeof window !== 'undefined') window.loadController = loadController;
 
-      const parseModel = (arrayBuffer) => {
+      const parseModel = (arrayBuffer, parseWatchdog) => {
         if (loadToken.cancelled || thisSession !== viewerSessionId) return;
         const basePath = (THREE.LoaderUtils && THREE.LoaderUtils.extractUrlBase)
           ? THREE.LoaderUtils.extractUrlBase(modelSrc)
           : modelSrc.substring(0, modelSrc.lastIndexOf('/') + 1);
 
-        loader.parse(
-          arrayBuffer,
-          basePath,
-          (gltf) => {
-            if (active3dLoadController === loadController) active3dLoadController = null;
-            loadController = null;
-            if (typeof window !== 'undefined') window.loadController = null;
+        try {
+          loader.parse(
+            arrayBuffer,
+            basePath,
+            (gltf) => {
+              if (parseWatchdog) clearTimeout(parseWatchdog);
+              if (active3dLoadController === loadController) active3dLoadController = null;
+              loadController = null;
+              if (typeof window !== 'undefined') window.loadController = null;
 
-            if (loadToken.cancelled || thisSession !== viewerSessionId) {
-              disposeObject3DResources(gltf.scene);
-              return;
-            }
+              if (loadToken.cancelled || thisSession !== viewerSessionId) {
+                disposeObject3DResources(gltf.scene);
+                return;
+              }
 
-            const loadedMesh = gltf.scene;
-            const box = new THREE.Box3().setFromObject(loadedMesh);
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z) || 1;
-            const scale = 2.4 / maxDim;
-            loadedMesh.scale.setScalar(scale);
-            const center = box.getCenter(new THREE.Vector3());
-            loadedMesh.position.sub(center.multiplyScalar(scale));
+              const loadedMesh = gltf.scene;
+              const box = new THREE.Box3().setFromObject(loadedMesh);
+              const size = box.getSize(new THREE.Vector3());
+              const maxDim = Math.max(size.x, size.y, size.z) || 1;
+              const scale = 2.4 / maxDim;
+              loadedMesh.scale.setScalar(scale);
+              const center = box.getCenter(new THREE.Vector3());
+              loadedMesh.position.sub(center.multiplyScalar(scale));
 
-            // GPU Memory optimization: disable mipmaps on textures on mobile/desktop
-            // to save up to 33% texture memory and prevent WebGL crashes on iOS Safari
-            try {
-              loadedMesh.traverse((child) => {
-                if (child.isMesh && child.material) {
-                  const mats = Array.isArray(child.material) ? child.material : [child.material];
-                  mats.forEach((mat) => {
-                    ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach((texKey) => {
-                      if (mat && mat[texKey] && mat[texKey].isTexture) {
-                        mat[texKey].generateMipmaps = false;
-                        mat[texKey].minFilter = THREE.LinearFilter;
-                      }
+              // GPU Memory optimization: disable mipmaps, and downscale any
+              // oversized textures. Large embedded textures (2K/4K+, common in
+              // models exported from Blender/Sketchfab) are one of the most
+              // common causes of a hard mobile Safari crash on GPU upload —
+              // capping them here costs little visible quality in a small
+              // preview modal but removes a real crash risk.
+              const MAX_TEXTURE_DIM = 1536;
+              try {
+                loadedMesh.traverse((child) => {
+                  if (child.isMesh && child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach((mat) => {
+                      ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach((texKey) => {
+                        const tex = mat && mat[texKey];
+                        if (!tex || !tex.isTexture) return;
+                        tex.generateMipmaps = false;
+                        tex.minFilter = THREE.LinearFilter;
+
+                        const img = tex.image;
+                        if (img && img.width > MAX_TEXTURE_DIM || (img && img.height > MAX_TEXTURE_DIM)) {
+                          try {
+                            const scaleFactor = MAX_TEXTURE_DIM / Math.max(img.width, img.height);
+                            const small = document.createElement('canvas');
+                            small.width = Math.max(1, Math.round(img.width * scaleFactor));
+                            small.height = Math.max(1, Math.round(img.height * scaleFactor));
+                            small.getContext('2d').drawImage(img, 0, 0, small.width, small.height);
+                            tex.image = small;
+                            tex.needsUpdate = true;
+                          } catch (resizeErr) {
+                            console.warn('[SpotLIGHT 3D] Texture downscale skipped:', resizeErr);
+                          }
+                        }
+                      });
                     });
-                  });
-                }
-              });
-            } catch (_) {}
+                  }
+                });
+              } catch (_) {}
 
-            modelRoot.add(loadedMesh);
+              modelRoot.add(loadedMesh);
 
-            // Render first frame immediately
-            try { renderer.render(scene, camera); } catch (_) {}
-            set3dLoading(false);
-          },
-          (err) => {
-            if (active3dLoadController === loadController) active3dLoadController = null;
-            loadController = null;
-            if (typeof window !== 'undefined') window.loadController = null;
-            if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
-            console.warn('[SpotLIGHT 3D] GLTF parse failed, using procedural fallback:', err);
-            set3dLoading(false);
-            addFallback();
-          }
-        );
+              // Render first frame immediately
+              try { renderer.render(scene, camera); } catch (_) {}
+              set3dLoading(false);
+            },
+            (err) => {
+              if (parseWatchdog) clearTimeout(parseWatchdog);
+              if (active3dLoadController === loadController) active3dLoadController = null;
+              loadController = null;
+              if (typeof window !== 'undefined') window.loadController = null;
+              if (loadToken.cancelled || thisSession !== viewerSessionId || (err && err.name === 'AbortError')) return;
+              console.warn('[SpotLIGHT 3D] GLTF parse failed, using procedural fallback:', err);
+              set3dLoading(false);
+              addFallback();
+            }
+          );
+        } catch (syncErr) {
+          if (parseWatchdog) clearTimeout(parseWatchdog);
+          if (active3dLoadController === loadController) active3dLoadController = null;
+          loadController = null;
+          if (typeof window !== 'undefined') window.loadController = null;
+          if (loadToken.cancelled || thisSession !== viewerSessionId) return;
+          console.warn('[SpotLIGHT 3D] Synchronous parse error caught:', syncErr);
+          set3dLoading(false);
+          addFallback();
+        }
       };
 
       const loadModelBytes = async () => {
         try {
           const response = await fetch(modelSrc, {
-            signal: loadController ? loadController.signal : undefined,
-            credentials: 'same-origin'
+            signal: loadController ? loadController.signal : undefined
           });
 
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          // Bail out BEFORE downloading/parsing if the server tells us the file
+          // is large enough to be a realistic mobile-crash risk. Decoding a big
+          // textured GLB is exactly what was locking up at "100%" and then
+          // taking the whole tab down — better to degrade gracefully here.
+          const MAX_SAFE_MODEL_BYTES = 30 * 1024 * 1024; // 30MB
+          const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+          if (contentLength > MAX_SAFE_MODEL_BYTES) {
+            console.warn(`[SpotLIGHT 3D] Model is ${(contentLength / 1024 / 1024).toFixed(1)}MB — over the safe mobile limit, skipping to avoid a crash.`);
+            if (typeof showToast === 'function') {
+              showToast('⚠️ This 3D model is too large to preview safely — try a smaller/compressed .glb file.');
+            }
+            set3dLoading(false);
+            addFallback();
+            return;
+          }
 
           // Keep only one ArrayBuffer in memory. A streamed chunk array would
           // temporarily duplicate the whole model and can spike mobile RAM.
           const arrayBuffer = await response.arrayBuffer();
           if (thisSession !== viewerSessionId || loadToken.cancelled) return;
+
+          // Content-Length isn't always sent (e.g. compressed responses) — double
+          // check against the actual downloaded size too.
+          if (arrayBuffer.byteLength > MAX_SAFE_MODEL_BYTES) {
+            console.warn(`[SpotLIGHT 3D] Downloaded model is ${(arrayBuffer.byteLength / 1024 / 1024).toFixed(1)}MB — over the safe mobile limit, skipping to avoid a crash.`);
+            if (typeof showToast === 'function') {
+              showToast('⚠️ This 3D model is too large to preview safely — try a smaller/compressed .glb file.');
+            }
+            set3dLoading(false);
+            addFallback();
+            return;
+          }
+
           set3dLoading(true, 'Loading 3D asset 100%...');
-          parseModel(arrayBuffer);
+
+          // Watchdog: parsing/texture-decoding a heavy model can hang the main
+          // thread long enough for mobile Safari's own watchdog to kill the tab
+          // outright. If parsing hasn't finished in a reasonable time, bail to
+          // the fallback ourselves rather than risk that.
+          const parseWatchdog = setTimeout(() => {
+            if (loadToken.cancelled || thisSession !== viewerSessionId) return;
+            console.warn('[SpotLIGHT 3D] Model parse is taking too long — falling back to avoid a crash.');
+            loadToken.cancelled = true;
+            if (typeof showToast === 'function') {
+              showToast('⚠️ This model took too long to load and was skipped to keep the page from crashing.');
+            }
+            set3dLoading(false);
+            addFallback();
+          }, 20000);
+
+          parseModel(arrayBuffer, parseWatchdog);
         } catch (err) {
           if (active3dLoadController === loadController) active3dLoadController = null;
           loadController = null;
@@ -7253,13 +7087,6 @@
       interactEl.addEventListener('gesturestart', preventSafariPinch, { passive: false });
       interactEl.addEventListener('gesturechange', preventSafariPinch, { passive: false });
 
-      if (dom !== interactEl) {
-        dom.addEventListener('touchstart', onTouchStart, { passive: false });
-        dom.addEventListener('touchmove', onTouchMove, { passive: false });
-        dom.addEventListener('touchend', onTouchEnd, { passive: false });
-        dom.addEventListener('touchcancel', onTouchEnd, { passive: false });
-      }
-
       interactEl.addEventListener('pointerdown', onPointerDown);
       interactEl.addEventListener('pointermove', onPointerMove);
       interactEl.addEventListener('pointerup', stopDrag);
@@ -7289,13 +7116,6 @@
         interactEl.removeEventListener('touchcancel', onTouchEnd);
         interactEl.removeEventListener('gesturestart', preventSafariPinch);
         interactEl.removeEventListener('gesturechange', preventSafariPinch);
-
-        if (dom !== interactEl) {
-          dom.removeEventListener('touchstart', onTouchStart);
-          dom.removeEventListener('touchmove', onTouchMove);
-          dom.removeEventListener('touchend', onTouchEnd);
-          dom.removeEventListener('touchcancel', onTouchEnd);
-        }
 
         interactEl.removeEventListener('pointerdown', onPointerDown);
         interactEl.removeEventListener('pointermove', onPointerMove);
@@ -7603,12 +7423,14 @@
     // YouTube
     const ytMatch = str.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
     if (ytMatch && ytMatch[1]) {
-      return { type: 'iframe', url: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=1&rel=0` };
+      // mute=1 is required — browsers block autoplay-with-sound by default,
+      // so without it the video just silently sits there waiting for a click.
+      return { type: 'iframe', url: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=1&mute=1&muted=1&playsinline=1&rel=0` };
     }
     // Vimeo
     const vimeoMatch = str.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|video\/|)(\d+)/i);
     if (vimeoMatch && vimeoMatch[3]) {
-      return { type: 'iframe', url: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1` };
+      return { type: 'iframe', url: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1&muted=1&playsinline=1` };
     }
     // Direct Video (MP4, WebM, blob)
     return { type: 'video', url: str };
@@ -7701,6 +7523,7 @@
       if (containerVideo) containerVideo.style.display = 'none';
 
       if (mediaType === 'model3d') {
+        pausePanoRenderLoop();
         mediaWrap.style.display = 'block';
         if (iconWrap) iconWrap.style.display = 'none';
         if (container3d) {
@@ -7826,16 +7649,12 @@
 
     // Dispose active 3D viewer & stop video
     dispose3dViewer(active3dViewer, false);
+    resumePanoRenderLoop();
     const iframe = document.getElementById('tourInfoModalIframe');
     if (iframe) iframe.src = 'about:blank';
     const video = document.getElementById('tourInfoModalNativeVideo');
     if (video && typeof video.pause === 'function') {
       try { video.pause(); } catch (_) {}
-    }
-
-    const tourModal = document.getElementById('tour3dModal');
-    if (tourModal && tourModal.classList.contains('active') && !animFrameId) {
-      animFrameId = requestAnimationFrame(renderFrame);
     }
   };
 
@@ -7995,32 +7814,24 @@
 
   window.switchAddRoomTab = function (tab) {
     const tabUpload = document.getElementById('roomTabUpload');
-    const tabSaved = document.getElementById('roomTabSaved');
     const tabCamera = document.getElementById('roomTabCamera');
     const tabPreset = document.getElementById('roomTabPreset');
     const tabUrl = document.getElementById('roomTabUrl');
 
     const btnUpload = document.getElementById('tabBtnUpload');
-    const btnSaved = document.getElementById('tabBtnSaved');
     const btnCamera = document.getElementById('tabBtnCamera');
     const btnPreset = document.getElementById('tabBtnPreset');
     const btnUrl = document.getElementById('tabBtnUrl');
 
     if (tabUpload) tabUpload.style.display = (tab === 'upload') ? 'block' : 'none';
-    if (tabSaved) tabSaved.style.display = (tab === 'saved') ? 'block' : 'none';
     if (tabCamera) tabCamera.style.display = (tab === 'camera') ? 'block' : 'none';
     if (tabPreset) tabPreset.style.display = (tab === 'preset') ? 'block' : 'none';
     if (tabUrl) tabUrl.style.display = (tab === 'url') ? 'block' : 'none';
 
     if (btnUpload) btnUpload.classList.toggle('active', tab === 'upload');
-    if (btnSaved) btnSaved.classList.toggle('active', tab === 'saved');
     if (btnCamera) btnCamera.classList.toggle('active', tab === 'camera');
     if (btnPreset) btnPreset.classList.toggle('active', tab === 'preset');
     if (btnUrl) btnUrl.classList.toggle('active', tab === 'url');
-
-    if (tab === 'saved' && typeof window.populateSavedToursList === 'function') {
-      window.populateSavedToursList('addRoomSavedToursList', false);
-    }
   };
 
   window.handleRoomFileUpload = async function (e) {
@@ -8113,7 +7924,7 @@
       id: newId,
       name: name,
       location: currentTourData?.location || 'Salt Lake City, UT',
-      tag: '',
+      tag: 'Custom 360° Space',
       panoUrl: panoUrl,
       tourUrl: panoUrl.includes('thinglink.com') || panoUrl.includes('matterport.com') || panoUrl.includes('360cities.net') || panoUrl.includes('momento360.com') ? panoUrl : '',
       blurb: 'Interactive 360° walk-in space',
@@ -8160,8 +7971,7 @@
     if (idxInp) idxInp.value = idx;
     if (titleEl) titleEl.textContent = `✏️ Edit Room: ${scene.name}`;
     if (nameInp) nameInp.value = scene.name || '';
-    const currentTag = (scene.tag || '').trim();
-    if (tagInp) tagInp.value = (/custom\s*360/i.test(currentTag) || currentTag === 'Custom 360° Space') ? '' : currentTag;
+    if (tagInp) tagInp.value = scene.tag || '';
     if (urlInp) urlInp.value = scene.tourUrl || scene.panoUrl || '';
     if (blurbInp) blurbInp.value = scene.blurb || '';
     if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
@@ -8228,13 +8038,6 @@
       }
     }
 
-    if (typeof window.populateSavedToursList === 'function') {
-      window.populateSavedToursList('editRoomSavedToursList', true);
-    }
-    if (typeof window.populatePageSpotsList === 'function') {
-      window.populatePageSpotsList();
-    }
-
     window.switchEditRoomTab(scene.panoUrl && scene.panoUrl.startsWith('http') ? 'preset' : 'upload');
     modal.style.display = 'flex';
   };
@@ -8246,32 +8049,24 @@
 
   window.switchEditRoomTab = function (tab) {
     const tabUpload = document.getElementById('editRoomTabUpload');
-    const tabSaved = document.getElementById('editRoomTabSaved');
     const tabCamera = document.getElementById('editRoomTabCamera');
     const tabPreset = document.getElementById('editRoomTabPreset');
     const tabUrl = document.getElementById('editRoomTabUrl');
 
     const btnUpload = document.getElementById('editTabBtnUpload');
-    const btnSaved = document.getElementById('editTabBtnSaved');
     const btnCamera = document.getElementById('editTabBtnCamera');
     const btnPreset = document.getElementById('editTabBtnPreset');
     const btnUrl = document.getElementById('editTabBtnUrl');
 
     if (tabUpload) tabUpload.style.display = (tab === 'upload') ? 'block' : 'none';
-    if (tabSaved) tabSaved.style.display = (tab === 'saved') ? 'block' : 'none';
     if (tabCamera) tabCamera.style.display = (tab === 'camera') ? 'block' : 'none';
     if (tabPreset) tabPreset.style.display = (tab === 'preset') ? 'block' : 'none';
     if (tabUrl) tabUrl.style.display = (tab === 'url') ? 'block' : 'none';
 
     if (btnUpload) btnUpload.classList.toggle('active', tab === 'upload');
-    if (btnSaved) btnSaved.classList.toggle('active', tab === 'saved');
     if (btnCamera) btnCamera.classList.toggle('active', tab === 'camera');
     if (btnPreset) btnPreset.classList.toggle('active', tab === 'preset');
     if (btnUrl) btnUrl.classList.toggle('active', tab === 'url');
-
-    if (tab === 'saved' && typeof window.populateSavedToursList === 'function') {
-      window.populateSavedToursList('editRoomSavedToursList', true);
-    }
   };
 
   window.handleEditRoomFileUpload = async function (e) {
@@ -8348,22 +8143,15 @@
     const blurbInp = document.getElementById('editRoomBlurbInput');
 
     if (nameInp && nameInp.value.trim()) scene.name = nameInp.value.trim();
-    if (tagInp) {
-      const t = tagInp.value.trim();
-      scene.tag = (/custom\s*360/i.test(t) || t === 'Custom 360° Space') ? '' : t;
-    }
+    if (tagInp && tagInp.value.trim()) scene.tag = tagInp.value.trim();
     if (blurbInp) scene.blurb = blurbInp.value.trim();
 
     // Check updated 360 photo source
     const tabUpload = document.getElementById('editRoomTabUpload');
-    const tabSaved = document.getElementById('editRoomTabSaved');
     const tabPreset = document.getElementById('editRoomTabPreset');
 
     if (tabUpload && tabUpload.style.display !== 'none' && window._lastUploadedEditRoomPanoUrl) {
       scene.panoUrl = window._lastUploadedEditRoomPanoUrl;
-      scene.tourUrl = '';
-    } else if (tabSaved && tabSaved.style.display !== 'none' && window._selectedEditPresetPanoUrl) {
-      scene.panoUrl = window._selectedEditPresetPanoUrl;
       scene.tourUrl = '';
     } else if (tabPreset && tabPreset.style.display !== 'none' && window._selectedEditPresetPanoUrl) {
       scene.panoUrl = window._selectedEditPresetPanoUrl;
@@ -8408,447 +8196,6 @@
     if (typeof showToast === 'function') {
       showToast(`✅ Room "${scene.name}" updated!`);
     }
-  };
-
-  // ==========================================
-  // 360 TOUR REUSE & MULTI-SPOT SYNC ENGINE
-  // ==========================================
-
-  /**
-   * Discovers all 360 tours, rooms, and panoramas available across
-   * the magazine and local storage for instant reuse.
-   */
-  window.getAllAvailable360ToursAndRooms = function () {
-    const results = {
-      latestTour: null,
-      currentRooms: [],
-      businessTours: [],
-      customTours: []
-    };
-
-    // 1. Check recently saved tour in localStorage
-    try {
-      const latestRaw = localStorage.getItem('spotlight_latest_tour');
-      if (latestRaw) {
-        const parsed = JSON.parse(latestRaw);
-        const scenes = parsed.scenes || (Array.isArray(parsed) ? parsed : null);
-        if (scenes && scenes.length > 0 && scenes[0].panoUrl) {
-          results.latestTour = {
-            title: parsed.title || currentTourData?.title || 'Recently Built 360 Tour',
-            scenes: scenes,
-            primaryPano: scenes[0]?.panoUrl || '',
-            roomCount: scenes.length,
-            doorCount: scenes.reduce((acc, s) => acc + (Array.isArray(s.hotspots) ? s.hotspots.length : 0), 0)
-          };
-        }
-      }
-    } catch (e) {}
-
-    // 2. Current tour's rooms
-    if (Array.isArray(activeSceneList)) {
-      results.currentRooms = activeSceneList.map((sc, idx) => ({
-        index: idx,
-        name: sc.name || `Room #${idx + 1}`,
-        tag: sc.tag || '360° Space',
-        panoUrl: sc.panoUrl || '',
-        tourUrl: sc.tourUrl || '',
-        aspectMode: sc.aspectMode || 'iphone-pano',
-        vScale: sc.vScale || 1.0,
-        hotspotCount: Array.isArray(sc.hotspots) ? sc.hotspots.length : 0,
-        scene: sc
-      })).filter(r => !!r.panoUrl);
-    }
-
-    // 3. Business tours across all ads in window.MAGAZINE
-    if (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
-      window.MAGAZINE.cities.forEach((city, cIdx) => {
-        if (city && Array.isArray(city.ads)) {
-          city.ads.forEach((ad, aIdx) => {
-            if (!ad) return;
-            let scenes = null;
-            if (ad.tourConfig && Array.isArray(ad.tourConfig.scenes) && ad.tourConfig.scenes.length > 0) {
-              scenes = ad.tourConfig.scenes;
-            } else if (ad.tour3d && typeof ad.tour3d === 'string' && ad.tour3d.startsWith('{')) {
-              try {
-                const p = JSON.parse(ad.tour3d);
-                if (Array.isArray(p.scenes)) scenes = p.scenes;
-              } catch (e) {}
-            } else if (ad.pano3d || ad.panoUrl) {
-              scenes = [{
-                id: 'room-' + aIdx,
-                name: ad.name || 'Showroom',
-                tag: ad.tag || city.name,
-                panoUrl: ad.pano3d || ad.panoUrl
-              }];
-            }
-
-            if (scenes && scenes.length > 0 && scenes[0].panoUrl) {
-              results.businessTours.push({
-                cityIdx: cIdx,
-                adIdx: aIdx,
-                cityName: city.name || 'Wasatch Front',
-                businessName: ad.name || 'Local Business',
-                tag: ad.tag || 'Showcase Spot',
-                scenes: scenes,
-                primaryPano: scenes[0].panoUrl,
-                roomCount: scenes.length,
-                doorCount: scenes.reduce((acc, s) => acc + (Array.isArray(s.hotspots) ? s.hotspots.length : 0), 0)
-              });
-            }
-          });
-        }
-      });
-    }
-
-    return results;
-  };
-
-  /**
-   * Populates the "⭐ My 360 Tours & Rooms" tab inside the Add/Edit Room dialogs.
-   */
-  window.populateSavedToursList = function (containerId, isEditModal) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    const data = window.getAllAvailable360ToursAndRooms();
-    let html = '';
-
-    // A. Show "Just Built 360 Tour" if available
-    if (data.latestTour) {
-      const lt = data.latestTour;
-      const scenesJsonStr = encodeURIComponent(JSON.stringify(lt.scenes));
-      const panoEsc = encodeURIComponent(lt.primaryPano);
-      const titleEsc = encodeURIComponent(lt.title);
-
-      html += `
-        <div class="tour-saved-card highlight" style="border-color:#06D6A0;background:rgba(6,214,160,0.12);">
-          <img src="${lt.primaryPano}" class="tour-saved-thumb" alt="360 Preview" onerror="this.src='https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200&q=80'">
-          <div class="tour-saved-info">
-            <div style="font-size:9px;font-weight:900;color:#06D6A0;letter-spacing:0.04em;text-transform:uppercase;">✨ JUST BUILT TOUR</div>
-            <div class="tour-saved-title">${lt.title}</div>
-            <div class="tour-saved-meta">${lt.roomCount} Room(s) · ${lt.doorCount} Door Pin(s)</div>
-          </div>
-          <div class="tour-saved-actions">
-            <button type="button" class="tour-saved-action-btn" style="background:#06D6A0;color:#0a1917;font-weight:900;" onclick="window.applySavedPhotoToRoom(decodeURIComponent('${panoEsc}'), decodeURIComponent('${titleEsc}'), ${isEditModal})">
-              ⭐ USE 360 PHOTO
-            </button>
-            <button type="button" class="tour-saved-action-btn" style="background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.2);" onclick="window.importFullTourFromData(decodeURIComponent('${scenesJsonStr}'), decodeURIComponent('${titleEsc}'))">
-              🔁 LOAD ALL ROOMS
-            </button>
-          </div>
-        </div>
-      `;
-    }
-
-    // B. Show other rooms in this tour
-    const curIdx = isEditModal ? (parseInt(document.getElementById('editRoomTargetIndex')?.value || '0', 10)) : -1;
-    const otherRooms = data.currentRooms.filter(r => r.index !== curIdx);
-
-    if (otherRooms.length > 0) {
-      html += `<div style="font-size:10px;font-weight:800;color:#FFD23F;margin:8px 0 4px 0;letter-spacing:0.04em;">DOORS & ROOMS IN THIS TOUR</div>`;
-      otherRooms.forEach(room => {
-        const panoEsc = encodeURIComponent(room.panoUrl);
-        const nameEsc = encodeURIComponent(room.name);
-        html += `
-          <div class="tour-saved-card">
-            <img src="${room.panoUrl}" class="tour-saved-thumb" alt="${room.name}" onerror="this.src='https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200&q=80'">
-            <div class="tour-saved-info">
-              <div class="tour-saved-title">${room.name}</div>
-              <div class="tour-saved-meta">${room.tag} · ${room.hotspotCount} Door Pins</div>
-            </div>
-            <div class="tour-saved-actions">
-              <button type="button" class="tour-saved-action-btn" style="background:rgba(6,214,160,0.2);color:#06D6A0;border-color:#06D6A0;" onclick="window.applySavedPhotoToRoom(decodeURIComponent('${panoEsc}'), decodeURIComponent('${nameEsc}'), ${isEditModal})">
-                ⭐ USE 360 PHOTO
-              </button>
-            </div>
-          </div>
-        `;
-      });
-    }
-
-    // C. Show business tours across the magazine
-    if (data.businessTours.length > 0) {
-      html += `<div style="font-size:10px;font-weight:800;color:#3FDDE0;margin:8px 0 4px 0;letter-spacing:0.04em;">OTHER BUSINESS TOURS IN MAGAZINE</div>`;
-      data.businessTours.forEach(b => {
-        const scenesJsonStr = encodeURIComponent(JSON.stringify(b.scenes));
-        const panoEsc = encodeURIComponent(b.primaryPano);
-        const nameEsc = encodeURIComponent(b.businessName);
-
-        html += `
-          <div class="tour-saved-card">
-            <img src="${b.primaryPano}" class="tour-saved-thumb" alt="${b.businessName}" onerror="this.src='https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200&q=80'">
-            <div class="tour-saved-info">
-              <div class="tour-saved-title">${b.businessName}</div>
-              <div class="tour-saved-meta">${b.cityName} · ${b.roomCount} Room(s) · ${b.tag}</div>
-            </div>
-            <div class="tour-saved-actions">
-              <button type="button" class="tour-saved-action-btn" style="background:rgba(63,221,224,0.2);color:#3FDDE0;border-color:#3FDDE0;" onclick="window.applySavedPhotoToRoom(decodeURIComponent('${panoEsc}'), decodeURIComponent('${nameEsc}'), ${isEditModal})">
-                ⭐ USE 360 PHOTO
-              </button>
-              <button type="button" class="tour-saved-action-btn" style="background:rgba(255,255,255,0.08);color:#fff;border-color:rgba(255,255,255,0.2);" onclick="window.importFullTourFromData(decodeURIComponent('${scenesJsonStr}'), decodeURIComponent('${nameEsc}'))">
-                🔁 LOAD TOUR
-              </button>
-            </div>
-          </div>
-        `;
-      });
-    }
-
-    if (!html) {
-      html = `
-        <div style="padding:20px 10px;text-align:center;color:rgba(255,255,255,0.5);font-size:11px;">
-          No previously built 360 tours found yet. Upload or scan a 360 photo, and it will be saved here for instant reuse across rooms and pages!
-        </div>
-      `;
-    }
-
-    container.innerHTML = html;
-  };
-
-  /**
-   * Selects a saved 360 photo and fills the target room inputs.
-   */
-  window.applySavedPhotoToRoom = function (panoUrl, name, isEditModal) {
-    if (!panoUrl) return;
-
-    if (isEditModal) {
-      window._selectedEditPresetPanoUrl = panoUrl;
-      const urlInp = document.getElementById('editRoomUrlInput');
-      if (urlInp) urlInp.value = panoUrl;
-
-      // Update highlight state in saved container
-      const container = document.getElementById('editRoomSavedToursList');
-      if (container) {
-        container.querySelectorAll('.tour-saved-card').forEach(c => c.classList.remove('highlight'));
-      }
-
-      if (typeof showToast === 'function') {
-        showToast(`✅ Selected 360 photo from "${name}". Click "SAVE ROOM CHANGES" to apply.`);
-      }
-    } else {
-      window._selectedPresetPanoUrl = panoUrl;
-      const urlInp = document.getElementById('newRoomUrlInput');
-      if (urlInp) urlInp.value = panoUrl;
-
-      const nameInp = document.getElementById('newRoomNameInput');
-      if (nameInp && (!nameInp.value || nameInp.value === 'New 360° Room')) {
-        nameInp.value = name;
-      }
-
-      if (typeof showToast === 'function') {
-        showToast(`✅ Selected 360 photo from "${name}".`);
-      }
-    }
-  };
-
-  /**
-   * Imports an entire 360 tour (all rooms and door pins) into the editor.
-   */
-  window.importFullTourFromData = function (scenesJsonStr, tourTitle) {
-    try {
-      const scenes = (typeof scenesJsonStr === 'string') ? JSON.parse(scenesJsonStr) : scenesJsonStr;
-      if (!Array.isArray(scenes) || scenes.length === 0) {
-        if (typeof showToast === 'function') showToast('⚠️ Could not parse tour data.');
-        return;
-      }
-
-      const confirmed = confirm(`Import all ${scenes.length} room(s) and door pins from "${tourTitle || 'this tour'}"? This will load this tour into your editor.`);
-      if (!confirmed) return;
-
-      activeSceneList = JSON.parse(JSON.stringify(scenes));
-      activeSceneIndex = 0;
-
-      window.closeEditRoomDialog();
-      window.closeAddRoomDialog();
-
-      renderSceneSelector();
-      loadScene(0);
-
-      window.saveTourChangesToMagazine();
-
-      if (typeof showToast === 'function') {
-        showToast(`🎉 Successfully loaded all ${scenes.length} rooms from "${tourTitle || 'saved tour'}"!`);
-      }
-    } catch (err) {
-      console.error('[importFullTourFromData]', err);
-      if (typeof showToast === 'function') showToast('❌ Failed to load tour data.');
-    }
-  };
-
-  /**
-   * Populates the spot selection list for the current business page.
-   */
-  window.populatePageSpotsList = function (overrideCityIdx) {
-    const editContainer = document.getElementById('editRoomPageSpotsList');
-    const standaloneContainer = document.getElementById('standalonePageSpotsList');
-    const citySelect = document.getElementById('tourSyncCitySelectStandalone');
-
-    if (!editContainer && !standaloneContainer) return;
-
-    let cityIdx = (typeof overrideCityIdx === 'number')
-      ? overrideCityIdx
-      : (typeof window.currentEditingCityIdx === 'number' ? window.currentEditingCityIdx : (currentTourData?.cityIdx || 0));
-
-    if (!window.MAGAZINE || !Array.isArray(window.MAGAZINE.cities) || !window.MAGAZINE.cities[cityIdx]) {
-      cityIdx = 0;
-    }
-
-    // Populate standalone city dropdown if needed
-    if (citySelect && window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
-      citySelect.innerHTML = window.MAGAZINE.cities.map((c, i) => `
-        <option value="${i}" ${i === cityIdx ? 'selected' : ''}>Page ${i + 1}: ${c.name || 'City'}</option>
-      `).join('');
-    }
-
-    const city = window.MAGAZINE?.cities?.[cityIdx];
-    const ads = city?.ads || [];
-
-    if (ads.length === 0) {
-      const emptyMsg = `<div style="font-size:11px;color:rgba(255,255,255,0.4);font-style:italic;padding:8px 0;">No business spots found on this page.</div>`;
-      if (editContainer) editContainer.innerHTML = emptyMsg;
-      if (standaloneContainer) standaloneContainer.innerHTML = emptyMsg;
-      return;
-    }
-
-    const html = ads.map((ad, aIdx) => {
-      const isCur = (cityIdx === window.currentEditingCityIdx && aIdx === window.currentEditingAdIdx);
-      const hasTour = !!(ad.tourConfig?.scenes?.length || ad.tour3d || ad.pano3d);
-
-      let badge = '';
-      if (isCur) {
-        badge = `<span style="color:#06D6A0;font-weight:900;font-size:9px;padding:2px 7px;background:rgba(6,214,160,0.18);border:1px solid rgba(6,214,160,0.4);border-radius:4px;white-space:nowrap;">CURRENT SPOT</span>`;
-      } else if (hasTour) {
-        badge = `<span style="color:#FFD23F;font-weight:800;font-size:9px;padding:2px 7px;background:rgba(255,210,63,0.15);border:1px solid rgba(255,210,63,0.3);border-radius:4px;white-space:nowrap;">HAS 360 TOUR</span>`;
-      } else {
-        badge = `<span style="color:rgba(255,255,255,0.45);font-size:9px;padding:2px 6px;background:rgba(255,255,255,0.06);border-radius:4px;white-space:nowrap;">NO TOUR</span>`;
-      }
-
-      return `
-        <label class="tour-sync-spot-card ${isCur ? 'current' : ''}">
-          <input type="checkbox" class="tour-page-spot-cb" data-ci="${cityIdx}" data-ai="${aIdx}" ${isCur ? 'checked disabled' : ''}>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:11px;font-weight:800;color:#FFD23F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-              ${ad.name || 'Business Spot #' + (aIdx + 1)}
-            </div>
-            <div style="font-size:10px;color:rgba(255,255,255,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-              ${ad.tag || 'Showcase Spot'}
-            </div>
-          </div>
-          <div>${badge}</div>
-        </label>
-      `;
-    }).join('');
-
-    if (editContainer) editContainer.innerHTML = html;
-    if (standaloneContainer) standaloneContainer.innerHTML = html;
-  };
-
-  /**
-   * Selects or deselects all checkboxes in the Edit Room page spots list.
-   */
-  window.toggleAllEditRoomPageSpots = function (selectAll) {
-    const container = document.getElementById('editRoomPageSpotsList');
-    if (!container) return;
-    container.querySelectorAll('.tour-page-spot-cb:not(:disabled)').forEach(cb => {
-      cb.checked = !!selectAll;
-    });
-  };
-
-  /**
-   * Selects or deselects all checkboxes in the standalone modal spots list.
-   */
-  window.selectAllSyncSpots = function (selectAll) {
-    const container = document.getElementById('standalonePageSpotsList');
-    if (!container) return;
-    container.querySelectorAll('.tour-page-spot-cb:not(:disabled)').forEach(cb => {
-      cb.checked = !!selectAll;
-    });
-  };
-
-  /**
-   * Applies the current 360 tour to all selected spots on the business page.
-   */
-  window.applyCurrentTourToSelectedSpots = function () {
-    const checkedCbs = Array.from(document.querySelectorAll('.tour-page-spot-cb:checked:not(:disabled)'));
-    if (checkedCbs.length === 0) {
-      if (typeof showToast === 'function') {
-        showToast('⚠️ Please check at least one spot to apply this 360 tour to.');
-      } else {
-        alert('Please check at least one spot on this page to apply this 360 tour to.');
-      }
-      return;
-    }
-
-    const tourConfig = { scenes: JSON.parse(JSON.stringify(activeSceneList)) };
-    const tourJson = JSON.stringify(tourConfig);
-    const primaryPano = activeSceneList[0]?.panoUrl || '';
-
-    let count = 0;
-    checkedCbs.forEach(cb => {
-      const ci = parseInt(cb.dataset.ci, 10);
-      const ai = parseInt(cb.dataset.ai, 10);
-      const city = window.MAGAZINE?.cities?.[ci];
-      if (city && city.ads && city.ads[ai]) {
-        const ad = city.ads[ai];
-        ad.tour3d = tourJson;
-        ad.tourUrl = tourJson;
-        ad.tourConfig = JSON.parse(JSON.stringify(tourConfig));
-        if (primaryPano && !ad.pano3d) {
-          ad.pano3d = primaryPano;
-        }
-        count++;
-      }
-    });
-
-    // Save to local storage
-    try {
-      localStorage.setItem('spotlight_latest_tour', tourJson);
-      if (window.MAGAZINE) {
-        localStorage.setItem('spotlight_magazine_content_v5', JSON.stringify(window.MAGAZINE));
-      }
-    } catch (e) {}
-
-    // Update any matching inputs in Ad Editor
-    try {
-      checkedCbs.forEach(cb => {
-        const ci = parseInt(cb.dataset.ci, 10);
-        const ai = parseInt(cb.dataset.ai, 10);
-        document.querySelectorAll(`.ad-editor[data-ci="${ci}"][data-ai="${ai}"] input[data-ad="tour3d"]`).forEach(inp => {
-          inp.value = tourJson;
-        });
-      });
-    } catch (e) {}
-
-    // Trigger magazine re-render
-    if (typeof window.applyMagazineUpdates === 'function') {
-      window.applyMagazineUpdates(true);
-    }
-
-    window.populatePageSpotsList();
-
-    if (typeof showToast === 'function') {
-      showToast(`🎉 Success! This 360 tour was applied to ${count} spot(s) on this page.`);
-    }
-  };
-
-  /**
-   * Standalone Sync Dialog methods
-   */
-  window.openSyncPageSpotsDialog = function () {
-    const modal = document.getElementById('tourSyncPageSpotsModal');
-    if (!modal) return;
-    window.populatePageSpotsList();
-    modal.style.display = 'flex';
-  };
-
-  window.closeSyncPageSpotsDialog = function () {
-    const modal = document.getElementById('tourSyncPageSpotsModal');
-    if (modal) modal.style.display = 'none';
-  };
-
-  window.confirmSyncPageSpots = function () {
-    window.applyCurrentTourToSelectedSpots();
-    window.closeSyncPageSpotsDialog();
   };
 
   // ==========================================
@@ -9168,135 +8515,24 @@
     }
   };
 
-  window._tourHdQualityMode = 'ultra'; // Default to Ultra-HD for crystal-clear clarity
+  window.toggleHdSharpness = function () {
+    if (!threeRenderer || !currentTexture) return;
+    // Capped at 4x, not the device max — see the seam-bleeding note in
+    // loadThreePanoTexture for why going higher warps the sphere's texture seam.
+    const safeMaxAniso = Math.min(4, threeRenderer.capabilities.getMaxAnisotropy() || 1);
+    const isCurrentlyMax = (currentTexture.anisotropy >= safeMaxAniso);
+    currentTexture.anisotropy = isCurrentlyMax ? 1 : safeMaxAniso;
+    currentTexture.needsUpdate = true;
 
-  window.toggleTourHdQuality = function () {
-    if (window._tourHdQualityMode === 'ultra') {
-      window.setTourQualityMode('balanced');
-    } else if (window._tourHdQualityMode === 'balanced') {
-      window.setTourQualityMode('standard');
-    } else {
-      window.setTourQualityMode('ultra');
-    }
-  };
-
-  window.setTourQualityMode = function (mode) {
-    window._tourHdQualityMode = mode || 'ultra';
-    const hdBtn = document.getElementById('tourHdBtn');
-    const hdLbl = document.getElementById('tourHdLbl');
-    const badge = document.getElementById('propHdQualityBadge');
-    const sharpBadge = document.getElementById('propSharpBadge');
-    const ultraBtn = document.getElementById('propQualityUltraBtn');
-    const highBtn = document.getElementById('propQualityHighBtn');
-    const stdBtn = document.getElementById('propQualityStdBtn');
-
-    if (hdLbl) {
-      if (window._tourHdQualityMode === 'ultra') {
-        hdLbl.textContent = 'HD: ULTRA';
-      } else if (window._tourHdQualityMode === 'balanced') {
-        hdLbl.textContent = 'HD: HIGH';
-      } else {
-        hdLbl.textContent = 'HD: STD';
-      }
-    }
-
-    if (hdBtn) {
-      if (window._tourHdQualityMode === 'ultra') {
-        hdBtn.style.color = '#06D6A0';
-        hdBtn.style.borderColor = '#06D6A0';
-        hdBtn.style.background = 'rgba(6, 214, 160, 0.18)';
-      } else if (window._tourHdQualityMode === 'balanced') {
-        hdBtn.style.color = '#FFD23F';
-        hdBtn.style.borderColor = '#FFD23F';
-        hdBtn.style.background = 'rgba(255, 210, 63, 0.18)';
-      } else {
-        hdBtn.style.color = 'rgba(255,255,255,0.7)';
-        hdBtn.style.borderColor = 'rgba(255,255,255,0.2)';
-        hdBtn.style.background = 'rgba(255, 255, 255, 0.12)';
-      }
-    }
-
+    const badge = document.getElementById('propSharpBadge');
     if (badge) {
-      badge.textContent = window._tourHdQualityMode.toUpperCase();
-      badge.style.color = window._tourHdQualityMode === 'ultra' ? '#06D6A0' : (window._tourHdQualityMode === 'balanced' ? '#FFD23F' : '#fff');
-    }
-    if (sharpBadge) {
-      sharpBadge.textContent = window._tourHdQualityMode === 'standard' ? 'OFF' : 'ON';
-      sharpBadge.style.color = window._tourHdQualityMode === 'standard' ? '#FF4D6D' : '#06D6A0';
-    }
-
-    if (ultraBtn) {
-      ultraBtn.style.background = window._tourHdQualityMode === 'ultra' ? 'rgba(6,214,160,0.25)' : 'rgba(255,255,255,0.06)';
-      ultraBtn.style.borderColor = window._tourHdQualityMode === 'ultra' ? '#06D6A0' : 'rgba(255,255,255,0.2)';
-      ultraBtn.style.color = window._tourHdQualityMode === 'ultra' ? '#06D6A0' : '#fff';
-    }
-    if (highBtn) {
-      highBtn.style.background = window._tourHdQualityMode === 'balanced' ? 'rgba(255,210,63,0.25)' : 'rgba(255,255,255,0.06)';
-      highBtn.style.borderColor = window._tourHdQualityMode === 'balanced' ? '#FFD23F' : 'rgba(255,255,255,0.2)';
-      highBtn.style.color = window._tourHdQualityMode === 'balanced' ? '#FFD23F' : '#fff';
-    }
-    if (stdBtn) {
-      stdBtn.style.background = window._tourHdQualityMode === 'standard' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.06)';
-      stdBtn.style.borderColor = window._tourHdQualityMode === 'standard' ? '#fff' : 'rgba(255,255,255,0.2)';
-      stdBtn.style.color = '#fff';
-    }
-
-    if (threeRenderer) {
-      const maxDpr = window._tourHdQualityMode === 'ultra' ? 3.0 : (window._tourHdQualityMode === 'balanced' ? 2.0 : 1.0);
-      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
-      threeRenderer.setPixelRatio(dpr);
-      resizeThreeViewport();
-    }
-
-    if (currentTexture) {
-      const maxAniso = (threeRenderer && threeRenderer.capabilities) ? (threeRenderer.capabilities.getMaxAnisotropy() || 1) : 1;
-      const isWebGl2 = !!(threeRenderer && threeRenderer.capabilities && threeRenderer.capabilities.isWebGL2);
-      currentTexture.anisotropy = window._tourHdQualityMode === 'standard' ? 1 : Math.min(16, maxAniso);
-      if (window._tourHdQualityMode !== 'standard' && isWebGl2) {
-        currentTexture.generateMipmaps = true;
-        currentTexture.minFilter = THREE.LinearMipmapLinearFilter;
-      } else {
-        currentTexture.generateMipmaps = false;
-        currentTexture.minFilter = THREE.LinearFilter;
-      }
-      currentTexture.magFilter = THREE.LinearFilter;
-      currentTexture.needsUpdate = true;
-    }
-
-    // Refresh active room texture with updated clarity filter
-    panoTextureCache.clear();
-    if (activeSceneList && activeSceneList[activeSceneIndex]) {
-      const cur = activeSceneList[activeSceneIndex];
-      cur.clarityMode = window._tourHdQualityMode;
-      cur.hdQuality = window._tourHdQualityMode;
-      loadThreePanoTexture(cur.tourUrl || cur.panoUrl || '', cur);
-    }
-
-    if (window.currentEditingAdRef) {
-      window.currentEditingAdRef.tourHdQuality = window._tourHdQualityMode;
-      if (window.currentEditingAdRef.tourConfig && Array.isArray(window.currentEditingAdRef.tourConfig.scenes)) {
-        window.currentEditingAdRef.tourConfig.hdQuality = window._tourHdQualityMode;
-      }
-    }
-
-    const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
-    if (unlocked && typeof window.saveTourChangesToMagazine === 'function') {
-      window.saveTourChangesToMagazine();
+      badge.textContent = isCurrentlyMax ? 'OFF' : 'ON';
+      badge.style.color = isCurrentlyMax ? '#FF4D6D' : '#06D6A0';
     }
 
     if (typeof showToast === 'function') {
-      if (window._tourHdQualityMode === 'ultra') {
-        showToast(unlocked ? '✨ Ultra-HD Sharpness Activated & Saved for Everyone!' : '✨ Ultra-HD Sharpness Enabled (Native Retina Sampling + Anti-Blur Clarity)');
-      } else if (window._tourHdQualityMode === 'balanced') {
-        showToast(unlocked ? '👌 High-Definition Mode Saved for Everyone' : '👌 High-Definition Mode (2x Sampling)');
-      } else {
-        showToast(unlocked ? 'Standard Mode Saved for Everyone' : 'Standard Mode (1x Sampling)');
-      }
+      showToast(isCurrentlyMax ? 'Texture filtering: Standard' : '✨ HD Sharpness Filtering Enabled');
     }
-  };
-
-  window.toggleHdSharpness = function () {
-    window.toggleTourHdQuality();
   };
 
   window.saveCurrentRoomProportions = function () {
@@ -9727,92 +8963,66 @@
       saveBtn.disabled = true;
     }
 
-    if (Array.isArray(activeSceneList)) {
-      activeSceneList.forEach(s => {
-        if (s && (/custom\s*360/i.test(s.tag || '') || s.tag === 'Custom 360° Space' || s.tag === '360° Space')) {
-          s.tag = '';
-        }
-        if (s && !s.clarityMode) {
-          s.clarityMode = window._tourHdQualityMode || 'ultra';
-          s.hdQuality = window._tourHdQualityMode || 'ultra';
-        }
-      });
-    }
+    const tourJson = JSON.stringify({ scenes: activeSceneList });
 
-    const tourConfigObj = { scenes: activeSceneList, hdQuality: window._tourHdQualityMode || 'ultra' };
-    const tourJson = JSON.stringify(tourConfigObj);
+    // Determine current tour unique identifier
+    const tourId = currentTourData?.tourId ||
+      (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number'
+        ? `city-${window.currentEditingCityIdx}-ad-${window.currentEditingAdIdx}`
+        : (window.currentEditingSpotId ? `spot-${window.currentEditingSpotId}` : (currentTourData?.title ? `tour-${currentTourData.title.replace(/\s+/g, '-').toLowerCase()}` : 'active')));
 
-    // 1. Update active editing ad reference
-    if (window.currentEditingAdRef) {
-      window.currentEditingAdRef.tourHdQuality = window._tourHdQualityMode || 'ultra';
-      window.currentEditingAdRef.tourConfig = tourConfigObj;
-      window.currentEditingAdRef.tour3d = tourJson;
-      window.currentEditingAdRef.tourUrl = tourJson;
-    }
-
-    // 2. Update magazine city ad if indices or title match
-    if (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
-      let matchedAd = false;
-      if (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number') {
-        const cIdx = window.currentEditingCityIdx;
-        const aIdx = window.currentEditingAdIdx;
-        if (window.MAGAZINE.cities[cIdx] && Array.isArray(window.MAGAZINE.cities[cIdx].ads) && window.MAGAZINE.cities[cIdx].ads[aIdx]) {
-          window.MAGAZINE.cities[cIdx].ads[aIdx].tourHdQuality = window._tourHdQualityMode || 'ultra';
-          window.MAGAZINE.cities[cIdx].ads[aIdx].tour3d = tourJson;
-          window.MAGAZINE.cities[cIdx].ads[aIdx].tourUrl = tourJson;
-          window.MAGAZINE.cities[cIdx].ads[aIdx].tourConfig = tourConfigObj;
-          matchedAd = true;
-        }
-      }
-      // If not matched by index, find matching ad by title/tag across all cities
-      if (!matchedAd && currentTourData && currentTourData.title) {
-        const searchTitle = currentTourData.title.toLowerCase();
-        for (let ci = 0; ci < window.MAGAZINE.cities.length; ci++) {
-          const city = window.MAGAZINE.cities[ci];
-          if (city && Array.isArray(city.ads)) {
-            for (let ai = 0; ai < city.ads.length; ai++) {
-              const ad = city.ads[ai];
-              if (ad && ad.name && ad.name.toLowerCase() === searchTitle) {
-                ad.tour3d = tourJson;
-                ad.tourUrl = tourJson;
-                ad.tourConfig = { scenes: activeSceneList };
-                matchedAd = true;
-                break;
-              }
-            }
-          }
-          if (matchedAd) break;
-        }
-      }
-    }
-
-    // 3. Update community post if editing community spot
+    // 1. If currently editing a community spot, update ONLY the community post
     if (window.currentEditingSpotId && typeof window.saveCommunitySpotTour === 'function') {
       try {
         await window.saveCommunitySpotTour(window.currentEditingSpotId, tourJson);
       } catch (e) {}
+    } else {
+      // 2. We are editing a magazine city ad: update ONLY this exact ad
+      if (window.currentEditingAdRef) {
+        window.currentEditingAdRef.tourConfig = { scenes: activeSceneList };
+        window.currentEditingAdRef.tour3d = tourJson;
+        window.currentEditingAdRef.tourUrl = tourJson;
+      }
+
+      if (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
+        if (typeof window.currentEditingCityIdx === 'number' && typeof window.currentEditingAdIdx === 'number') {
+          const cIdx = window.currentEditingCityIdx;
+          const aIdx = window.currentEditingAdIdx;
+          if (window.MAGAZINE.cities[cIdx] && Array.isArray(window.MAGAZINE.cities[cIdx].ads) && window.MAGAZINE.cities[cIdx].ads[aIdx]) {
+            window.MAGAZINE.cities[cIdx].ads[aIdx].tour3d = tourJson;
+            window.MAGAZINE.cities[cIdx].ads[aIdx].tourUrl = tourJson;
+            window.MAGAZINE.cities[cIdx].ads[aIdx].tourConfig = { scenes: activeSceneList };
+          }
+        }
+      }
+
+      // Update open input fields in Admin Editor for THIS EXACT ad only
+      try {
+        const tourInputs = document.querySelectorAll('input[data-ad="tour3d"]');
+        tourInputs.forEach(inp => {
+          const adEl = inp.closest('.ad-editor');
+          if (
+            adEl &&
+            typeof window.currentEditingCityIdx === 'number' &&
+            typeof window.currentEditingAdIdx === 'number' &&
+            adEl.dataset.ci !== undefined &&
+            +adEl.dataset.ci === window.currentEditingCityIdx &&
+            +adEl.dataset.ai === window.currentEditingAdIdx
+          ) {
+            inp.value = tourJson;
+          }
+        });
+      } catch (e) {}
     }
 
-    // 4. Update local caches
+    // 4. Update local caches scoped specifically to this tour ID
     try {
-      localStorage.setItem('spotlight_tour_' + (currentTourData?.title || 'active'), tourJson);
-      localStorage.setItem('spotlight_latest_tour', tourJson);
+      if (tourId) {
+        localStorage.setItem(`spotlight_tour_${tourId}`, tourJson);
+      }
       if (window.MAGAZINE) {
         localStorage.setItem('spotlight_magazine_content_v5', JSON.stringify(window.MAGAZINE));
       }
-    } catch (e) {}
-
-    // 5. Update open input fields in Admin Editor
-    try {
-      const tourInputs = document.querySelectorAll('input[data-ad="tour3d"]');
-      tourInputs.forEach(inp => {
-        const adEl = inp.closest('.ad-editor');
-        if (adEl && typeof window.currentEditingAdIdx === 'number' && +adEl.dataset.ai === window.currentEditingAdIdx) {
-          inp.value = tourJson;
-        } else if (!adEl) {
-          inp.value = tourJson;
-        }
-      });
     } catch (e) {}
 
     // 6. Refresh live views
@@ -11630,6 +10840,24 @@
 
     modal.classList.add('active');
 
+    // Instantly wipe the hotspot layer DOM so no pins from previous tours remain
+    const layer = document.getElementById('tourHotspotsLayer');
+    if (layer) {
+      layer.innerHTML = '';
+      layer.style.opacity = '1';
+    }
+
+    // Determine unique tour identity
+    const tourId = options.tourId ||
+      (typeof options.cityIdx === 'number' && typeof options.adIdx === 'number'
+        ? `city-${options.cityIdx}-ad-${options.adIdx}`
+        : (options.spotId ? `spot-${options.spotId}` : (options.title ? `tour-${options.title.replace(/\s+/g, '-').toLowerCase()}` : 'default')));
+
+    const isDemoWalk = options.isDemo ||
+      tourId === 'demo_slc_walk' ||
+      (!options.title && !options.tag && !options.location) ||
+      (options.title && options.title.toLowerCase().includes('spotlight slc'));
+
     // Parse custom scenes or stored tour config
     let loadedScenes = null;
 
@@ -11638,44 +10866,76 @@
     } else if (options.tourUrl && options.tourUrl.startsWith('{')) {
       try {
         const parsed = JSON.parse(options.tourUrl);
-        if (parsed.scenes && Array.isArray(parsed.scenes)) {
+        if (parsed.scenes && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
           loadedScenes = parsed.scenes;
         }
       } catch (e) {}
+    }
+
+    // Check localStorage for this specific tour if not already in memory
+    if (!loadedScenes && tourId && tourId !== 'default') {
+      try {
+        const cached = localStorage.getItem(`spotlight_tour_${tourId}`);
+        if (cached && cached.startsWith('{')) {
+          const parsed = JSON.parse(cached);
+          if (parsed.scenes && Array.isArray(parsed.scenes) && parsed.scenes.length > 0) {
+            loadedScenes = parsed.scenes;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Sanitize any accidental contamination: if this is a business or community post,
+    // ensure it hasn't inherited the demo SLC scenes (slc-entrance, climbing gear, camera)
+    if (loadedScenes && loadedScenes.length > 0 && !isDemoWalk) {
+      const first = loadedScenes[0];
+      if (first && (first.id === 'slc-entrance' || first.name === 'SpotLIGHT SLC · Street Entrance & Walk-In')) {
+        // Strip foreign demo tour and create a clean isolated scene
+        loadedScenes = null;
+      }
     }
 
     if (!loadedScenes && (options.tourUrl || options.panoUrl)) {
       const directNorm = normalize3dTourUrl(options.tourUrl || options.panoUrl);
       loadedScenes = [
         {
-          id: 'custom-spot',
+          id: 'custom-spot-' + Date.now().toString(36),
           name: options.title || '360° Interactive Space',
           location: options.location || 'Wasatch Front, UT',
-          tag: options.tag || '',
+          tag: options.tag || directNorm.provider || '360° Scan',
           tourUrl: directNorm.isEmbed ? directNorm.url : '',
           panoUrl: directNorm.isImage ? directNorm.url : '',
-          blurb: options.blurb || '',
-          hotspots: []
+          aspectMode: 'full-360',
+          vScale: 1.0,
+          blurb: options.blurb || 'Explore this space in 360°',
+          hotspots: [] // Clean empty hotspots for this tour
         }
       ];
     }
 
     if (!loadedScenes || loadedScenes.length === 0) {
-      if (options.location && options.location.toLowerCase().includes('west jordan')) {
+      if (isDemoWalk) {
         loadedScenes = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
       } else {
-        loadedScenes = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
+        // Clean default room for a new tour - isolated with its own empty hotspots
+        loadedScenes = [
+          {
+            id: 'room-' + Date.now().toString(36),
+            name: options.title ? (options.title + ' · Main Space') : 'Main Space',
+            location: options.location || 'Wasatch Front, UT',
+            tag: options.tag || '360° Walkthrough',
+            panoUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=2500&q=80',
+            tourUrl: '',
+            aspectMode: 'full-360',
+            vScale: 1.0,
+            blurb: options.blurb || 'Explore this space in 360°',
+            hotspots: [] // Clean empty hotspots for this tour
+          }
+        ];
       }
     }
 
     activeSceneList = loadedScenes;
-    if (Array.isArray(activeSceneList)) {
-      activeSceneList.forEach(s => {
-        if (s && (/custom\s*360/i.test(s.tag || '') || s.tag === 'Custom 360° Space' || s.tag === '360° Space' || s.tag === 'Equirectangular Photo')) {
-          s.tag = '';
-        }
-      });
-    }
     targetYaw = 0;
     targetPitch = 0;
     targetFov = 75;
@@ -11690,7 +10950,7 @@
     const autoRotateBtn = document.getElementById('tourAutoRotateBtn');
     if (autoRotateBtn) autoRotateBtn.classList.remove('active');
 
-    // Visitors: hide build/edit and HD controls. Admin (password unlocked): show them.
+    // Visitors: hide build/edit controls. Admin (password unlocked): show them.
     if (typeof window.__spotlightRefreshEditorVisibility === 'function') {
       window.__spotlightRefreshEditorVisibility();
     } else {
@@ -11698,13 +10958,7 @@
       const editBtn = document.getElementById('tourEditModeBtn');
       const editorBar = document.getElementById('tourEditorBar');
       const propPopover = document.getElementById('tourProportionsPopover');
-      const hdBtn = document.getElementById('tourHdBtn');
-      const externalLaunchBtn = document.getElementById('tourExternalLaunchBtn');
-
       if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
-      if (hdBtn) hdBtn.style.display = unlocked ? 'inline-flex' : 'none';
-      if (externalLaunchBtn && !unlocked) externalLaunchBtn.style.display = 'none';
-
       if (editorBar && !unlocked) {
         editorBar.classList.remove('active');
         isEditorMode = false;
@@ -11715,32 +10969,13 @@
     }
   };
 
-  // Keep tour builder button, HD button, and bar in sync with magazine editor unlock state
+  // Keep tour builder button + bar in sync with magazine editor unlock state
   window.__spotlightRefreshEditorVisibility = function () {
     const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
     const editBtn = document.getElementById('tourEditModeBtn');
     const editorBar = document.getElementById('tourEditorBar');
     const propPopover = document.getElementById('tourProportionsPopover');
-    const hdBtn = document.getElementById('tourHdBtn');
-    const externalLaunchBtn = document.getElementById('tourExternalLaunchBtn');
-
     if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
-    if (hdBtn) hdBtn.style.display = unlocked ? 'inline-flex' : 'none';
-
-    if (externalLaunchBtn) {
-      if (!unlocked) {
-        externalLaunchBtn.style.display = 'none';
-      } else {
-        const curScene = activeSceneList && activeSceneList[activeSceneIndex];
-        const orig = curScene ? (curScene.originalUrl || curScene.tourUrl || curScene.panoUrl) : '';
-        if (orig && (orig.startsWith('http://') || orig.startsWith('https://'))) {
-          externalLaunchBtn.style.display = 'inline-flex';
-        } else {
-          externalLaunchBtn.style.display = 'none';
-        }
-      }
-    }
-
     if (!unlocked) {
       isEditorMode = false;
       if (editBtn) editBtn.classList.remove('active');
@@ -11767,9 +11002,11 @@
         'z-index:19',
         'pointer-events:none',
         'opacity:0',
-        'background:radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06) 0%, rgba(10,8,20,0.3) 45%, rgba(8,6,15,0.75) 100%)',
-        'transition:opacity 240ms cubic-bezier(.16,1,.3,1)',
-        'will-change:opacity'
+        'background:radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06) 0%, rgba(10,8,20,0.22) 45%, rgba(8,6,15,0.7) 100%)',
+        'backdrop-filter:blur(0px)',
+        '-webkit-backdrop-filter:blur(0px)',
+        'transition:opacity 280ms cubic-bezier(.16,1,.3,1), backdrop-filter 280ms ease, -webkit-backdrop-filter 280ms ease',
+        'will-change:opacity,backdrop-filter'
       ].join(';');
       container.appendChild(tourSceneTransitionEl);
     }
@@ -11869,6 +11106,8 @@
 
     requestAnimationFrame(() => {
       overlay.style.opacity = '1';
+      overlay.style.backdropFilter = 'blur(1.8px)';
+      overlay.style.webkitBackdropFilter = 'blur(1.8px)';
       setTourTravelVisual(1, true);
     });
 
@@ -11899,6 +11138,8 @@
       requestAnimationFrame(() => {
         setTimeout(() => {
           overlay.style.opacity = '0';
+          overlay.style.backdropFilter = 'blur(0px)';
+          overlay.style.webkitBackdropFilter = 'blur(0px)';
           setTourTravelVisual(1, false);
 
           setTimeout(() => {
@@ -11941,6 +11182,21 @@
       cancelAnimationFrame(animFrameId);
       animFrameId = null;
     }
+    // Clean up hotspot layer completely so pins never bleed into subsequent tours
+    const layer = document.getElementById('tourHotspotsLayer');
+    if (layer) {
+      layer.innerHTML = '';
+      layer.style.opacity = '1';
+    }
+
+    // Reset tour viewer state and isolate editing pointers
+    activeSceneList = [];
+    activeSceneIndex = 0;
+    currentTourData = null;
+    window.currentEditingAdRef = null;
+    window.currentEditingCityIdx = null;
+    window.currentEditingAdIdx = null;
+    window.currentEditingSpotId = null;
   };
 
   // Auto-initialize UI on load
