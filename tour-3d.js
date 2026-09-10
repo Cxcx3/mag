@@ -2524,6 +2524,88 @@
         font-size: 9px;
         color: rgba(255, 255, 255, 0.6);
       }
+      /* Saved 360 Tours & Page Sync Spots */
+      .tour-saved-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1.5px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.15s ease;
+      }
+      .tour-saved-card:hover {
+        border-color: rgba(6, 214, 160, 0.5);
+        background: rgba(6, 214, 160, 0.06);
+      }
+      .tour-saved-card.highlight {
+        border-color: #06D6A0;
+        background: rgba(6, 214, 160, 0.1);
+        box-shadow: 0 0 12px rgba(6, 214, 160, 0.2);
+      }
+      .tour-saved-thumb {
+        width: 50px;
+        height: 50px;
+        border-radius: 6px;
+        object-fit: cover;
+        background: #14121a;
+        flex-shrink: 0;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      .tour-saved-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .tour-saved-title {
+        font-size: 11px;
+        font-weight: 800;
+        color: #FFD23F;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tour-saved-meta {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.7);
+        margin-top: 2px;
+        line-height: 1.3;
+      }
+      .tour-saved-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+      .tour-saved-action-btn {
+        padding: 5px 9px;
+        font-size: 9px;
+        font-weight: 800;
+        border-radius: 5px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        white-space: nowrap;
+        transition: all 0.15s ease;
+      }
+      .tour-sync-spot-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+        padding: 7px 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        transition: background 0.15s;
+        user-select: none;
+      }
+      .tour-sync-spot-card:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .tour-sync-spot-card.current {
+        border-color: rgba(6, 214, 160, 0.45);
+        background: rgba(6, 214, 160, 0.08);
+      }
       .tour-dialog-footer {
         padding: 10px 16px;
         border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -3481,6 +3563,9 @@
             <button type="button" class="tour-ed-btn tour-ed-secondary" onclick="window.openEditRoomDialog()" title="Edit current room name, 360 photo, or blurb">
               ✏️ EDIT THIS ROOM
             </button>
+            <button type="button" class="tour-ed-btn" onclick="window.openSyncPageSpotsDialog()" title="Apply this exact 360 tour to other spots on this business page" style="background:rgba(6,214,160,0.18);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;">
+              🏢 SYNC PAGE SPOTS
+            </button>
             <button type="button" class="tour-ed-btn tour-ed-danger" onclick="window.confirmDeleteCurrentRoom()" title="Delete this room from tour">
               🗑️ DELETE THIS ROOM
             </button>
@@ -3527,6 +3612,10 @@
             <div class="tour-tool-grid-item" onclick="window.openEditRoomDialog(); window.toggleTourToolsDropdown(false);">
               <span>✏️ Edit This Room</span>
               <span class="tour-tool-grid-item-desc">Rename, swap photo, or blurb</span>
+            </div>
+            <div class="tour-tool-grid-item highlight" onclick="window.openSyncPageSpotsDialog(); window.toggleTourToolsDropdown(false);">
+              <span>🏢 Sync Page Spots</span>
+              <span class="tour-tool-grid-item-desc">Apply tour across business page</span>
             </div>
             <div class="tour-tool-grid-item" onclick="window.openManageRoomsDialog(); window.toggleTourToolsDropdown(false);">
               <span>📑 Manage All Rooms</span>
@@ -3968,6 +4057,7 @@
               <!-- Source Tabs -->
               <div class="tour-source-tabs">
                 <button type="button" class="tour-src-tab active" id="tabBtnUpload" onclick="window.switchAddRoomTab('upload')">📸 Upload 360 Photo</button>
+                <button type="button" class="tour-src-tab" id="tabBtnSaved" onclick="window.switchAddRoomTab('saved')" style="color:#06D6A0;font-weight:900;">⭐ My 360 Tours & Rooms</button>
                 <button type="button" class="tour-src-tab" id="tabBtnCamera" onclick="window.switchAddRoomTab('camera')">📷 360 Camera Scan</button>
                 <button type="button" class="tour-src-tab" id="tabBtnPreset" onclick="window.switchAddRoomTab('preset')">🌄 Utah 360 Presets</button>
                 <button type="button" class="tour-src-tab" id="tabBtnUrl" onclick="window.switchAddRoomTab('url')">🔗 Paste 360 URL / Embed</button>
@@ -3982,6 +4072,14 @@
                   <input type="file" id="roomFileInput" accept="image/*" style="display:none;" onchange="window.handleRoomFileUpload(event)">
                 </div>
                 <div id="roomUploadStatus" class="tour-upload-status" style="display:none;"></div>
+              </div>
+
+              <!-- Tab 1.2: Saved / Built Tours & Rooms -->
+              <div id="roomTabSaved" style="display:none;">
+                <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-bottom:8px;">
+                  Pick a 360° photo or complete tour you've already built or saved in this magazine:
+                </div>
+                <div id="addRoomSavedToursList" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;padding-right:4px;"></div>
               </div>
 
               <!-- Tab 1.5: In-Room Camera Scanner -->
@@ -4042,6 +4140,7 @@
                 <!-- Source Tabs -->
                 <div class="tour-source-tabs">
                   <button type="button" class="tour-src-tab active" id="editTabBtnUpload" onclick="window.switchEditRoomTab('upload')">📸 Upload New 360</button>
+                  <button type="button" class="tour-src-tab" id="editTabBtnSaved" onclick="window.switchEditRoomTab('saved')" style="color:#06D6A0;font-weight:900;">⭐ My 360 Tours & Rooms</button>
                   <button type="button" class="tour-src-tab" id="editTabBtnCamera" onclick="window.switchEditRoomTab('camera')">📷 360 Camera Scan</button>
                   <button type="button" class="tour-src-tab" id="editTabBtnAi" onclick="window.closeEditRoomDialog(); window.openAiOutpaintModal();" style="color:#3FDDE0;font-weight:900;">✨ AI Outpaint</button>
                   <button type="button" class="tour-src-tab" id="editTabBtnPreset" onclick="window.switchEditRoomTab('preset')">🌄 Utah Presets</button>
@@ -4057,6 +4156,14 @@
                     <input type="file" id="editRoomFileInput" accept="image/*" style="display:none;" onchange="window.handleEditRoomFileUpload(event)">
                   </div>
                   <div id="editRoomUploadStatus" class="tour-upload-status" style="display:none;"></div>
+                </div>
+
+                <!-- Tab 1.2: Saved / Built Tours & Rooms -->
+                <div id="editRoomTabSaved" style="display:none;">
+                  <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-bottom:8px;">
+                    Pick a 360° photo or complete tour you've already built or saved in this magazine:
+                  </div>
+                  <div id="editRoomSavedToursList" style="display:flex;flex-direction:column;gap:8px;max-height:220px;overflow-y:auto;padding-right:4px;"></div>
                 </div>
 
                 <!-- Tab 1.5: In-Room Camera Scanner -->
@@ -4115,6 +4222,26 @@
                 </label>
                 <div id="editRoomHotspotsList" style="max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;"></div>
               </div>
+
+              <!-- Apply Tour to Other Spots on This Business Page -->
+              <div class="tour-field-group" style="background:rgba(6,214,160,0.06);border:1.5px solid rgba(6,214,160,0.3);border-radius:10px;padding:12px 14px;margin-top:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <label class="tour-field-label" style="margin:0;color:#06D6A0;font-weight:900;display:flex;align-items:center;gap:6px;font-size:12px;">
+                    <span>🏢 Apply 360 Tour to Other Spots on This Page</span>
+                  </label>
+                  <div style="display:flex;gap:6px;">
+                    <button type="button" class="tour-mini-btn" onclick="window.toggleAllEditRoomPageSpots(true)" style="font-size:9px;padding:2px 8px;background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;">Select All</button>
+                    <button type="button" class="tour-mini-btn" onclick="window.toggleAllEditRoomPageSpots(false)" style="font-size:9px;padding:2px 8px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);border:none;border-radius:4px;cursor:pointer;">Clear</button>
+                  </div>
+                </div>
+                <p style="font-size:11px;color:rgba(255,255,255,0.8);margin:0 0 10px 0;line-height:1.4;">
+                  Doing a whole page for one business? Check the spots below to show this same 360 tour so you don't rebuild it:
+                </p>
+                <div id="editRoomPageSpotsList" style="display:flex;flex-direction:column;gap:6px;max-height:140px;overflow-y:auto;margin-bottom:10px;padding-right:2px;"></div>
+                <button type="button" class="tour-dialog-btn" onclick="window.applyCurrentTourToSelectedSpots()" style="width:100%;font-size:11px;padding:9px 12px;background:#06D6A0;color:#0d1b1e;font-weight:900;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 4px 14px rgba(6,214,160,0.25);">
+                  ⚡ APPLY SAME 360 TOUR TO SELECTED SPOTS
+                </button>
+              </div>
             </div>
             <div class="tour-dialog-footer" style="justify-content:space-between;">
               <button type="button" class="tour-dialog-btn tour-dialog-btn-danger" id="editRoomDeleteBtn" onclick="window.confirmDeleteFromEditModal()" title="Delete this room permanently">
@@ -4124,6 +4251,46 @@
                 <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeEditRoomDialog()">CANCEL</button>
                 <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.confirmSaveEditRoom()">💾 SAVE ROOM CHANGES</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3.5. STANDALONE SYNC TOUR ACROSS BUSINESS PAGE MODAL -->
+        <div class="tour-dialog-overlay" id="tourSyncPageSpotsModal" style="display:none; z-index:99;">
+          <div class="tour-dialog-card" style="max-width:540px;">
+            <div class="tour-dialog-header">
+              <span class="tour-dialog-title">🏢 Apply 360 Tour Across Business Page</span>
+              <button type="button" class="tour-dialog-close" onclick="window.closeSyncPageSpotsDialog()">✕</button>
+            </div>
+            <div class="tour-dialog-body">
+              <div style="background:rgba(6,214,160,0.1);border:1px solid rgba(6,214,160,0.3);border-radius:8px;padding:12px;margin-bottom:12px;">
+                <div style="font-weight:800;color:#06D6A0;font-size:13px;margin-bottom:4px;">✨ Share One 360 Tour with Multiple Spots</div>
+                <p style="font-size:11px;color:rgba(255,255,255,0.85);margin:0;line-height:1.4;">
+                  Doing a whole magazine page for this business? Select the spots below to attach this exact same 360 tour without rebuilding it. All selected spots will launch this tour for visitors.
+                </p>
+              </div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <label class="tour-field-label" style="margin:0;">Magazine Page:</label>
+                <select id="tourSyncCitySelectStandalone" class="tour-dialog-input" style="width:auto;padding:5px 10px;font-size:11px;" onchange="window.populatePageSpotsList(parseInt(this.value, 10))">
+                </select>
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:11px;color:rgba(255,255,255,0.7);font-weight:700;">Spots to attach this 360 tour to:</span>
+                <div style="display:flex;gap:6px;">
+                  <button type="button" class="tour-mini-btn" onclick="window.selectAllSyncSpots(true)" style="font-size:10px;padding:3px 8px;background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700;">Select All</button>
+                  <button type="button" class="tour-mini-btn" onclick="window.selectAllSyncSpots(false)" style="font-size:10px;padding:3px 8px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);border:none;border-radius:4px;cursor:pointer;">Clear</button>
+                </div>
+              </div>
+
+              <div id="standalonePageSpotsList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;padding-right:2px;margin-bottom:6px;"></div>
+            </div>
+            <div class="tour-dialog-footer" style="justify-content:space-between;">
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-cancel" onclick="window.closeSyncPageSpotsDialog()">CANCEL</button>
+              <button type="button" class="tour-dialog-btn tour-dialog-btn-confirm" onclick="window.confirmSyncPageSpots()" style="background:#06D6A0;color:#0d1b1e;font-weight:900;">
+                ⚡ APPLY SAME TOUR TO SELECTED SPOTS
+              </button>
             </div>
           </div>
         </div>
@@ -7705,24 +7872,32 @@
 
   window.switchAddRoomTab = function (tab) {
     const tabUpload = document.getElementById('roomTabUpload');
+    const tabSaved = document.getElementById('roomTabSaved');
     const tabCamera = document.getElementById('roomTabCamera');
     const tabPreset = document.getElementById('roomTabPreset');
     const tabUrl = document.getElementById('roomTabUrl');
 
     const btnUpload = document.getElementById('tabBtnUpload');
+    const btnSaved = document.getElementById('tabBtnSaved');
     const btnCamera = document.getElementById('tabBtnCamera');
     const btnPreset = document.getElementById('tabBtnPreset');
     const btnUrl = document.getElementById('tabBtnUrl');
 
     if (tabUpload) tabUpload.style.display = (tab === 'upload') ? 'block' : 'none';
+    if (tabSaved) tabSaved.style.display = (tab === 'saved') ? 'block' : 'none';
     if (tabCamera) tabCamera.style.display = (tab === 'camera') ? 'block' : 'none';
     if (tabPreset) tabPreset.style.display = (tab === 'preset') ? 'block' : 'none';
     if (tabUrl) tabUrl.style.display = (tab === 'url') ? 'block' : 'none';
 
     if (btnUpload) btnUpload.classList.toggle('active', tab === 'upload');
+    if (btnSaved) btnSaved.classList.toggle('active', tab === 'saved');
     if (btnCamera) btnCamera.classList.toggle('active', tab === 'camera');
     if (btnPreset) btnPreset.classList.toggle('active', tab === 'preset');
     if (btnUrl) btnUrl.classList.toggle('active', tab === 'url');
+
+    if (tab === 'saved' && typeof window.populateSavedToursList === 'function') {
+      window.populateSavedToursList('addRoomSavedToursList', false);
+    }
   };
 
   window.handleRoomFileUpload = async function (e) {
@@ -7929,6 +8104,13 @@
       }
     }
 
+    if (typeof window.populateSavedToursList === 'function') {
+      window.populateSavedToursList('editRoomSavedToursList', true);
+    }
+    if (typeof window.populatePageSpotsList === 'function') {
+      window.populatePageSpotsList();
+    }
+
     window.switchEditRoomTab(scene.panoUrl && scene.panoUrl.startsWith('http') ? 'preset' : 'upload');
     modal.style.display = 'flex';
   };
@@ -7940,24 +8122,32 @@
 
   window.switchEditRoomTab = function (tab) {
     const tabUpload = document.getElementById('editRoomTabUpload');
+    const tabSaved = document.getElementById('editRoomTabSaved');
     const tabCamera = document.getElementById('editRoomTabCamera');
     const tabPreset = document.getElementById('editRoomTabPreset');
     const tabUrl = document.getElementById('editRoomTabUrl');
 
     const btnUpload = document.getElementById('editTabBtnUpload');
+    const btnSaved = document.getElementById('editTabBtnSaved');
     const btnCamera = document.getElementById('editTabBtnCamera');
     const btnPreset = document.getElementById('editTabBtnPreset');
     const btnUrl = document.getElementById('editTabBtnUrl');
 
     if (tabUpload) tabUpload.style.display = (tab === 'upload') ? 'block' : 'none';
+    if (tabSaved) tabSaved.style.display = (tab === 'saved') ? 'block' : 'none';
     if (tabCamera) tabCamera.style.display = (tab === 'camera') ? 'block' : 'none';
     if (tabPreset) tabPreset.style.display = (tab === 'preset') ? 'block' : 'none';
     if (tabUrl) tabUrl.style.display = (tab === 'url') ? 'block' : 'none';
 
     if (btnUpload) btnUpload.classList.toggle('active', tab === 'upload');
+    if (btnSaved) btnSaved.classList.toggle('active', tab === 'saved');
     if (btnCamera) btnCamera.classList.toggle('active', tab === 'camera');
     if (btnPreset) btnPreset.classList.toggle('active', tab === 'preset');
     if (btnUrl) btnUrl.classList.toggle('active', tab === 'url');
+
+    if (tab === 'saved' && typeof window.populateSavedToursList === 'function') {
+      window.populateSavedToursList('editRoomSavedToursList', true);
+    }
   };
 
   window.handleEditRoomFileUpload = async function (e) {
@@ -8039,10 +8229,14 @@
 
     // Check updated 360 photo source
     const tabUpload = document.getElementById('editRoomTabUpload');
+    const tabSaved = document.getElementById('editRoomTabSaved');
     const tabPreset = document.getElementById('editRoomTabPreset');
 
     if (tabUpload && tabUpload.style.display !== 'none' && window._lastUploadedEditRoomPanoUrl) {
       scene.panoUrl = window._lastUploadedEditRoomPanoUrl;
+      scene.tourUrl = '';
+    } else if (tabSaved && tabSaved.style.display !== 'none' && window._selectedEditPresetPanoUrl) {
+      scene.panoUrl = window._selectedEditPresetPanoUrl;
       scene.tourUrl = '';
     } else if (tabPreset && tabPreset.style.display !== 'none' && window._selectedEditPresetPanoUrl) {
       scene.panoUrl = window._selectedEditPresetPanoUrl;
@@ -8087,6 +8281,447 @@
     if (typeof showToast === 'function') {
       showToast(`✅ Room "${scene.name}" updated!`);
     }
+  };
+
+  // ==========================================
+  // 360 TOUR REUSE & MULTI-SPOT SYNC ENGINE
+  // ==========================================
+
+  /**
+   * Discovers all 360 tours, rooms, and panoramas available across
+   * the magazine and local storage for instant reuse.
+   */
+  window.getAllAvailable360ToursAndRooms = function () {
+    const results = {
+      latestTour: null,
+      currentRooms: [],
+      businessTours: [],
+      customTours: []
+    };
+
+    // 1. Check recently saved tour in localStorage
+    try {
+      const latestRaw = localStorage.getItem('spotlight_latest_tour');
+      if (latestRaw) {
+        const parsed = JSON.parse(latestRaw);
+        const scenes = parsed.scenes || (Array.isArray(parsed) ? parsed : null);
+        if (scenes && scenes.length > 0 && scenes[0].panoUrl) {
+          results.latestTour = {
+            title: parsed.title || currentTourData?.title || 'Recently Built 360 Tour',
+            scenes: scenes,
+            primaryPano: scenes[0]?.panoUrl || '',
+            roomCount: scenes.length,
+            doorCount: scenes.reduce((acc, s) => acc + (Array.isArray(s.hotspots) ? s.hotspots.length : 0), 0)
+          };
+        }
+      }
+    } catch (e) {}
+
+    // 2. Current tour's rooms
+    if (Array.isArray(activeSceneList)) {
+      results.currentRooms = activeSceneList.map((sc, idx) => ({
+        index: idx,
+        name: sc.name || `Room #${idx + 1}`,
+        tag: sc.tag || '360° Space',
+        panoUrl: sc.panoUrl || '',
+        tourUrl: sc.tourUrl || '',
+        aspectMode: sc.aspectMode || 'iphone-pano',
+        vScale: sc.vScale || 1.0,
+        hotspotCount: Array.isArray(sc.hotspots) ? sc.hotspots.length : 0,
+        scene: sc
+      })).filter(r => !!r.panoUrl);
+    }
+
+    // 3. Business tours across all ads in window.MAGAZINE
+    if (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
+      window.MAGAZINE.cities.forEach((city, cIdx) => {
+        if (city && Array.isArray(city.ads)) {
+          city.ads.forEach((ad, aIdx) => {
+            if (!ad) return;
+            let scenes = null;
+            if (ad.tourConfig && Array.isArray(ad.tourConfig.scenes) && ad.tourConfig.scenes.length > 0) {
+              scenes = ad.tourConfig.scenes;
+            } else if (ad.tour3d && typeof ad.tour3d === 'string' && ad.tour3d.startsWith('{')) {
+              try {
+                const p = JSON.parse(ad.tour3d);
+                if (Array.isArray(p.scenes)) scenes = p.scenes;
+              } catch (e) {}
+            } else if (ad.pano3d || ad.panoUrl) {
+              scenes = [{
+                id: 'room-' + aIdx,
+                name: ad.name || 'Showroom',
+                tag: ad.tag || city.name,
+                panoUrl: ad.pano3d || ad.panoUrl
+              }];
+            }
+
+            if (scenes && scenes.length > 0 && scenes[0].panoUrl) {
+              results.businessTours.push({
+                cityIdx: cIdx,
+                adIdx: aIdx,
+                cityName: city.name || 'Wasatch Front',
+                businessName: ad.name || 'Local Business',
+                tag: ad.tag || 'Showcase Spot',
+                scenes: scenes,
+                primaryPano: scenes[0].panoUrl,
+                roomCount: scenes.length,
+                doorCount: scenes.reduce((acc, s) => acc + (Array.isArray(s.hotspots) ? s.hotspots.length : 0), 0)
+              });
+            }
+          });
+        }
+      });
+    }
+
+    return results;
+  };
+
+  /**
+   * Populates the "⭐ My 360 Tours & Rooms" tab inside the Add/Edit Room dialogs.
+   */
+  window.populateSavedToursList = function (containerId, isEditModal) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const data = window.getAllAvailable360ToursAndRooms();
+    let html = '';
+
+    // A. Show "Just Built 360 Tour" if available
+    if (data.latestTour) {
+      const lt = data.latestTour;
+      const scenesJsonStr = encodeURIComponent(JSON.stringify(lt.scenes));
+      const panoEsc = encodeURIComponent(lt.primaryPano);
+      const titleEsc = encodeURIComponent(lt.title);
+
+      html += `
+        <div class="tour-saved-card highlight" style="border-color:#06D6A0;background:rgba(6,214,160,0.12);">
+          <img src="${lt.primaryPano}" class="tour-saved-thumb" alt="360 Preview" onerror="this.src='https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200&q=80'">
+          <div class="tour-saved-info">
+            <div style="font-size:9px;font-weight:900;color:#06D6A0;letter-spacing:0.04em;text-transform:uppercase;">✨ JUST BUILT TOUR</div>
+            <div class="tour-saved-title">${lt.title}</div>
+            <div class="tour-saved-meta">${lt.roomCount} Room(s) · ${lt.doorCount} Door Pin(s)</div>
+          </div>
+          <div class="tour-saved-actions">
+            <button type="button" class="tour-saved-action-btn" style="background:#06D6A0;color:#0a1917;font-weight:900;" onclick="window.applySavedPhotoToRoom(decodeURIComponent('${panoEsc}'), decodeURIComponent('${titleEsc}'), ${isEditModal})">
+              ⭐ USE 360 PHOTO
+            </button>
+            <button type="button" class="tour-saved-action-btn" style="background:rgba(255,255,255,0.12);color:#fff;border-color:rgba(255,255,255,0.2);" onclick="window.importFullTourFromData(decodeURIComponent('${scenesJsonStr}'), decodeURIComponent('${titleEsc}'))">
+              🔁 LOAD ALL ROOMS
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // B. Show other rooms in this tour
+    const curIdx = isEditModal ? (parseInt(document.getElementById('editRoomTargetIndex')?.value || '0', 10)) : -1;
+    const otherRooms = data.currentRooms.filter(r => r.index !== curIdx);
+
+    if (otherRooms.length > 0) {
+      html += `<div style="font-size:10px;font-weight:800;color:#FFD23F;margin:8px 0 4px 0;letter-spacing:0.04em;">DOORS & ROOMS IN THIS TOUR</div>`;
+      otherRooms.forEach(room => {
+        const panoEsc = encodeURIComponent(room.panoUrl);
+        const nameEsc = encodeURIComponent(room.name);
+        html += `
+          <div class="tour-saved-card">
+            <img src="${room.panoUrl}" class="tour-saved-thumb" alt="${room.name}" onerror="this.src='https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200&q=80'">
+            <div class="tour-saved-info">
+              <div class="tour-saved-title">${room.name}</div>
+              <div class="tour-saved-meta">${room.tag} · ${room.hotspotCount} Door Pins</div>
+            </div>
+            <div class="tour-saved-actions">
+              <button type="button" class="tour-saved-action-btn" style="background:rgba(6,214,160,0.2);color:#06D6A0;border-color:#06D6A0;" onclick="window.applySavedPhotoToRoom(decodeURIComponent('${panoEsc}'), decodeURIComponent('${nameEsc}'), ${isEditModal})">
+                ⭐ USE 360 PHOTO
+              </button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // C. Show business tours across the magazine
+    if (data.businessTours.length > 0) {
+      html += `<div style="font-size:10px;font-weight:800;color:#3FDDE0;margin:8px 0 4px 0;letter-spacing:0.04em;">OTHER BUSINESS TOURS IN MAGAZINE</div>`;
+      data.businessTours.forEach(b => {
+        const scenesJsonStr = encodeURIComponent(JSON.stringify(b.scenes));
+        const panoEsc = encodeURIComponent(b.primaryPano);
+        const nameEsc = encodeURIComponent(b.businessName);
+
+        html += `
+          <div class="tour-saved-card">
+            <img src="${b.primaryPano}" class="tour-saved-thumb" alt="${b.businessName}" onerror="this.src='https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=200&q=80'">
+            <div class="tour-saved-info">
+              <div class="tour-saved-title">${b.businessName}</div>
+              <div class="tour-saved-meta">${b.cityName} · ${b.roomCount} Room(s) · ${b.tag}</div>
+            </div>
+            <div class="tour-saved-actions">
+              <button type="button" class="tour-saved-action-btn" style="background:rgba(63,221,224,0.2);color:#3FDDE0;border-color:#3FDDE0;" onclick="window.applySavedPhotoToRoom(decodeURIComponent('${panoEsc}'), decodeURIComponent('${nameEsc}'), ${isEditModal})">
+                ⭐ USE 360 PHOTO
+              </button>
+              <button type="button" class="tour-saved-action-btn" style="background:rgba(255,255,255,0.08);color:#fff;border-color:rgba(255,255,255,0.2);" onclick="window.importFullTourFromData(decodeURIComponent('${scenesJsonStr}'), decodeURIComponent('${nameEsc}'))">
+                🔁 LOAD TOUR
+              </button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    if (!html) {
+      html = `
+        <div style="padding:20px 10px;text-align:center;color:rgba(255,255,255,0.5);font-size:11px;">
+          No previously built 360 tours found yet. Upload or scan a 360 photo, and it will be saved here for instant reuse across rooms and pages!
+        </div>
+      `;
+    }
+
+    container.innerHTML = html;
+  };
+
+  /**
+   * Selects a saved 360 photo and fills the target room inputs.
+   */
+  window.applySavedPhotoToRoom = function (panoUrl, name, isEditModal) {
+    if (!panoUrl) return;
+
+    if (isEditModal) {
+      window._selectedEditPresetPanoUrl = panoUrl;
+      const urlInp = document.getElementById('editRoomUrlInput');
+      if (urlInp) urlInp.value = panoUrl;
+
+      // Update highlight state in saved container
+      const container = document.getElementById('editRoomSavedToursList');
+      if (container) {
+        container.querySelectorAll('.tour-saved-card').forEach(c => c.classList.remove('highlight'));
+      }
+
+      if (typeof showToast === 'function') {
+        showToast(`✅ Selected 360 photo from "${name}". Click "SAVE ROOM CHANGES" to apply.`);
+      }
+    } else {
+      window._selectedPresetPanoUrl = panoUrl;
+      const urlInp = document.getElementById('newRoomUrlInput');
+      if (urlInp) urlInp.value = panoUrl;
+
+      const nameInp = document.getElementById('newRoomNameInput');
+      if (nameInp && (!nameInp.value || nameInp.value === 'New 360° Room')) {
+        nameInp.value = name;
+      }
+
+      if (typeof showToast === 'function') {
+        showToast(`✅ Selected 360 photo from "${name}".`);
+      }
+    }
+  };
+
+  /**
+   * Imports an entire 360 tour (all rooms and door pins) into the editor.
+   */
+  window.importFullTourFromData = function (scenesJsonStr, tourTitle) {
+    try {
+      const scenes = (typeof scenesJsonStr === 'string') ? JSON.parse(scenesJsonStr) : scenesJsonStr;
+      if (!Array.isArray(scenes) || scenes.length === 0) {
+        if (typeof showToast === 'function') showToast('⚠️ Could not parse tour data.');
+        return;
+      }
+
+      const confirmed = confirm(`Import all ${scenes.length} room(s) and door pins from "${tourTitle || 'this tour'}"? This will load this tour into your editor.`);
+      if (!confirmed) return;
+
+      activeSceneList = JSON.parse(JSON.stringify(scenes));
+      activeSceneIndex = 0;
+
+      window.closeEditRoomDialog();
+      window.closeAddRoomDialog();
+
+      renderSceneSelector();
+      loadScene(0);
+
+      window.saveTourChangesToMagazine();
+
+      if (typeof showToast === 'function') {
+        showToast(`🎉 Successfully loaded all ${scenes.length} rooms from "${tourTitle || 'saved tour'}"!`);
+      }
+    } catch (err) {
+      console.error('[importFullTourFromData]', err);
+      if (typeof showToast === 'function') showToast('❌ Failed to load tour data.');
+    }
+  };
+
+  /**
+   * Populates the spot selection list for the current business page.
+   */
+  window.populatePageSpotsList = function (overrideCityIdx) {
+    const editContainer = document.getElementById('editRoomPageSpotsList');
+    const standaloneContainer = document.getElementById('standalonePageSpotsList');
+    const citySelect = document.getElementById('tourSyncCitySelectStandalone');
+
+    if (!editContainer && !standaloneContainer) return;
+
+    let cityIdx = (typeof overrideCityIdx === 'number')
+      ? overrideCityIdx
+      : (typeof window.currentEditingCityIdx === 'number' ? window.currentEditingCityIdx : (currentTourData?.cityIdx || 0));
+
+    if (!window.MAGAZINE || !Array.isArray(window.MAGAZINE.cities) || !window.MAGAZINE.cities[cityIdx]) {
+      cityIdx = 0;
+    }
+
+    // Populate standalone city dropdown if needed
+    if (citySelect && window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) {
+      citySelect.innerHTML = window.MAGAZINE.cities.map((c, i) => `
+        <option value="${i}" ${i === cityIdx ? 'selected' : ''}>Page ${i + 1}: ${c.name || 'City'}</option>
+      `).join('');
+    }
+
+    const city = window.MAGAZINE?.cities?.[cityIdx];
+    const ads = city?.ads || [];
+
+    if (ads.length === 0) {
+      const emptyMsg = `<div style="font-size:11px;color:rgba(255,255,255,0.4);font-style:italic;padding:8px 0;">No business spots found on this page.</div>`;
+      if (editContainer) editContainer.innerHTML = emptyMsg;
+      if (standaloneContainer) standaloneContainer.innerHTML = emptyMsg;
+      return;
+    }
+
+    const html = ads.map((ad, aIdx) => {
+      const isCur = (cityIdx === window.currentEditingCityIdx && aIdx === window.currentEditingAdIdx);
+      const hasTour = !!(ad.tourConfig?.scenes?.length || ad.tour3d || ad.pano3d);
+
+      let badge = '';
+      if (isCur) {
+        badge = `<span style="color:#06D6A0;font-weight:900;font-size:9px;padding:2px 7px;background:rgba(6,214,160,0.18);border:1px solid rgba(6,214,160,0.4);border-radius:4px;white-space:nowrap;">CURRENT SPOT</span>`;
+      } else if (hasTour) {
+        badge = `<span style="color:#FFD23F;font-weight:800;font-size:9px;padding:2px 7px;background:rgba(255,210,63,0.15);border:1px solid rgba(255,210,63,0.3);border-radius:4px;white-space:nowrap;">HAS 360 TOUR</span>`;
+      } else {
+        badge = `<span style="color:rgba(255,255,255,0.45);font-size:9px;padding:2px 6px;background:rgba(255,255,255,0.06);border-radius:4px;white-space:nowrap;">NO TOUR</span>`;
+      }
+
+      return `
+        <label class="tour-sync-spot-card ${isCur ? 'current' : ''}">
+          <input type="checkbox" class="tour-page-spot-cb" data-ci="${cityIdx}" data-ai="${aIdx}" ${isCur ? 'checked disabled' : ''}>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:11px;font-weight:800;color:#FFD23F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              ${ad.name || 'Business Spot #' + (aIdx + 1)}
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              ${ad.tag || 'Showcase Spot'}
+            </div>
+          </div>
+          <div>${badge}</div>
+        </label>
+      `;
+    }).join('');
+
+    if (editContainer) editContainer.innerHTML = html;
+    if (standaloneContainer) standaloneContainer.innerHTML = html;
+  };
+
+  /**
+   * Selects or deselects all checkboxes in the Edit Room page spots list.
+   */
+  window.toggleAllEditRoomPageSpots = function (selectAll) {
+    const container = document.getElementById('editRoomPageSpotsList');
+    if (!container) return;
+    container.querySelectorAll('.tour-page-spot-cb:not(:disabled)').forEach(cb => {
+      cb.checked = !!selectAll;
+    });
+  };
+
+  /**
+   * Selects or deselects all checkboxes in the standalone modal spots list.
+   */
+  window.selectAllSyncSpots = function (selectAll) {
+    const container = document.getElementById('standalonePageSpotsList');
+    if (!container) return;
+    container.querySelectorAll('.tour-page-spot-cb:not(:disabled)').forEach(cb => {
+      cb.checked = !!selectAll;
+    });
+  };
+
+  /**
+   * Applies the current 360 tour to all selected spots on the business page.
+   */
+  window.applyCurrentTourToSelectedSpots = function () {
+    const checkedCbs = Array.from(document.querySelectorAll('.tour-page-spot-cb:checked:not(:disabled)'));
+    if (checkedCbs.length === 0) {
+      if (typeof showToast === 'function') {
+        showToast('⚠️ Please check at least one spot to apply this 360 tour to.');
+      } else {
+        alert('Please check at least one spot on this page to apply this 360 tour to.');
+      }
+      return;
+    }
+
+    const tourConfig = { scenes: JSON.parse(JSON.stringify(activeSceneList)) };
+    const tourJson = JSON.stringify(tourConfig);
+    const primaryPano = activeSceneList[0]?.panoUrl || '';
+
+    let count = 0;
+    checkedCbs.forEach(cb => {
+      const ci = parseInt(cb.dataset.ci, 10);
+      const ai = parseInt(cb.dataset.ai, 10);
+      const city = window.MAGAZINE?.cities?.[ci];
+      if (city && city.ads && city.ads[ai]) {
+        const ad = city.ads[ai];
+        ad.tour3d = tourJson;
+        ad.tourUrl = tourJson;
+        ad.tourConfig = JSON.parse(JSON.stringify(tourConfig));
+        if (primaryPano && !ad.pano3d) {
+          ad.pano3d = primaryPano;
+        }
+        count++;
+      }
+    });
+
+    // Save to local storage
+    try {
+      localStorage.setItem('spotlight_latest_tour', tourJson);
+      if (window.MAGAZINE) {
+        localStorage.setItem('spotlight_magazine_content_v5', JSON.stringify(window.MAGAZINE));
+      }
+    } catch (e) {}
+
+    // Update any matching inputs in Ad Editor
+    try {
+      checkedCbs.forEach(cb => {
+        const ci = parseInt(cb.dataset.ci, 10);
+        const ai = parseInt(cb.dataset.ai, 10);
+        document.querySelectorAll(`.ad-editor[data-ci="${ci}"][data-ai="${ai}"] input[data-ad="tour3d"]`).forEach(inp => {
+          inp.value = tourJson;
+        });
+      });
+    } catch (e) {}
+
+    // Trigger magazine re-render
+    if (typeof window.applyMagazineUpdates === 'function') {
+      window.applyMagazineUpdates(true);
+    }
+
+    window.populatePageSpotsList();
+
+    if (typeof showToast === 'function') {
+      showToast(`🎉 Success! This 360 tour was applied to ${count} spot(s) on this page.`);
+    }
+  };
+
+  /**
+   * Standalone Sync Dialog methods
+   */
+  window.openSyncPageSpotsDialog = function () {
+    const modal = document.getElementById('tourSyncPageSpotsModal');
+    if (!modal) return;
+    window.populatePageSpotsList();
+    modal.style.display = 'flex';
+  };
+
+  window.closeSyncPageSpotsDialog = function () {
+    const modal = document.getElementById('tourSyncPageSpotsModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.confirmSyncPageSpots = function () {
+    window.applyCurrentTourToSelectedSpots();
+    window.closeSyncPageSpotsDialog();
   };
 
   // ==========================================
