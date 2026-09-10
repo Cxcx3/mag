@@ -625,179 +625,56 @@
   }
 
   /* =========================================================
-     FRONT COVER VIDEO — MOBILE AUTOPLAY FIX
+     FRONT COVER VIDEO — MOBILE AUTOPLAY FIX (OPTIMIZED)
      ========================================================= */
 
   function lockCoverVideo(video) {
     if (!video) return;
+    if (video.dataset.slLocked === 'true' && !video.paused) return;
 
-    /*
-     * Force the properties directly.
-     * Mobile Safari and Chrome are much more reliable
-     * when BOTH properties and HTML attributes are set.
-     */
-
+    video.dataset.slLocked = 'true';
     video.autoplay = true;
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
     video.loop = true;
 
-    video.setAttribute(
-      'autoplay',
-      ''
-    );
+    if (!video.hasAttribute('autoplay')) video.setAttribute('autoplay', '');
+    if (!video.hasAttribute('muted')) video.setAttribute('muted', '');
+    if (!video.hasAttribute('playsinline')) video.setAttribute('playsinline', '');
+    if (!video.hasAttribute('webkit-playsinline')) video.setAttribute('webkit-playsinline', '');
+    if (!video.hasAttribute('x5-playsinline')) video.setAttribute('x5-playsinline', '');
+    if (video.controls) video.controls = false;
+    if (video.hasAttribute('controls')) video.removeAttribute('controls');
+    if (!video.hasAttribute('disablepictureinpicture')) video.setAttribute('disablepictureinpicture', '');
+    if (!video.hasAttribute('disableremoteplayback')) video.setAttribute('disableremoteplayback', '');
 
-    video.setAttribute(
-      'muted',
-      ''
-    );
-
-    video.setAttribute(
-      'playsinline',
-      ''
-    );
-
-    video.setAttribute(
-      'webkit-playsinline',
-      ''
-    );
-
-    video.setAttribute(
-      'x5-playsinline',
-      ''
-    );
-
-    video.setAttribute(
-      'x5-video-player-type',
-      'h5'
-    );
-
-    video.setAttribute(
-      'x5-video-player-fullscreen',
-      'false'
-    );
-
-    /*
-     * IMPORTANT:
-     * Completely remove native controls.
-     */
-    video.controls = false;
-    video.removeAttribute(
-      'controls'
-    );
-
-    /*
-     * Tell browsers not to expose extra
-     * download/fullscreen/PiP controls.
-     */
-    video.setAttribute(
-      'controlslist',
-      'nodownload nofullscreen noremoteplayback'
-    );
-
-    video.setAttribute(
-      'disablepictureinpicture',
-      ''
-    );
-
-    video.setAttribute(
-      'disableremoteplayback',
-      ''
-    );
-
-    /*
-     * Prevent the video itself from becoming
-     * an accidental interaction target.
-     */
-    video.style.webkitUserSelect =
-      'none';
-
-    video.style.userSelect =
-      'none';
-
-    /*
-     * Start playback.
-     */
     try {
       if (video.paused) {
-        var playPromise =
-          video.play();
-
-        if (
-          playPromise &&
-          typeof playPromise.catch ===
-          'function'
-        ) {
-          playPromise.catch(
-            function () {
-              /*
-               * Mobile browser may not be ready
-               * yet. The retry system below handles it.
-               */
-            }
-          );
-        }
+        var p = video.play();
+        if (p && typeof p.catch === 'function') p.catch(function () {});
       }
     } catch (e) {}
   }
 
+  var isCoverAutoplayScheduled = false;
   function forceCoverVideoAutoplay() {
-    /*
-     * Find ALL possible front-cover videos.
-     */
-    var videos =
-      document.querySelectorAll(
-        '.cover video, .cover .magazine-video, .cover-photo video'
-      );
-
-    videos.forEach(function (video) {
-      lockCoverVideo(video);
+    if (isCoverAutoplayScheduled) return;
+    isCoverAutoplayScheduled = true;
+    requestAnimationFrame(function () {
+      isCoverAutoplayScheduled = false;
+      var videos = document.querySelectorAll('.cover video, .cover .magazine-video, .cover-photo video');
+      for (var i = 0; i < videos.length; i++) {
+        lockCoverVideo(videos[i]);
+      }
     });
   }
 
+  var retryCoverTimer = null;
   function retryCoverVideo() {
     forceCoverVideoAutoplay();
-
-    /*
-     * Multiple attempts are intentional.
-     * The magazine dynamically creates/re-renders
-     * the cover, especially on mobile.
-     */
-    setTimeout(
-      forceCoverVideoAutoplay,
-      50
-    );
-
-    setTimeout(
-      forceCoverVideoAutoplay,
-      150
-    );
-
-    setTimeout(
-      forceCoverVideoAutoplay,
-      300
-    );
-
-    setTimeout(
-      forceCoverVideoAutoplay,
-      600
-    );
-
-    setTimeout(
-      forceCoverVideoAutoplay,
-      1000
-    );
-
-    setTimeout(
-      forceCoverVideoAutoplay,
-      2000
-    );
-
-    setTimeout(
-      forceCoverVideoAutoplay,
-      3500
-    );
+    if (retryCoverTimer) clearTimeout(retryCoverTimer);
+    retryCoverTimer = setTimeout(forceCoverVideoAutoplay, 350);
   }
 
   /* =========================================================
@@ -925,31 +802,31 @@
   }
 
   /* =========================================================
-     WATCH FOR DYNAMIC COVER RENDERING
+     WATCH FOR DYNAMIC COVER RENDERING (DEBOUNCED)
      ========================================================= */
 
-  if (
-    typeof MutationObserver !==
-    'undefined'
-  ) {
-    var coverObserver =
-      new MutationObserver(
-        function () {
-          /*
-           * The cover can be rebuilt by the
-           * magazine's page/flip system.
-           */
-          forceCoverVideoAutoplay();
+  if (typeof MutationObserver !== 'undefined') {
+    var coverDebounceTimer = null;
+    var coverObserver = new MutationObserver(function (mutations) {
+      // Fast check: only trigger if an element was actually added/changed related to video/cover
+      var hasRelevantChange = false;
+      for (var i = 0; i < mutations.length; i++) {
+        var m = mutations[i];
+        if (m.addedNodes && m.addedNodes.length > 0) {
+          hasRelevantChange = true;
+          break;
         }
-      );
-
-    coverObserver.observe(
-      document.documentElement,
-      {
-        childList: true,
-        subtree: true
       }
-    );
+      if (!hasRelevantChange) return;
+
+      if (coverDebounceTimer) clearTimeout(coverDebounceTimer);
+      coverDebounceTimer = setTimeout(forceCoverVideoAutoplay, 300);
+    });
+
+    var targetRoot = document.getElementById('book') || document.querySelector('.book-wrap') || document.body;
+    if (targetRoot) {
+      coverObserver.observe(targetRoot, { childList: true, subtree: true });
+    }
   }
 
   /* =========================================================

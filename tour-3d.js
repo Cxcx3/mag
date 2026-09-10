@@ -4940,7 +4940,7 @@
     // to give mobile devices 100% GPU memory & frame budget, preventing WebGL crashes
     const infoModal = document.getElementById('tourHotspotInfoModal');
     if (infoModal && infoModal.style.display !== 'none' && infoModal.style.display !== '') {
-      animFrameId = requestAnimationFrame(renderFrame);
+      animFrameId = null;
       return;
     }
 
@@ -5143,9 +5143,8 @@
     const curScene = activeSceneList[activeSceneIndex];
     if (!curScene || !Array.isArray(curScene.hotspots)) return;
 
-    const rect = container.getBoundingClientRect();
-    const w = rect.width || window.innerWidth;
-    const h = rect.height || window.innerHeight;
+    const w = container.clientWidth || window.innerWidth;
+    const h = container.clientHeight || window.innerHeight;
     const pins = layer.querySelectorAll('.tour-hotspot-pin');
 
     curScene.hotspots.forEach((hs, idx) => {
@@ -6382,7 +6381,7 @@
   let sharedItemRenderer = null;
   function getSharedItemRenderer(mountEl, width, height) {
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const maxDpr = isMobile ? 1.5 : 2.0;
+    const maxDpr = isMobile ? 1.25 : 1.5;
     const pixelRatio = Math.min(window.devicePixelRatio || 1, maxDpr);
 
     if (sharedItemRenderer) {
@@ -7542,6 +7541,11 @@
     const video = document.getElementById('tourInfoModalNativeVideo');
     if (video && typeof video.pause === 'function') {
       try { video.pause(); } catch (_) {}
+    }
+
+    const tourModal = document.getElementById('tour3dModal');
+    if (tourModal && tourModal.classList.contains('active') && !animFrameId) {
+      animFrameId = requestAnimationFrame(renderFrame);
     }
   };
 
@@ -10841,11 +10845,9 @@
         'z-index:19',
         'pointer-events:none',
         'opacity:0',
-        'background:radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06) 0%, rgba(10,8,20,0.22) 45%, rgba(8,6,15,0.7) 100%)',
-        'backdrop-filter:blur(0px)',
-        '-webkit-backdrop-filter:blur(0px)',
-        'transition:opacity 280ms cubic-bezier(.16,1,.3,1), backdrop-filter 280ms ease, -webkit-backdrop-filter 280ms ease',
-        'will-change:opacity,backdrop-filter'
+        'background:radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06) 0%, rgba(10,8,20,0.3) 45%, rgba(8,6,15,0.75) 100%)',
+        'transition:opacity 240ms cubic-bezier(.16,1,.3,1)',
+        'will-change:opacity'
       ].join(';');
       container.appendChild(tourSceneTransitionEl);
     }
@@ -10945,8 +10947,6 @@
 
     requestAnimationFrame(() => {
       overlay.style.opacity = '1';
-      overlay.style.backdropFilter = 'blur(1.8px)';
-      overlay.style.webkitBackdropFilter = 'blur(1.8px)';
       setTourTravelVisual(1, true);
     });
 
@@ -10977,8 +10977,6 @@
       requestAnimationFrame(() => {
         setTimeout(() => {
           overlay.style.opacity = '0';
-          overlay.style.backdropFilter = 'blur(0px)';
-          overlay.style.webkitBackdropFilter = 'blur(0px)';
           setTourTravelVisual(1, false);
 
           setTimeout(() => {

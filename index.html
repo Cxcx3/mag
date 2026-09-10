@@ -168,8 +168,8 @@
     -webkit-transform-origin: left center;
     -webkit-transform-style: preserve-3d;
     transform-style: preserve-3d;
-    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-    -webkit-transition: -webkit-transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.32s cubic-bezier(0.25, 1, 0.5, 1);
+    -webkit-transition: -webkit-transform 0.32s cubic-bezier(0.25, 1, 0.5, 1);
     transform: rotateY(0deg);
     -webkit-transform: rotateY(0deg);
     border-radius: 8px;
@@ -3359,8 +3359,10 @@ let communityPollTimer = null;
 function startCommunityPolling() {
   if (communityPollTimer) clearInterval(communityPollTimer);
   communityPollTimer = setInterval(() => {
-    loadCommunityPosts(true);
-  }, 4000);
+    if (!document.hidden) {
+      loadCommunityPosts(true);
+    }
+  }, 20000);
 }
 
 function filterAndSortLocalPosts() {
@@ -4526,7 +4528,7 @@ function render(){
         el.classList.remove('is-flipping');
         el.style.zIndex = getPageZIndex(idx);
         delete flipTimeouts[idx];
-      }, 410);
+      }, 330);
     } else {
       el.classList.remove('is-flipping');
       el.style.zIndex = getPageZIndex(idx);
@@ -4553,32 +4555,33 @@ function render(){
   }
 }
 
+let isVideoUnlockThrottle = false;
 function unlockAndPlayVisibleVideos() {
+  if (isVideoUnlockThrottle) return;
+  isVideoUnlockThrottle = true;
+  setTimeout(() => { isVideoUnlockThrottle = false; }, 400);
+
   const activePage = document.getElementById('page-' + current);
-  if (activePage) {
-    const videos = activePage.querySelectorAll('video');
-    videos.forEach(v => {
+  if (!activePage) return;
+  const videos = activePage.querySelectorAll('video');
+  videos.forEach(v => {
+    if (v.paused) {
       v.muted = true;
       v.defaultMuted = true;
-      v.volume = 0;
       v.playsInline = true;
-      v.setAttribute('playsinline', '');
-      v.setAttribute('webkit-playsinline', '');
-      if (v.paused) {
-        v.play().catch(() => {});
-      }
-    });
+      v.play().catch(() => {});
+    }
+  });
 
-    const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
-    ytIframes.forEach(iframe => {
-      playYouTubeIframe(iframe);
-    });
-  }
+  const ytIframes = activePage.querySelectorAll('.yt-embed-wrapper iframe');
+  ytIframes.forEach(iframe => {
+    playYouTubeIframe(iframe);
+  });
 }
 
-['touchstart', 'touchend', 'pointerdown', 'pointerup', 'click', 'scroll', 'touchmove', 'mousemove', 'wheel', 'focus', 'pageshow'].forEach(evt => {
-  window.addEventListener(evt, unlockAndPlayVisibleVideos, { passive: true, capture: true });
-  document.addEventListener(evt, unlockAndPlayVisibleVideos, { passive: true, capture: true });
+// User-interaction triggers for autoplay unlock — excludes continuous events (mousemove, touchmove, scroll, wheel)
+['touchstart', 'pointerdown', 'click'].forEach(evt => {
+  window.addEventListener(evt, unlockAndPlayVisibleVideos, { passive: true });
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -4606,15 +4609,10 @@ window.render = render;
 
 let gestureStartX = 0;
 let gestureStartY = 0;
-let gestureLastY = 0;
 let gestureStartTime = 0;
-let gestureLastTime = 0;
-let gestureStartScrollTop = 0;
 let isHorizontalSwipe = false;
 let isVerticalScroll = false;
 let gestureMoved = false;
-let scrollVelocity = 0;
-let momentumRaf = null;
 
 function getActiveSheet() {
   const activePage = document.getElementById('page-' + current);
@@ -4628,15 +4626,7 @@ if (bookWrap) {
     const t = e.touches[0];
     gestureStartX = t.clientX;
     gestureStartY = t.clientY;
-    gestureLastY = t.clientY;
     gestureStartTime = performance.now();
-    gestureLastTime = gestureStartTime;
-    scrollVelocity = 0;
-
-    if (momentumRaf) { cancelAnimationFrame(momentumRaf); momentumRaf = null; }
-
-    const sheet = getActiveSheet();
-    gestureStartScrollTop = sheet ? sheet.scrollTop : 0;
     isHorizontalSwipe = false;
     isVerticalScroll = false;
     gestureMoved = false;
@@ -4647,21 +4637,12 @@ if (bookWrap) {
     const t = e.touches[0];
     const dx = t.clientX - gestureStartX;
     const dy = t.clientY - gestureStartY;
-    const now = performance.now();
-    const dt = now - gestureLastTime;
-
-    if (dt > 10) {
-      const instantaneousV = (gestureLastY - t.clientY) / dt;
-      scrollVelocity = instantaneousV * 0.7 + scrollVelocity * 0.3;
-      gestureLastY = t.clientY;
-      gestureLastTime = now;
-    }
 
     if (!gestureMoved) {
       const dist = Math.hypot(dx, dy);
-      if (dist > 6) {
+      if (dist > 8) {
         gestureMoved = true;
-        if (Math.abs(dx) > Math.abs(dy) * 1.25 && Math.abs(dx) > 8) {
+        if (Math.abs(dx) > Math.abs(dy) * 1.2) {
           isHorizontalSwipe = true;
         } else {
           isVerticalScroll = true;
@@ -4669,13 +4650,10 @@ if (bookWrap) {
       }
     }
 
-    if (isHorizontalSwipe) {
-      if (e.cancelable) e.preventDefault();
-    } else if (isVerticalScroll) {
-      if (e.cancelable) e.preventDefault();
-      const sheet = getActiveSheet();
-      if (sheet) sheet.scrollTop = gestureStartScrollTop - dy;
+    if (isHorizontalSwipe && e.cancelable) {
+      e.preventDefault();
     }
+    // When vertical scroll, allow native fluid 60/120fps browser scrolling
   }, { passive: false });
 
   bookWrap.addEventListener('touchend', e => {
@@ -4687,22 +4665,6 @@ if (bookWrap) {
 
       if (dx < -30 || (dx < -15 && speed > 0.2)) nextPage();
       else if (dx > 30 || (dx > 15 && speed > 0.2)) prevPage();
-    } else if (isVerticalScroll) {
-      const sheet = getActiveSheet();
-      if (sheet && Math.abs(scrollVelocity) > 0.12) {
-        let v = scrollVelocity * 16;
-        if (v > 30) v = 30;
-        if (v < -30) v = -30;
-
-        function momentumStep() {
-          if (!sheet) return;
-          sheet.scrollTop += v;
-          v *= 0.93;
-          if (Math.abs(v) > 0.4) momentumRaf = requestAnimationFrame(momentumStep);
-          else momentumRaf = null;
-        }
-        momentumRaf = requestAnimationFrame(momentumStep);
-      }
     }
     isHorizontalSwipe = false;
     isVerticalScroll = false;
@@ -4711,11 +4673,10 @@ if (bookWrap) {
 
   bookWrap.addEventListener('wheel', e => {
     const sheet = getActiveSheet();
-    if (sheet) {
+    if (sheet && sheet.scrollHeight > sheet.clientHeight) {
       sheet.scrollTop += e.deltaY;
-      if (sheet.scrollHeight > sheet.clientHeight) e.preventDefault();
     }
-  }, { passive: false });
+  }, { passive: true });
 
   let isMouseDown = false;
   let mouseStartX = 0;
