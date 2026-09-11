@@ -185,6 +185,26 @@
           size: 105,
           opacity: 100,
           labelDisplay: 'always'
+        },
+        {
+          pitch: 8,
+          yaw: -150,
+          label: '🎥 Space Walkthrough (4K Video)',
+          actionType: 'info',
+          mediaType: 'video',
+          videoUrl: 'https://www.youtube.com/watch?v=ScMzIvxBSi4',
+          itemTitle: '🎥 Cinematic Studio Architectural Film',
+          itemPrice: '4K ULTRA HD',
+          infoText: 'Watch the high-definition architectural walkthrough showing morning daylight shifting through the clerestory glass windows.',
+          itemCtaText: 'Watch Fullscreen ↗',
+          itemCtaUrl: 'https://www.youtube.com/watch?v=ScMzIvxBSi4',
+          icon: 'video',
+          color: '#FF4D6D',
+          placement: 'wall',
+          rotation: 0,
+          size: 105,
+          opacity: 100,
+          labelDisplay: 'always'
         }
       ]
     },
@@ -524,69 +544,6 @@
     { name: '🍸 Speakeasy Bar & Lounge', url: 'https://pannellum.org/images/cerro-toco-0.jpg', tag: 'Lounge & Bar' },
     { name: '🌄 Wasatch Sky Patio Overlook', url: 'https://pannellum.org/images/jfk.jpg', tag: 'Outdoor Vista' }
   ];
-
-  /**
-   * Helper to detect if a scene list is strictly the untouched demo SLC walk.
-   * Named user tours, custom business tours, or tours like "Revive" are NEVER flagged as demo!
-   */
-  function isDemoScenes(scenes, tourTitle = '', tourId = '') {
-    if (!Array.isArray(scenes) || scenes.length === 0) return false;
-    if (tourId === 'demo_slc_walk') return true;
-
-    // If the tour has a custom title (like "Revive", "Cryo", "Iron Door", etc.) it is NEVER demo!
-    const titleStr = (tourTitle || '').toLowerCase();
-    if (titleStr && !titleStr.includes('spotlight slc') && !titleStr.includes('demo')) {
-      return false;
-    }
-
-    // Only strictly consider demo if all 4 scenes match the exact untouched default titles
-    if (scenes.length === 4) {
-      const names = scenes.map(s => (s && s.name) || '');
-      if (
-        names[0] === 'SpotLIGHT SLC · Street Entrance & Walk-In' &&
-        names[1] === 'SpotLIGHT SLC · Main Studio & Workspace' &&
-        names[2] === 'SpotLIGHT SLC · VIP Speakeasy & Bar' &&
-        names[3] === 'SpotLIGHT SLC · Sky Patio & Mountain Views'
-      ) {
-        return true;
-      }
-    }
-    return false;
-  }
-  window.isDemoScenes = isDemoScenes;
-
-  /**
-   * Helper to sanitize any loaded scene list from accidental contamination:
-   * 1. Replaces demo scene IDs ('slc-entrance', etc.) with stable unique IDs
-   * 2. Strips demo placeholder videos (like YouTube sample videos)
-   * 3. Cleans up system tags
-   * PRESERVES all user rooms, custom photos, labels, blurbs, and user-placed hotspots.
-   */
-  function sanitizeSceneList(scenes) {
-    if (!Array.isArray(scenes)) return [];
-    return scenes.map((s, idx) => {
-      if (!s || typeof s !== 'object') return s;
-      const clean = { ...s };
-      // Sanitize old demo IDs so they don't cause collisions
-      if (clean.id === 'slc-entrance') clean.id = 'scene-entrance-' + idx;
-      if (clean.id === 'slc-studio') clean.id = 'scene-studio-' + idx;
-      if (clean.id === 'slc-lounge') clean.id = 'scene-lounge-' + idx;
-      if (clean.id === 'slc-patio') clean.id = 'scene-patio-' + idx;
-
-      if (Array.isArray(clean.hotspots)) {
-        clean.hotspots = clean.hotspots.filter(h =>
-          !h || !(
-            h.videoUrl === 'https://www.youtube.com/watch?v=ScMzIvxBSi4' ||
-            (typeof h.videoUrl === 'string' && h.videoUrl.includes('ScMzIvxBSi4')) ||
-            (typeof h.label === 'string' && h.label.includes('Space Walkthrough')) ||
-            (typeof h.itemTitle === 'string' && h.itemTitle.includes('Cinematic Studio Architectural Film'))
-          )
-        );
-      }
-      return clean;
-    });
-  }
-  window.sanitizeSceneList = sanitizeSceneList;
 
   // Global Tour Viewer State
   let activeSceneList = JSON.parse(JSON.stringify(SLC_WALK_SCENES));
@@ -1406,7 +1363,9 @@
         min-width: 0;
       }
       .tour-badge-row {
-        display: none !important; /* removed top-left LIVE VIEW + type badge (custom 360 space / equirectangular photo) */
+        display: flex;
+        align-items: center;
+        gap: 6px;
       }
       .tour-live-badge {
         background: #FF4D6D;
@@ -2579,88 +2538,6 @@
         font-size: 9px;
         color: rgba(255, 255, 255, 0.6);
       }
-      /* Saved 360 Tours & Page Sync Spots */
-      .tour-saved-card {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1.5px solid rgba(255, 255, 255, 0.12);
-        border-radius: 8px;
-        padding: 8px 10px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        transition: all 0.15s ease;
-      }
-      .tour-saved-card:hover {
-        border-color: rgba(6, 214, 160, 0.5);
-        background: rgba(6, 214, 160, 0.06);
-      }
-      .tour-saved-card.highlight {
-        border-color: #06D6A0;
-        background: rgba(6, 214, 160, 0.1);
-        box-shadow: 0 0 12px rgba(6, 214, 160, 0.2);
-      }
-      .tour-saved-thumb {
-        width: 50px;
-        height: 50px;
-        border-radius: 6px;
-        object-fit: cover;
-        background: #14121a;
-        flex-shrink: 0;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-      }
-      .tour-saved-info {
-        flex: 1;
-        min-width: 0;
-      }
-      .tour-saved-title {
-        font-size: 11.5px;
-        font-weight: 800;
-        color: #FFD23F;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .tour-saved-meta {
-        font-size: 10px;
-        color: rgba(255, 255, 255, 0.7);
-        margin-top: 2px;
-        line-height: 1.3;
-      }
-      .tour-saved-actions {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        flex-shrink: 0;
-      }
-      .tour-saved-action-btn {
-        padding: 5px 9px;
-        font-size: 9px;
-        font-weight: 800;
-        border-radius: 5px;
-        cursor: pointer;
-        border: 1px solid transparent;
-        white-space: nowrap;
-        transition: all 0.15s ease;
-      }
-      .tour-sync-spot-card {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 6px;
-        padding: 7px 10px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        cursor: pointer;
-        transition: background 0.15s;
-        user-select: none;
-      }
-      .tour-sync-spot-card:hover {
-        background: rgba(255, 255, 255, 0.08);
-      }
-      .tour-sync-spot-card.current {
-        border-color: rgba(6, 214, 160, 0.45);
-        background: rgba(6, 214, 160, 0.08);
-      }
       .tour-dialog-footer {
         padding: 10px 16px;
         border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -3426,9 +3303,6 @@
         </div>
 
         <div class="tour-top-controls">
-          <button type="button" class="tour-hud-btn" id="tourSelectSavedTopBtn" onclick="window.openSelectSavedTourModal()" title="Select and load any 360 tour you've built (like Revive) into this spot" style="border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;">
-            <span>⭐</span><span class="hud-btn-lbl">MY TOURS</span>
-          </button>
           <button type="button" class="tour-hud-btn" id="tourEditModeBtn" title="Place & Edit Navigation Hotspots">
             <span>✏️</span><span class="hud-btn-lbl">BUILD TOUR</span>
           </button>
@@ -3600,12 +3474,6 @@
 
         <div class="tour-editor-actions-scroll-wrap">
           <div class="tour-editor-actions" id="tourEditorActionsTrack">
-            <button type="button" class="tour-ed-btn" onclick="window.openSelectSavedTourModal()" title="Choose and load any 360 tour you've built (like Revive) into this spot" style="background:rgba(6,214,160,0.22);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;">
-              ⭐ LOAD BUILT 360 TOUR
-            </button>
-            <button type="button" class="tour-ed-btn" onclick="window.openSyncPageSpotsDialog()" title="Apply this exact 360 tour to other spots on this business page" style="background:rgba(255,210,63,0.18);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;">
-              🏢 SYNC PAGE SPOTS
-            </button>
             <button type="button" class="tour-ed-btn" id="tourEditorProportionsBtn" onclick="window.toggleTourProportionsMenu()" title="Adjust Photo Proportions & Seam Stitching Alignment" style="background:rgba(255,210,63,0.18);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;">
               📐 PROPORTIONS & SEAM
             </button>
@@ -3646,14 +3514,6 @@
             <button type="button" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer;" onclick="window.toggleTourToolsDropdown(false)">✕</button>
           </div>
           <div class="tour-tools-grid">
-            <div class="tour-tool-grid-item" style="background:rgba(6,214,160,0.18);border:1.5px solid #06D6A0;" onclick="window.openSelectSavedTourModal(); window.toggleTourToolsDropdown(false);">
-              <span style="color:#06D6A0;font-weight:900;">⭐ Load Built 360 Tour</span>
-              <span class="tour-tool-grid-item-desc">Load Revive or any saved tour into this spot</span>
-            </div>
-            <div class="tour-tool-grid-item highlight" onclick="window.openSyncPageSpotsDialog(); window.toggleTourToolsDropdown(false);">
-              <span>🏢 Sync Page Spots</span>
-              <span class="tour-tool-grid-item-desc">Apply tour across business page spots</span>
-            </div>
             <div class="tour-tool-grid-item highlight" onclick="window.toggleTourProportionsMenu(); window.toggleTourToolsDropdown(false);">
               <span>📐 Proportions & Seam</span>
               <span class="tour-tool-grid-item-desc">Adjust height & blend 360 seam</span>
