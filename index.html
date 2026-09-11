@@ -2529,9 +2529,19 @@ function standardAdHtml(a, pageIndexInPages, cityIdx, adIdx){
 
   const placeholderLabel = (a.name || 'BUSINESS').toUpperCase();
 
+  // If media is missing or empty, but business has a 360 tour with a photo, automatically use the 360 photo as media!
+  let adMedia = a.media;
+  if (!adMedia || !adMedia.url) {
+    if (a.tourConfig && Array.isArray(a.tourConfig.scenes) && a.tourConfig.scenes[0] && a.tourConfig.scenes[0].panoUrl) {
+      adMedia = { type: 'image', url: a.tourConfig.scenes[0].panoUrl };
+    } else if (a.tour3d && (a.tour3d.startsWith('http') || a.tour3d.startsWith('data:image/')) && !a.tour3d.startsWith('{')) {
+      adMedia = { type: 'image', url: a.tour3d };
+    }
+  }
+
   return `
     <div class="ad-card">
-      ${mediaBlock(a.media, '[ '+placeholderLabel+' PHOTO / VIDEO ]', 'ad-media')}
+      ${mediaBlock(adMedia, '[ '+placeholderLabel+' PHOTO / VIDEO ]', 'ad-media')}
       <div class="biz-name">${esc(a.name || 'Local Business')}</div>
       <div class="biz-tag">${esc(a.tag || 'Special Offer')}</div>
       <div class="biz-blurb">${esc(a.blurb || '')}</div>
@@ -2928,6 +2938,22 @@ function renderEditor(){
                 </button>
               </div>
               <small style="color:var(--text-muted);font-size:10.5px;display:block;margin-top:4px;">🔒 Only you see the HD and External buttons in the 360 viewer. Setting Ultra-HD here makes the 360 tour crystal-clear for all public visitors automatically.</small>
+            </div>
+            <div style="margin-top:8px;padding:8px 10px;background:rgba(255,210,63,0.08);border:1px solid rgba(255,210,63,0.3);border-radius:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+                <span style="font-size:11px;font-weight:900;color:#FFD23F;">⭐ REUSE SAVED 360 TOUR / ROOM IN THIS BUSINESS</span>
+                <span style="font-size:10px;color:#06D6A0;font-weight:800;background:rgba(6,214,160,0.15);padding:2px 6px;border-radius:4px;">MULTI-SPOT SYNC</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <select id="savedTourPicker_${ci}_${ai}" onchange="window.applySavedTourToCityAd(${ci}, ${ai}, this.value)" style="flex:1;min-width:180px;background:#14121A;border:1.5px solid #FFD23F;color:#FFD23F;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:800;">
+                  <option value="">-- Choose a saved 360 tour or room --</option>
+                  ${(typeof window.renderSavedTourOptions === 'function') ? window.renderSavedTourOptions(a.tour3d) : ''}
+                </select>
+                <button type="button" class="ed-btn" style="padding:5px 10px;font-size:11px;background:#14121A;border:1px solid rgba(255,255,255,0.3);color:#fff;" onclick="window.refreshSavedTourPicker(${ci}, ${ai})" title="Refresh list of saved 360 tours">
+                  🔄 Refresh
+                </button>
+              </div>
+              <small style="color:var(--text-muted);font-size:10.5px;display:block;margin-top:4px;">Selecting any saved tour instantly connects all its 360 rooms to this business spot and updates the cover photo.</small>
             </div>
           </div>
           ${mediaFieldHTML('Business Media (Photo or Video)', `city-${ci}-ad-${ai}`, a.media, `ad-${ci}-${ai}-type`)}
@@ -4392,6 +4418,114 @@ window.updateCityAdTourQuality = function(cityIdx, adIdx, qualityMode) {
   }
   if (typeof showToast === 'function') {
     showToast(`✨ 360° ${qualityMode.toUpperCase()} Quality activated for everyone!`);
+  }
+};
+
+window.renderSavedTourOptions = function(currentTourVal) {
+  if (typeof window.getAllAvailable360ToursAndRooms !== 'function') return '';
+  const items = window.getAllAvailable360ToursAndRooms();
+  if (!Array.isArray(items) || items.length === 0) return '';
+  return items.map(item => {
+    const isTour = !!item.isFullTour && Array.isArray(item.scenes) && item.scenes.length > 0;
+    const countStr = isTour ? ` (${item.scenes.length} rooms)` : '';
+    const label = `${isTour ? '🏢 [TOUR]' : '📍 [ROOM]'} ${item.title}${countStr} · ${item.subtitle || ''}`;
+    return `<option value="${esc(item.id)}">${esc(label)}</option>`;
+  }).join('');
+};
+
+window.refreshSavedTourPicker = function(ci, ai) {
+  const sel = document.getElementById(`savedTourPicker_${ci}_${ai}`);
+  if (sel && typeof window.renderSavedTourOptions === 'function') {
+    sel.innerHTML = '<option value="">-- Choose a saved 360 tour or room --</option>' + window.renderSavedTourOptions();
+    if (typeof showToast === 'function') showToast('🔄 Saved 360 tours refreshed!');
+  }
+};
+
+window.applySavedTourToCityAd = function(ci, ai, tourItemId) {
+  if (!tourItemId) return;
+  if (typeof window.getAllAvailable360ToursAndRooms !== 'function') {
+    if (typeof showToast === 'function') showToast('⚠️ 360° tour engine loading, please try again');
+    return;
+  }
+  const items = window.getAllAvailable360ToursAndRooms();
+  const item = items && items.find(it => it.id === tourItemId || it.title === tourItemId || (it.id && it.id.includes(tourItemId)));
+  if (!item) {
+    if (typeof showToast === 'function') showToast('⚠️ Could not find selected 360 tour.');
+    return;
+  }
+
+  const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[ci] : null;
+  const ad = city && Array.isArray(city.ads) ? city.ads[ai] : null;
+  if (!ad) return;
+
+  let scenes = null;
+  if (Array.isArray(item.scenes) && item.scenes.length > 0) {
+    const cloned = JSON.parse(JSON.stringify(item.scenes));
+    scenes = (typeof window.sanitizeSceneList === 'function') ? window.sanitizeSceneList(cloned) : cloned;
+  } else if (item.panoUrl) {
+    scenes = [{
+      id: 'scene-' + Date.now().toString(36),
+      name: item.title || '360° Room',
+      location: (city.name || 'Wasatch Front') + ', UT',
+      tag: '',
+      panoUrl: item.panoUrl,
+      tourUrl: '',
+      blurb: 'Interactive 360° walk-in space',
+      hotspots: []
+    }];
+  }
+
+  if (!scenes || scenes.length === 0) {
+    if (typeof showToast === 'function') showToast('⚠️ Selected tour contains no 360 rooms.');
+    return;
+  }
+
+  // Update business ad with selected multi-room tour
+  ad.tourConfig = { scenes: scenes, hdQuality: ad.tourHdQuality || 'ultra' };
+  ad.tour3d = JSON.stringify({ scenes: scenes });
+  ad.tourUrl = ad.tour3d;
+
+  // Always automatically update business card media to first 360 photo so no placeholder video appears
+  const firstPano = scenes[0]?.panoUrl || item.thumb || '';
+  if (firstPano) {
+    ad.media = { type: 'image', url: firstPano };
+    ad.image = firstPano;
+  }
+
+  // Persist to localStorage
+  try {
+    const tourKey = `city-${ci}-ad-${ai}`;
+    localStorage.setItem(`spotlight_tour_${tourKey}`, ad.tour3d);
+    localStorage.setItem('spotlight_latest_tour', ad.tour3d);
+  } catch (e) {}
+
+  // Persist to magazine storage
+  if (typeof window.saveMagazineData === 'function') {
+    window.saveMagazineData(window.MAGAZINE);
+  }
+
+  // Update input field in current editor form if present
+  const tourInputs = document.querySelectorAll(`input[data-ad="tour3d"]`);
+  if (tourInputs && tourInputs[ai]) {
+    tourInputs[ai].value = ad.tour3d;
+  }
+
+  // If the 3D tour viewer is currently open for this ad, sync it live
+  if (typeof window.currentEditingCityIdx === 'number' && window.currentEditingCityIdx === ci &&
+      typeof window.currentEditingAdIdx === 'number' && window.currentEditingAdIdx === ai) {
+    if (typeof window.loadFullTourByIndex === 'function' && window._cachedAvailableSavedTours) {
+      const sIdx = window._cachedAvailableSavedTours.findIndex(it => it.id === tourItemId || it.title === item.title);
+      if (sIdx >= 0) window.loadFullTourByIndex(sIdx);
+    }
+  }
+
+  // Re-render pages
+  if (typeof window.render === 'function') {
+    window.render();
+  }
+
+  if (typeof showToast === 'function') {
+    showToast(`🎉 360° Tour "${item.title}" (${scenes.length} room${scenes.length > 1 ? 's' : ''}) applied to ${ad.name || 'business'}!`);
   }
 };
 
