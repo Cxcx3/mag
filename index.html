@@ -1493,6 +1493,20 @@
           <div class="comm-form-field full">
             <label>3D Tour / 360° Scan URL (Optional)</label>
             <input type="url" id="spotTourUrl" placeholder="Pannellum, 360Cities, Kuula, Momento360, Polycam, Google Photosphere, or 360° photo URL">
+            <div style="margin-top:8px;padding:8px 10px;background:rgba(255,210,63,0.08);border:1px solid rgba(255,210,63,0.3);border-radius:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+                <span style="font-size:11px;font-weight:900;color:#FFD23F;">⭐ REUSE A 360° TOUR YOU ALREADY BUILT</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <select id="spotSavedTourPicker" onchange="window.applySavedTourToSpotForm(this.value)" style="flex:1;min-width:180px;background:#14121A;border:1.5px solid #FFD23F;color:#FFD23F;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:800;">
+                  <option value="">-- Choose a saved 360 tour or room --</option>
+                </select>
+                <button type="button" class="ed-btn" style="padding:5px 10px;font-size:11px;background:#14121A;border:1px solid rgba(255,255,255,0.3);color:#fff;" onclick="window.refreshSpotTourPicker()" title="Refresh list of saved 360 tours">
+                  🔄 Refresh
+                </button>
+              </div>
+              <small style="color:var(--text-muted);font-size:10.5px;display:block;margin-top:4px;">Pick any tour you've built anywhere in the magazine — no need to rebuild it to share it again. This also fills in the cover photo automatically.</small>
+            </div>
           </div>
         </div>
 
@@ -3725,6 +3739,7 @@ function openEditSpotModal(postId, event) {
   if (intro) intro.textContent = 'Fix your Spot post, update the media, or make any corrections. Your existing votes stay with the post.';
   if (submitBtn) submitBtn.textContent = '💾 SAVE SPOT CHANGES';
 
+  if (typeof window.refreshSpotTourPicker === 'function') window.refreshSpotTourPicker();
   if (modal) modal.classList.add('show');
 }
 
@@ -3746,6 +3761,7 @@ function openSubmitSpotModal() {
   if (form) form.reset();
   const preview = document.getElementById('spotMediaPreview');
   if (preview) preview.innerHTML = '';
+  if (typeof window.refreshSpotTourPicker === 'function') window.refreshSpotTourPicker();
   const modal = document.getElementById('submitSpotModal');
   if (modal) modal.classList.add('show');
 }
@@ -4421,6 +4437,84 @@ window.updateCityAdTourQuality = function(cityIdx, adIdx, qualityMode) {
   }
 };
 
+// Scans every business ad, city spotlight model, and community spot for a saved 360° tour
+// or room, so any of them can be picked and re-applied elsewhere without rebuilding.
+window.getAllAvailable360ToursAndRooms = function() {
+  const items = [];
+  const seen = new Set();
+
+  function parseTourValue(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed) && parsed.length) return { scenes: parsed };
+        if (parsed && Array.isArray(parsed.scenes) && parsed.scenes.length) return { scenes: parsed.scenes };
+      } catch (e) { /* not valid JSON — fall through and treat as a plain URL */ }
+      return null;
+    }
+    return { panoUrl: trimmed };
+  }
+
+  function addItem(id, title, subtitle, tourConfig, rawTour) {
+    if (!id || seen.has(id)) return;
+    let scenes = null;
+    let panoUrl = '';
+    if (tourConfig && Array.isArray(tourConfig.scenes) && tourConfig.scenes.length) {
+      scenes = tourConfig.scenes;
+      panoUrl = (scenes[0] && scenes[0].panoUrl) || '';
+    } else {
+      const parsed = parseTourValue(rawTour);
+      if (parsed && parsed.scenes && parsed.scenes.length) {
+        scenes = parsed.scenes;
+        panoUrl = (scenes[0] && scenes[0].panoUrl) || '';
+      } else if (parsed && parsed.panoUrl) {
+        panoUrl = parsed.panoUrl;
+      }
+    }
+    if (!scenes && !panoUrl) return;
+    seen.add(id);
+    items.push({
+      id: id,
+      title: title || 'Saved Tour',
+      subtitle: subtitle || '',
+      isFullTour: !!(scenes && scenes.length > 0),
+      scenes: scenes || null,
+      panoUrl: panoUrl,
+      thumb: panoUrl
+    });
+  }
+
+  try {
+    const cities = (window.MAGAZINE && Array.isArray(window.MAGAZINE.cities)) ? window.MAGAZINE.cities : [];
+    cities.forEach((city, ci) => {
+      (city.ads || []).forEach((ad, ai) => {
+        if (ad && (ad.tourConfig || ad.tour3d || ad.tourUrl)) {
+          addItem(`city-${ci}-ad-${ai}`, ad.name || `${city.name || 'City'} Business`, city.name || '', ad.tourConfig, ad.tour3d || ad.tourUrl);
+        }
+      });
+      if (city.model && (city.model.tour3d || city.model.tourUrl)) {
+        addItem(`city-${ci}-model`, (city.model.name || `${city.name || 'City'} Spotlight`), city.name || '', null, city.model.tour3d || city.model.tourUrl);
+      }
+    });
+  } catch (e) { console.warn('[SpotLIGHT] tour scan (cities) failed', e); }
+
+  try {
+    const posts = Array.isArray(window.COMMUNITY_POSTS) ? window.COMMUNITY_POSTS : [];
+    posts.forEach((p) => {
+      if (p && (p.tourConfig || p.tour3d || p.tourUrl)) {
+        addItem(`spot-${p.id}`, p.title || 'Community Spot', p.location || '', p.tourConfig, p.tour3d || p.tourUrl);
+      }
+    });
+  } catch (e) { console.warn('[SpotLIGHT] tour scan (community) failed', e); }
+
+  items.sort((a, b) => (b.isFullTour === a.isFullTour) ? 0 : (b.isFullTour ? 1 : -1));
+  window._cachedAvailableSavedTours = items;
+  return items;
+};
+
 window.renderSavedTourOptions = function(currentTourVal) {
   if (typeof window.getAllAvailable360ToursAndRooms !== 'function') return '';
   const items = window.getAllAvailable360ToursAndRooms();
@@ -4510,13 +4604,11 @@ window.applySavedTourToCityAd = function(ci, ai, tourItemId) {
     tourInputs[ai].value = ad.tour3d;
   }
 
-  // If the 3D tour viewer is currently open for this ad, sync it live
+  // If the 3D tour viewer is currently open for this ad, reload it live with the new tour
   if (typeof window.currentEditingCityIdx === 'number' && window.currentEditingCityIdx === ci &&
-      typeof window.currentEditingAdIdx === 'number' && window.currentEditingAdIdx === ai) {
-    if (typeof window.loadFullTourByIndex === 'function' && window._cachedAvailableSavedTours) {
-      const sIdx = window._cachedAvailableSavedTours.findIndex(it => it.id === tourItemId || it.title === item.title);
-      if (sIdx >= 0) window.loadFullTourByIndex(sIdx);
-    }
+      typeof window.currentEditingAdIdx === 'number' && window.currentEditingAdIdx === ai &&
+      typeof window.openCityAd3dTour === 'function') {
+    window.openCityAd3dTour(ci, ai, true);
   }
 
   // Re-render pages
@@ -4526,6 +4618,62 @@ window.applySavedTourToCityAd = function(ci, ai, tourItemId) {
 
   if (typeof showToast === 'function') {
     showToast(`🎉 360° Tour "${item.title}" (${scenes.length} room${scenes.length > 1 ? 's' : ''}) applied to ${ad.name || 'business'}!`);
+  }
+};
+
+// Refills the "reuse a saved tour" dropdown in the Post/Edit Spot form
+window.refreshSpotTourPicker = function() {
+  const sel = document.getElementById('spotSavedTourPicker');
+  if (sel && typeof window.renderSavedTourOptions === 'function') {
+    sel.innerHTML = '<option value="">-- Choose a saved 360 tour or room --</option>' + window.renderSavedTourOptions();
+    if (typeof showToast === 'function') showToast('🔄 Saved 360 tours refreshed!');
+  }
+};
+
+// Applies a previously built 360° tour/room to the community Post/Edit Spot form,
+// so the same tour can be shared again without rebuilding it, and fills in the
+// cover photo automatically so no blank photo/video placeholder is left behind.
+window.applySavedTourToSpotForm = function(tourItemId) {
+  if (!tourItemId) return;
+  if (typeof window.getAllAvailable360ToursAndRooms !== 'function') {
+    if (typeof showToast === 'function') showToast('⚠️ 360° tour engine loading, please try again');
+    return;
+  }
+  const items = window.getAllAvailable360ToursAndRooms();
+  const item = items && items.find(it => it.id === tourItemId || it.title === tourItemId || (it.id && it.id.includes(tourItemId)));
+  if (!item) {
+    if (typeof showToast === 'function') showToast('⚠️ Could not find selected 360 tour.');
+    return;
+  }
+
+  let scenes = null;
+  if (Array.isArray(item.scenes) && item.scenes.length > 0) {
+    const cloned = JSON.parse(JSON.stringify(item.scenes));
+    scenes = (typeof window.sanitizeSceneList === 'function') ? window.sanitizeSceneList(cloned) : cloned;
+  }
+
+  const tourValue = scenes && scenes.length > 0 ? JSON.stringify({ scenes: scenes }) : (item.panoUrl || '');
+  if (!tourValue) {
+    if (typeof showToast === 'function') showToast('⚠️ Selected tour contains no 360 rooms.');
+    return;
+  }
+
+  const tourInput = document.getElementById('spotTourUrl');
+  if (tourInput) tourInput.value = tourValue;
+
+  // Auto-fill the cover photo from the tour's first room so there's no empty photo/video placeholder
+  const firstPano = (scenes && scenes[0] && scenes[0].panoUrl) || item.panoUrl || item.thumb || '';
+  if (firstPano) {
+    pendingSpotMediaUrl = firstPano;
+    pendingSpotMediaType = 'image';
+    const mediaInput = document.getElementById('spotMediaUrl');
+    if (mediaInput) mediaInput.value = firstPano;
+    const preview = document.getElementById('spotMediaPreview');
+    if (preview && typeof renderMediaPreview === 'function') preview.innerHTML = renderMediaPreview(firstPano, 'image');
+  }
+
+  if (typeof showToast === 'function') {
+    showToast(`🎉 360° Tour "${item.title}" applied! It's ready to share.`);
   }
 };
 
