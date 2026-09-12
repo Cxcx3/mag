@@ -3432,11 +3432,14 @@
           <button type="button" class="tour-hud-btn" id="tourEditModeBtn" title="Place & Edit Navigation Hotspots">
             <span>✏️</span><span class="hud-btn-lbl">BUILD TOUR</span>
           </button>
-          <button type="button" class="tour-hud-btn" id="tourAutoRotateBtn" title="Toggle 360 ">
-            <span>🔄</span><span class="hud-btn-lbl"></span>
+          <button type="button" class="tour-hud-btn" id="tourAutoRotateBtn" title="Toggle 360 Auto-Pan">
+            <span>🔄</span><span class="hud-btn-lbl">AUTO-PAN</span>
           </button>
           <button type="button" class="tour-hud-btn" id="tourGyroBtn" title="Device Gyro Look">
             <span>🧭</span><span class="hud-btn-lbl">GYRO</span>
+          </button>
+          <button type="button" class="tour-hud-btn" id="tourResetBtn" title="Center View">
+            <span>🎯</span><span class="hud-btn-lbl">CENTER</span>
           </button>
           <button type="button" class="tour-hud-btn" id="tourFullscreenBtn" title="Toggle Fullscreen">
             <span>⛶</span>
