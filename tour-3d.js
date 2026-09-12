@@ -2740,6 +2740,108 @@
         justify-content: space-between;
         font-size: 11px;
       }
+            /* Saved / Built 360 Tour picker cards (Add Room & Edit Room "My 360 Tours" tabs) */
+      .tour-saved-card {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1.5px solid rgba(255, 255, 255, 0.12);
+        transition: border-color 0.15s, background 0.15s;
+      }
+      .tour-saved-card.highlight {
+        background: rgba(6, 214, 160, 0.1);
+        border-color: #06D6A0;
+      }
+      .tour-saved-card:hover {
+        border-color: rgba(255, 210, 63, 0.5);
+      }
+      .tour-saved-thumb {
+        width: 56px;
+        height: 56px;
+        min-width: 56px;
+        border-radius: 8px;
+        object-fit: cover;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: #0d0b13;
+        display: block;
+      }
+      .tour-saved-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .tour-saved-title {
+        font-size: 12px;
+        font-weight: 800;
+        color: #FFD23F;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tour-saved-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.65);
+      }
+      .tour-saved-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        flex-shrink: 0;
+      }
+      .tour-saved-action-btn {
+        border: none;
+        border-radius: 6px;
+        padding: 5px 10px;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: transform 0.15s, filter 0.15s;
+      }
+      .tour-saved-action-btn:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.1);
+      }
+
+      /* Small utility buttons (Select All / Clear) used in page-spot sync UI */
+      .tour-mini-btn {
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: filter 0.15s;
+      }
+      .tour-mini-btn:hover {
+        filter: brightness(1.25);
+      }
+
+      /* Checkbox rows for picking which other business spots get the tour */
+      .tour-sync-spot-card {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+      }
+      .tour-sync-spot-card:hover {
+        border-color: rgba(255, 210, 63, 0.4);
+      }
+      .tour-sync-spot-card.current {
+        border-color: #06D6A0;
+        background: rgba(6, 214, 160, 0.08);
+        opacity: 0.85;
+      }
       .tour-gesture-hint {
         display: flex;
         align-items: center;
