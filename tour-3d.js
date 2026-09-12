@@ -1454,6 +1454,24 @@
         background: #e03353;
         color: #fff;
       }
+      .tour-hud-btn-share {
+        background: rgba(63, 221, 224, 0.18);
+        border-color: #3FDDE0;
+        color: #3FDDE0;
+      }
+      .tour-hud-btn-share:hover {
+        background: #3FDDE0;
+        color: #0b1518;
+      }
+      .tour-hud-btn-load {
+        background: rgba(6, 214, 160, 0.18);
+        border-color: #06D6A0;
+        color: #06D6A0;
+      }
+      .tour-hud-btn-load:hover {
+        background: #06D6A0;
+        color: #08211a;
+      }
       @media (max-width: 640px) {
         .hud-btn-lbl { display: none; }
         .tour-hud-btn { padding: 6px 8px; }
@@ -3303,6 +3321,12 @@
         </div>
 
         <div class="tour-top-controls">
+          <button type="button" class="tour-hud-btn tour-hud-btn-share" id="tourShareBtn" onclick="window.trigger360TourShare()" title="Share this 360° Tour with friends & visitors">
+            <span>🔗</span><span class="hud-btn-lbl">SHARE 360</span>
+          </button>
+          <button type="button" class="tour-hud-btn tour-hud-btn-load" id="tourSelectSavedTopBtn" onclick="window.openSelectSavedTourModal()" title="Load Built 360 Tour from Revive or other spots" style="display:none;">
+            <span>⭐</span><span class="hud-btn-lbl">LOAD TOUR</span>
+          </button>
           <button type="button" class="tour-hud-btn" id="tourEditModeBtn" title="Place & Edit Navigation Hotspots">
             <span>✏️</span><span class="hud-btn-lbl">BUILD TOUR</span>
           </button>
@@ -3474,6 +3498,12 @@
 
         <div class="tour-editor-actions-scroll-wrap">
           <div class="tour-editor-actions" id="tourEditorActionsTrack">
+            <button type="button" class="tour-ed-btn" onclick="window.openSelectSavedTourModal()" title="Load Built 360 Tour from Revive or other spots into this spot" style="background:rgba(6,214,160,0.22);border:1.5px solid #06D6A0;color:#06D6A0;font-weight:900;">
+              ⭐ LOAD BUILT 360 TOUR
+            </button>
+            <button type="button" class="tour-ed-btn" onclick="window.openSyncPageSpotsDialog()" title="Sync or Share this 360 tour with other spots on this page" style="background:rgba(63,221,224,0.22);border:1.5px solid #3FDDE0;color:#3FDDE0;font-weight:900;">
+              🔄 SYNC PAGE SPOTS
+            </button>
             <button type="button" class="tour-ed-btn" id="tourEditorProportionsBtn" onclick="window.toggleTourProportionsMenu()" title="Adjust Photo Proportions & Seam Stitching Alignment" style="background:rgba(255,210,63,0.18);border:1.5px solid #FFD23F;color:#FFD23F;font-weight:900;">
               📐 PROPORTIONS & SEAM
             </button>
@@ -3514,6 +3544,14 @@
             <button type="button" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer;" onclick="window.toggleTourToolsDropdown(false)">✕</button>
           </div>
           <div class="tour-tools-grid">
+            <div class="tour-tool-grid-item" style="background:rgba(6,214,160,0.18);border:1px solid #06D6A0;" onclick="window.openSelectSavedTourModal(); window.toggleTourToolsDropdown(false);">
+              <span style="color:#06D6A0;font-weight:900;">⭐ Load Built 360 Tour</span>
+              <span class="tour-tool-grid-item-desc">Import tour from Revive or another spot</span>
+            </div>
+            <div class="tour-tool-grid-item" style="background:rgba(63,221,224,0.18);border:1px solid #3FDDE0;" onclick="window.openSyncPageSpotsDialog(); window.toggleTourToolsDropdown(false);">
+              <span style="color:#3FDDE0;font-weight:900;">🔄 Sync Page Spots</span>
+              <span class="tour-tool-grid-item-desc">Share/sync 360 tour with other spots</span>
+            </div>
             <div class="tour-tool-grid-item highlight" onclick="window.toggleTourProportionsMenu(); window.toggleTourToolsDropdown(false);">
               <span>📐 Proportions & Seam</span>
               <span class="tour-tool-grid-item-desc">Adjust height & blend 360 seam</span>
@@ -4796,6 +4834,8 @@
     if (!modal) return;
 
     const closeBtn = document.getElementById('tourCloseBtn');
+    const shareBtn = document.getElementById('tourShareBtn');
+    const loadTopBtn = document.getElementById('tourSelectSavedTopBtn');
     const autoRotateBtn = document.getElementById('tourAutoRotateBtn');
     const gyroBtn = document.getElementById('tourGyroBtn');
     const editModeBtn = document.getElementById('tourEditModeBtn');
@@ -4806,6 +4846,8 @@
     const container = document.getElementById('tourViewportContainer');
 
     if (closeBtn) closeBtn.onclick = () => window.close3dTourModal();
+    if (shareBtn) shareBtn.onclick = () => { if (typeof window.trigger360TourShare === 'function') window.trigger360TourShare(); };
+    if (loadTopBtn) loadTopBtn.onclick = () => { if (typeof window.openSelectSavedTourModal === 'function') window.openSelectSavedTourModal(); };
     if (editModeBtn) editModeBtn.onclick = () => window.toggleTourEditorMode();
 
     window.addEventListener('keydown', (e) => {
@@ -8457,8 +8499,70 @@
   };
 
   // =================================================================
-  // 3.2. STANDALONE SELECT SAVED 360 TOUR MODAL
+  // 3.2. STANDALONE SELECT SAVED 360 TOUR MODAL & 360 SHARING
   // =================================================================
+  window.trigger360TourShare = function () {
+    const spotTitleEl = document.getElementById('tourSpotTitle');
+    const spotTagEl = document.getElementById('tourSpotTag');
+    const title = (spotTitleEl && spotTitleEl.textContent) ? spotTitleEl.textContent.trim() : (currentTourData?.title || 'SpotLIGHT 360° Tour');
+    const tag = (spotTagEl && spotTagEl.textContent) ? spotTagEl.textContent.trim() : (currentTourData?.tag || currentTourData?.location || '360° Photosphere');
+
+    // Generate canonical share deep link
+    let shareUrl = '';
+    if (typeof getCanonicalBaseUrl === 'function') {
+      const baseUrl = getCanonicalBaseUrl();
+      if (typeof window.currentEditingCityIdx === 'number' && typeof getPageSlug === 'function') {
+        const cityPageIdx = window.currentEditingCityIdx + 2;
+        shareUrl = `${baseUrl}#${getPageSlug(cityPageIdx)}`;
+      } else if (typeof current !== 'undefined' && typeof getPageSlug === 'function') {
+        shareUrl = `${baseUrl}#${getPageSlug(current)}`;
+      } else {
+        shareUrl = window.location.href;
+      }
+    } else {
+      shareUrl = window.location.href;
+    }
+
+    const shareInfo = {
+      title: `${title} · 360° Tour`,
+      text: `Take an interactive 360° walkthrough of ${title} on The SpotLIGHT! Tap to explore: ${shareUrl}`,
+      url: shareUrl,
+      storyTag: `360° Virtual Tour · ${tag}`,
+      storyTitle: title,
+      storySub: 'The SpotLIGHT 360° Interactive Experience'
+    };
+
+    // If native Web Share API is supported, use it first
+    if (navigator.share && /mobile|android|iphone|ipad/i.test(navigator.userAgent)) {
+      navigator.share({
+        title: shareInfo.title,
+        text: shareInfo.text,
+        url: shareInfo.url
+      }).catch((err) => {
+        if (err && err.name !== 'AbortError') {
+          if (typeof openShareModal === 'function') openShareModal(shareInfo);
+          else if (typeof copyTextToClipboard === 'function') {
+            copyTextToClipboard(shareInfo.url).then(() => {
+              if (typeof showToast === 'function') showToast('🔗 360° Tour Link Copied to Clipboard!');
+            });
+          }
+        }
+      });
+      return;
+    }
+
+    // Open standard rich Share Modal or copy to clipboard
+    if (typeof openShareModal === 'function') {
+      openShareModal(shareInfo);
+    } else if (typeof copyTextToClipboard === 'function') {
+      copyTextToClipboard(shareInfo.url).then(() => {
+        if (typeof showToast === 'function') showToast('🔗 360° Tour Link Copied to Clipboard!');
+      });
+    } else {
+      if (typeof showToast === 'function') showToast('🔗 360° Tour Link Ready!');
+    }
+  };
+
   window.openSelectSavedTourModal = function () {
     const modal = document.getElementById('tourSelectSavedModal');
     if (!modal) return;
@@ -8498,6 +8602,8 @@
       return;
     }
 
+    window._currentFilteredSavedTours = filtered;
+
     container.innerHTML = filtered.map((t, idx) => {
       const isRevive = t.isRevive;
       return `
@@ -8529,8 +8635,8 @@
    * Directly loads the chosen tour (Revive or other) into the active viewer and magazine spot!
    */
   window.loadFullTourByIndex = function (idx) {
-    const allTours = window._cachedDiscoveredTours || window.getAllAvailable360ToursAndRooms();
-    const tour = allTours[idx];
+    const tourList = window._currentFilteredSavedTours || window._cachedDiscoveredTours || window.getAllAvailable360ToursAndRooms();
+    const tour = tourList[idx];
     if (!tour || !Array.isArray(tour.scenes) || tour.scenes.length === 0) return;
 
     if (!confirm(`Load all ${tour.scenes.length} rooms from "${tour.title}" into this spot?\n\nThis will replace the current view with the full "${tour.title}" 360 walkthrough.`)) {
@@ -8559,8 +8665,8 @@
    * Appends all rooms from a saved tour into the current tour
    */
   window.appendSavedTourRooms = function (idx) {
-    const allTours = window._cachedDiscoveredTours || window.getAllAvailable360ToursAndRooms();
-    const tour = allTours[idx];
+    const tourList = window._currentFilteredSavedTours || window._cachedDiscoveredTours || window.getAllAvailable360ToursAndRooms();
+    const tour = tourList[idx];
     if (!tour || !Array.isArray(tour.scenes)) return;
 
     const freshScenes = (typeof sanitizeSceneList === 'function') 
@@ -11580,9 +11686,11 @@
     } else {
       const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
       const editBtn = document.getElementById('tourEditModeBtn');
+      const loadTopBtn = document.getElementById('tourSelectSavedTopBtn');
       const editorBar = document.getElementById('tourEditorBar');
       const propPopover = document.getElementById('tourProportionsPopover');
       if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
+      if (loadTopBtn) loadTopBtn.style.display = unlocked ? 'inline-flex' : 'none';
       if (editorBar && !unlocked) {
         editorBar.classList.remove('active');
         isEditorMode = false;
@@ -11597,9 +11705,11 @@
   window.__spotlightRefreshEditorVisibility = function () {
     const unlocked = !!(window.isEditorUnlocked || (typeof isEditorUnlocked !== 'undefined' && isEditorUnlocked));
     const editBtn = document.getElementById('tourEditModeBtn');
+    const loadTopBtn = document.getElementById('tourSelectSavedTopBtn');
     const editorBar = document.getElementById('tourEditorBar');
     const propPopover = document.getElementById('tourProportionsPopover');
     if (editBtn) editBtn.style.display = unlocked ? 'inline-flex' : 'none';
+    if (loadTopBtn) loadTopBtn.style.display = unlocked ? 'inline-flex' : 'none';
     if (!unlocked) {
       isEditorMode = false;
       if (editBtn) editBtn.classList.remove('active');
