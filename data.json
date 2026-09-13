@@ -1,252 +1,252 @@
 {
   "cover": {
     "eyebrow": "Wasatch Front · Digital Edition",
-    "mainText": "The ",
-    "highlight": "Spotlight",
-    "subtitle": "Salt Lake City → Draper",
     "issueTag": "Issue 01 · SEPTEMBER 2026",
-    "coverPhotoUrl": "uploads/promo.mp4",
-    "coverPhotoType": "video",
+    "mainText": "The ",
+    "subtitle": "Salt Lake City → Draper",
+    "highlight": "Spotlight",
     "featureTitle": "This month’s local stories",
+    "coverPhotoUrl": "uploads/promo.mp4",
+    "articleOneText": "From coffee culture to creative studios, this issue celebrates the people and places making each valley community feel local and alive.",
+    "articleTwoText": "Stay tuned for the next round of profiles, businesses, and creative energy from across the mountain communities.",
+    "coverPhotoType": "video",
     "featureSummary": "Neighborhood culture, business wins, and the people shaping the Wasatch Front one block at a time.",
+    "articleOneTitle": "City Notes",
+    "articleTwoTitle": "Next up",
     "featureImageUrl": "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1200&q=80",
     "featureImageType": "image",
-    "articleOneTitle": "City Notes",
-    "articleOneText": "From coffee culture to creative studios, this issue celebrates the people and places making each valley community feel local and alive.",
     "articleOneImageUrl": "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80",
-    "articleOneImageType": "image",
-    "articleTwoTitle": "Next up",
-    "articleTwoText": "Stay tuned for the next round of profiles, businesses, and creative energy from across the mountain communities.",
     "articleTwoImageUrl": "https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80",
+    "articleOneImageType": "image",
     "articleTwoImageType": "image"
   },
   "cities": [
     {
-      "theme": "theme-slc",
+      "ads": [
+        {
+          "cta": "Book VIP Table",
+          "tag": "VIP Nightlife & Dining",
+          "link": "https://360slc.com",
+          "name": "360 · Lounge & Venue",
+          "blurb": "Multi-level experiential lounge with signature craft cocktails, state-of-the-art sound, and panoramic mountain patio views.",
+          "media": {
+            "url": "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=900&q=80",
+            "type": "image"
+          },
+          "tour3d": ""
+        },
+        {
+          "cta": "Visit us downtown",
+          "tag": "Local Roaster",
+          "link": "#",
+          "name": "Peak & Pine Coffee Roasters",
+          "blurb": "Small-batch beans roasted weekly in the Granary District. Try the seasonal cardamom pour-over.",
+          "media": {
+            "url": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80",
+            "type": "image"
+          },
+          "tour3d": ""
+        },
+        {
+          "cta": "Shop the collection",
+          "tag": "Handmade Goods",
+          "link": "#",
+          "name": "Wasatch Wax Candle Co.",
+          "blurb": "Soy candles poured in small batches, inspired by canyon hikes and mountain air.",
+          "media": {
+            "url": "https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80",
+            "type": "image"
+          },
+          "tour3d": ""
+        },
+        {
+          "cta": "Book a free class",
+          "tag": "Studio & Gym",
+          "link": "#",
+          "name": "Iron Door Fitness",
+          "blurb": "Boutique strength studio with sunrise classes and a members-only sauna.",
+          "media": {
+            "url": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=80",
+            "type": "image"
+          },
+          "tour3d": ""
+        }
+      ],
       "num": "01",
       "name": "Salt Lake City",
-      "stampText": "Local Spotlight",
-      "featuredFaceLabel": "Featured Face",
-      "businessesLabel": "This Month's Businesses",
       "model": {
+        "bio": "Downtown-based model and content creator, bringing SLC street style to every page.",
         "name": "Ava Sinclair",
         "role": "Cover-Featured Model",
-        "bio": "Downtown-based model and content creator, bringing SLC street style to every page.",
         "media": {
-          "type": "image",
-          "url": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80"
+          "url": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
+          "type": "image"
         }
       },
-      "ads": [
-        {
-          "name": "360 · Lounge & Venue",
-          "tag": "VIP Nightlife & Dining",
-          "blurb": "Multi-level experiential lounge with signature craft cocktails, state-of-the-art sound, and panoramic mountain patio views.",
-          "cta": "Book VIP Table",
-          "link": "https://360slc.com",
-          "tour3d": "",
-          "media": {
-            "type": "image",
-            "url": "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=900&q=80"
-          }
-        },
-        {
-          "name": "Peak & Pine Coffee Roasters",
-          "tag": "Local Roaster",
-          "blurb": "Small-batch beans roasted weekly in the Granary District. Try the seasonal cardamom pour-over.",
-          "cta": "Visit us downtown",
-          "link": "#",
-          "tour3d": "",
-          "media": {
-            "type": "image",
-            "url": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80"
-          }
-        },
-        {
-          "name": "Wasatch Wax Candle Co.",
-          "tag": "Handmade Goods",
-          "blurb": "Soy candles poured in small batches, inspired by canyon hikes and mountain air.",
-          "cta": "Shop the collection",
-          "link": "#",
-          "tour3d": "",
-          "media": {
-            "type": "image",
-            "url": "https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80"
-          }
-        },
-        {
-          "name": "Iron Door Fitness",
-          "tag": "Studio & Gym",
-          "blurb": "Boutique strength studio with sunrise classes and a members-only sauna.",
-          "cta": "Book a free class",
-          "link": "#",
-          "tour3d": "",
-          "media": {
-            "type": "image",
-            "url": "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=80"
-          }
-        }
-      ]
+      "theme": "theme-slc",
+      "stampText": "Local Spotlight",
+      "businessesLabel": "This Month's Businesses",
+      "featuredFaceLabel": "Featured Face"
     },
     {
-      "theme": "theme-wj",
+      "ads": [
+        {
+          "cta": "Visit Website",
+          "tag": "Local Business",
+          "link": "#",
+          "name": "New Business",
+          "blurb": "Tell readers what makes this business special.",
+          "media": {
+            "url": "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=900&q=80",
+            "type": "image"
+          }
+        }
+      ],
       "num": "02",
       "name": "West Jordan",
-      "stampText": "Local Spotlight",
-      "featuredFaceLabel": "Featured Face",
-      "businessesLabel": "This Month's Businesses",
       "model": {
+        "bio": "West Jordan-raised model and this issue's face for the west valley.",
         "name": "Devon Marsh",
         "role": "Featured Model",
-        "bio": "West Jordan-raised model and this issue's face for the west valley.",
         "media": {
-          "type": "image",
-          "url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80"
+          "url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
+          "type": "image"
         }
       },
-      "ads": [
-        {
-          "name": "New Business",
-          "tag": "Local Business",
-          "blurb": "Tell readers what makes this business special.",
-          "cta": "Visit Website",
-          "link": "#",
-          "media": {
-            "type": "image",
-            "url": "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=900&q=80"
-          }
-        }
-      ]
+      "theme": "theme-wj",
+      "stampText": "Local Spotlight",
+      "businessesLabel": "This Month's Businesses",
+      "featuredFaceLabel": "Featured Face"
     },
     {
-      "theme": "theme-mc",
+      "ads": [
+        {
+          "cta": "Order this week's bouquet",
+          "tag": "Florist",
+          "link": "#",
+          "name": "Millcreek Botanical Florals",
+          "blurb": "Weekly flower subscriptions and same-day arrangements for the whole valley.",
+          "media": {
+            "url": "https://images.unsplash.com/photo-1468327768560-75b778cbb551?auto=format&fit=crop&w=900&q=80",
+            "type": "image"
+          }
+        }
+      ],
       "num": "03",
       "name": "Millcreek",
-      "stampText": "Local Spotlight",
-      "featuredFaceLabel": "Featured Face",
-      "businessesLabel": "This Month's Businesses",
       "model": {
+        "bio": "Millcreek native and part-time trail runner, shot on location at Millcreek Canyon.",
         "name": "Jordan Reyes",
         "role": "Featured Model",
-        "bio": "Millcreek native and part-time trail runner, shot on location at Millcreek Canyon.",
         "media": {
-          "type": "image",
-          "url": "https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=900&q=80"
+          "url": "https://images.unsplash.com/photo-1504593811423-6dd665756598?auto=format&fit=crop&w=900&q=80",
+          "type": "image"
         }
       },
-      "ads": [
-        {
-          "name": "Millcreek Botanical Florals",
-          "tag": "Florist",
-          "blurb": "Weekly flower subscriptions and same-day arrangements for the whole valley.",
-          "cta": "Order this week's bouquet",
-          "link": "#",
-          "media": {
-            "type": "image",
-            "url": "https://images.unsplash.com/photo-1468327768560-75b778cbb551?auto=format&fit=crop&w=900&q=80"
-          }
-        }
-      ]
+      "theme": "theme-mc",
+      "stampText": "Local Spotlight",
+      "businessesLabel": "This Month's Businesses",
+      "featuredFaceLabel": "Featured Face"
     },
     {
-      "theme": "theme-ch",
+      "ads": [
+        {
+          "cta": "Book your appointment",
+          "tag": "Nail Salon",
+          "link": "#",
+          "name": "Butterfield Nail Studio",
+          "blurb": "Custom nail art and gel sets, booked online in under a minute.",
+          "media": {
+            "url": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=900&q=80",
+            "type": "image"
+          }
+        }
+      ],
       "num": "04",
       "name": "Cottonwood Heights",
-      "stampText": "Local Spotlight",
-      "featuredFaceLabel": "Featured Face",
-      "businessesLabel": "This Month's Businesses",
       "model": {
+        "bio": "Sienna splits her time between modeling and coaching youth ski teams at Big Cottonwood.",
         "name": "Sienna Cole",
         "role": "Featured Model",
-        "bio": "Sienna splits her time between modeling and coaching youth ski teams at Big Cottonwood.",
         "media": {
-          "type": "image",
-          "url": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80"
+          "url": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80",
+          "type": "image"
         }
       },
-      "ads": [
-        {
-          "name": "Butterfield Nail Studio",
-          "tag": "Nail Salon",
-          "blurb": "Custom nail art and gel sets, booked online in under a minute.",
-          "cta": "Book your appointment",
-          "link": "#",
-          "media": {
-            "type": "image",
-            "url": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=900&q=80"
-          }
-        }
-      ]
+      "theme": "theme-ch",
+      "stampText": "Local Spotlight",
+      "businessesLabel": "This Month's Businesses",
+      "featuredFaceLabel": "Featured Face"
     },
     {
-      "theme": "theme-sandy",
+      "ads": [
+        {
+          "cta": "Check today's wait",
+          "tag": "Barbershop",
+          "link": "#",
+          "name": "Sandy Station Barbershop",
+          "blurb": "Classic cuts and hot towel shaves, walk-ins welcome most weekdays.",
+          "media": {
+            "url": "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80",
+            "type": "image"
+          }
+        }
+      ],
       "num": "05",
       "name": "Sandy",
-      "stampText": "Local Spotlight",
-      "featuredFaceLabel": "Featured Face",
-      "businessesLabel": "This Month's Businesses",
       "model": {
+        "bio": "Marcus is a Sandy-based fitness model and personal trainer, repping the south valley.",
         "name": "Marcus Bell",
         "role": "Featured Model",
-        "bio": "Marcus is a Sandy-based fitness model and personal trainer, repping the south valley.",
         "media": {
-          "type": "image",
-          "url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80"
+          "url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=900&q=80",
+          "type": "image"
         }
       },
-      "ads": [
-        {
-          "name": "Sandy Station Barbershop",
-          "tag": "Barbershop",
-          "blurb": "Classic cuts and hot towel shaves, walk-ins welcome most weekdays.",
-          "cta": "Check today's wait",
-          "link": "#",
-          "media": {
-            "type": "image",
-            "url": "https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80"
-          }
-        }
-      ]
+      "theme": "theme-sandy",
+      "stampText": "Local Spotlight",
+      "businessesLabel": "This Month's Businesses",
+      "featuredFaceLabel": "Featured Face"
     },
     {
-      "theme": "theme-draper",
-      "num": "06",
-      "name": "Draper",
-      "stampText": "Local Spotlight",
-      "featuredFaceLabel": "Featured Face",
-      "businessesLabel": "This Month's Businesses",
-      "model": {
-        "name": "Talia Fenwick",
-        "role": "Featured Model",
-        "bio": "Talia is a Draper-raised creative and this month's spotlight face for the south valley.",
-        "media": {
-          "type": "image",
-          "url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80"
-        }
-      },
       "ads": [
         {
-          "name": "Draper Peak Dental Studio",
-          "tag": "Dental Care",
-          "blurb": "Modern, comfort-first dentistry with evening and weekend appointments.",
           "cta": "Book a cleaning",
+          "tag": "Dental Care",
           "link": "#",
+          "name": "Draper Peak Dental Studio",
+          "blurb": "Modern, comfort-first dentistry with evening and weekend appointments.",
           "media": {
-            "type": "image",
-            "url": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=900&q=80"
+            "url": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=900&q=80",
+            "type": "image"
           }
         }
-      ]
+      ],
+      "num": "06",
+      "name": "Draper",
+      "model": {
+        "bio": "Talia is a Draper-raised creative and this month's spotlight face for the south valley.",
+        "name": "Talia Fenwick",
+        "role": "Featured Model",
+        "media": {
+          "url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=900&q=80",
+          "type": "image"
+        }
+      },
+      "theme": "theme-draper",
+      "stampText": "Local Spotlight",
+      "businessesLabel": "This Month's Businesses",
+      "featuredFaceLabel": "Featured Face"
     }
   ],
   "backCover": {
-    "heading": "Want your business<br>in the next issue?",
-    "description": "Every issue reaches locals scrolling Instagram — no printing, no mailers, just one link people actually tap. New cities added every month.",
-    "ctaText": "DM ",
-    "handle": "@l_i_g_h__t",
     "ctaEnd": "<br>to reserve your spot",
+    "handle": "@l_i_g_h__t",
+    "ctaText": "DM ",
+    "heading": "Want your business<br>in the next issue?",
+    "baseLikes": 148,
     "likeTitle": "🔥 Loved This Issue?",
-    "likeSubtext": "Tap the heart to show some love for local creators & businesses!",
-    "baseLikes": 148
+    "description": "Every issue reaches locals scrolling Instagram — no printing, no mailers, just one link people actually tap. New cities added every month.",
+    "likeSubtext": "Tap the heart to show some love for local creators & businesses!"
   }
 }

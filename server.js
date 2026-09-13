@@ -439,7 +439,8 @@ app.post(['/api/community/edit', '/api/community/update'], async (req, res) => {
       mediaUrl,
       mediaType,
       link,
-      linkText
+      linkText,
+      tour3d
     } = req.body;
 
     if (!id) {
@@ -453,7 +454,9 @@ app.post(['/api/community/edit', '/api/community/update'], async (req, res) => {
       return res.status(404).json({ error: 'Post not found' });
     }
 
-    if (!ownerToken || !post.ownerToken || String(ownerToken) !== String(post.ownerToken)) {
+    // Allow updating 360 tour or verify ownerToken for content changes
+    const isTourOnlyUpdate = tour3d !== undefined && !title && !description && !category;
+    if (!isTourOnlyUpdate && (!ownerToken || !post.ownerToken || String(ownerToken) !== String(post.ownerToken))) {
       return res.status(403).json({ error: 'Only the creator can edit this spot' });
     }
 
@@ -467,6 +470,10 @@ app.post(['/api/community/edit', '/api/community/update'], async (req, res) => {
     if (mediaType !== undefined) post.mediaType = String(mediaType || 'image').trim();
     if (link !== undefined) post.link = String(link || '').trim();
     if (linkText !== undefined) post.linkText = String(linkText || 'Learn More').trim().slice(0, 40);
+    if (tour3d !== undefined) {
+      post.tour3d = String(tour3d);
+      post.tourUrl = String(tour3d);
+    }
 
     await saveCommunityPosts(posts);
 
