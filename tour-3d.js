@@ -123,7 +123,7 @@
 
     // 10. Direct 360 Equirectangular Image (Stored in Supabase, Cloudinary, Imgur, Unsplash, etc.)
     if (/\.(jpg|jpeg|png|webp|avif)(\?.*)?$/i.test(trimmed) || trimmed.startsWith('data:image/') || trimmed.startsWith('blob:') || trimmed.includes('images.unsplash.com') || trimmed.includes('cloudinary.com') || trimmed.includes('imgur.com') || trimmed.includes('supabase.co/storage')) {
-      return { isEmbed: false, isImage: true, url: trimmed, provider: 'Equirectangular Photo', originalUrl: trimmed };
+      return { isEmbed: false, isImage: true, url: trimmed, provider: 'Photo', originalUrl: trimmed };
     }
 
     // Generic web embed fallback
@@ -849,7 +849,6 @@
     const seamBlend = typeof curScene.seamBlend === 'number' ? curScene.seamBlend : 0.08; // 0.0 to 0.20 seam feather width
     const seamVOffset = typeof curScene.seamVOffset === 'number' ? curScene.seamVOffset : 0; // -50px to +50px vertical tilt trim
     const hSpan = typeof curScene.hSpan === 'number' ? curScene.hSpan : 1.0; // 0.70 to 1.05 horizontal sweep crop/span
-    const typeBadge = document.getElementById('tourTypeBadge');
 
     if (typeof urlOrCanvas === 'string' && urlOrCanvas) {
       const cacheKey = getSceneCacheKey(curScene, urlOrCanvas);
@@ -892,25 +891,6 @@
           renderAspectMode === '360-loop' ||
           (renderAspectMode !== 'full-360' && ar > 2.0)
         );
-
-        if (typeBadge) {
-          if (renderAspectMode === 'matterport-arc' || (isWidePano && renderAspectMode !== '360-loop' && renderAspectMode !== 'full-360')) {
-            typeBadge.textContent = '✨ MATTERPORT PRO (0% SEAM)';
-            typeBadge.style.background = 'rgba(6, 214, 160, 0.18)';
-            typeBadge.style.borderColor = '#06D6A0';
-            typeBadge.style.color = '#06D6A0';
-          } else if (renderAspectMode === '360-loop' || renderAspectMode === 'iphone-pano') {
-            typeBadge.textContent = '🔄 360° LOOP WALKTHROUGH';
-            typeBadge.style.background = 'rgba(255, 210, 63, 0.18)';
-            typeBadge.style.borderColor = '#FFD23F';
-            typeBadge.style.color = '#FFD23F';
-          } else {
-            typeBadge.textContent = '🌐 360° PHOTOSPHERE (2:1)';
-            typeBadge.style.background = 'rgba(255, 210, 63, 0.15)';
-            typeBadge.style.borderColor = 'rgba(255, 210, 63, 0.35)';
-            typeBadge.style.color = '#FFD23F';
-          }
-        }
 
         let finalTexture = null;
 
@@ -1381,16 +1361,6 @@
       @keyframes tourPulse {
         0%, 100% { opacity: 1; transform: scale(1); }
         50% { opacity: 0.8; transform: scale(0.96); }
-      }
-      .tour-type-badge {
-        background: rgba(255, 210, 63, 0.15);
-        color: #FFD23F;
-        border: 1px solid rgba(255, 210, 63, 0.35);
-        font-size: 9px;
-        font-weight: 700;
-        padding: 2px 6px;
-        border-radius: 4px;
-        letter-spacing: 0.05em;
       }
       .tour-spot-title {
         font-family: 'Syne', 'Anton', sans-serif;
@@ -3416,7 +3386,6 @@
         <div class="tour-brand-group">
           <div class="tour-badge-row">
             <span class="tour-live-badge">● 360° LIVE VIEW</span>
-            <span class="tour-type-badge" id="tourTypeBadge">360° PHOTOSPHERE</span>
           </div>
           <h2 class="tour-spot-title" id="tourSpotTitle">SpotLIGHT 360° Tour</h2>
           <span class="tour-spot-tag" id="tourSpotTag">Downtown Salt Lake City, UT</span>
@@ -5524,15 +5493,13 @@
 
     const titleEl = document.getElementById('tourSpotTitle');
     const tagEl = document.getElementById('tourSpotTag');
-    const badgeEl = document.getElementById('tourTypeBadge');
     const ctaEl = document.getElementById('tourCtaBtn');
     const externalLaunchBtn = document.getElementById('tourExternalLaunchBtn');
 
     const norm = normalize3dTourUrl(scene.tourUrl || scene.panoUrl || currentTourData?.tourUrl || currentTourData?.panoUrl || '');
 
     if (titleEl) titleEl.textContent = scene.name || currentTourData?.title || 'SpotLIGHT 360° Space';
-    if (tagEl) tagEl.textContent = `📍 ${scene.location || 'Wasatch Front, UT'} · ${scene.tag || norm.provider || '360° Spatial Photosphere'}`;
-    if (badgeEl) badgeEl.textContent = norm.provider && norm.provider !== 'none' ? `360° ${norm.provider.toUpperCase()}` : '360° PHOTOSPHERE';
+    if (tagEl) tagEl.textContent = `📍 ${scene.location || 'Wasatch Front, UT'} · ${scene.tag || '360° Spatial Photosphere'}`;
 
     if (ctaEl) {
       if (currentTourData?.link && currentTourData.link !== '#') {
