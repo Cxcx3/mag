@@ -1946,12 +1946,25 @@ function sanitizeImageUrl(value){
 
 function resolveMediaUrl(url){
   if (!url || typeof url !== 'string') return '';
-  const trimmed = url.trim();
+  let trimmed = url.trim();
   if (!trimmed) return '';
+
+  // Clean trailing backslashes or corrupted quotes
+  trimmed = trimmed.replace(/\\+$/, '').replace(/^["']|["']$/g, '');
+
   // Bandwidth saver: redirect the 26MB Supabase video to the local 3.5MB copy to protect Supabase free tier
   if (trimmed.includes('1788918899932-zqf4o8-promo.mp4.mp4') || (trimmed.includes('supabase.co') && trimmed.includes('promo.mp4'))) {
     return 'uploads/promo.mp4';
   }
+
+  // Bandwidth saver: When served through the server, proxy Supabase Storage media so it is cached on server disk
+  // and visitors never burn Supabase egress bandwidth on subsequent views
+  if (trimmed.includes('rcgtgmyiygdkbmbfspbo.supabase.co/storage/v1/object/public/') && !trimmed.includes('/api/media-proxy')) {
+    if (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http')) {
+      return `/api/media-proxy?url=${encodeURIComponent(trimmed)}`;
+    }
+  }
+
   if (/^(https?:|\/\/|data:|blob:)/i.test(trimmed)) {
     return trimmed;
   }
@@ -2593,6 +2606,7 @@ function syncActiveVideos() {
 
   const videos = activePage.querySelectorAll('video');
   videos.forEach(v => {
+    v.preload = 'auto';
     v.muted = true;
     v.defaultMuted = true;
     v.volume = 0;
@@ -2609,8 +2623,11 @@ function syncActiveVideos() {
     playYouTubeIframe(iframe);
   });
 
+  // Pause and throttle inactive page videos to save visitor bandwidth
   document.querySelectorAll('.page:not(.active-page) video').forEach(v => {
-    try { v.pause(); } catch (e) {}
+    try { 
+      v.pause();
+    } catch (e) {}
   });
   document.querySelectorAll('.page:not(.active-page) .yt-embed-wrapper iframe').forEach(iframe => {
     pauseYouTubeIframe(iframe);
@@ -2702,7 +2719,7 @@ function mediaBlock(media, placeholderText, extraClass){
           disablePictureInPicture
           controlsList="nodownload nofullscreen noremoteplayback"
           tabindex="-1"
-          preload="auto"
+          preload="metadata"
           style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;"
           onloadstart="this.muted=true; this.defaultMuted=true;"
           onloadedmetadata="this.muted=true; this.defaultMuted=true; this.play().catch(function(){});"
@@ -2721,6 +2738,8 @@ function mediaBlock(media, placeholderText, extraClass){
       <img 
         src="${url}" 
         alt="" 
+        loading="lazy"
+        decoding="async"
         style="width:100%;height:100%;object-fit:cover;display:block;"
         onerror="this.style.display='none'; if(!this.parentElement.querySelector('.placeholder-fallback')){ const d=document.createElement('div'); d.className='placeholder-fallback'; d.style.cssText='width:100%;height:100%;min-height:80px;display:flex;align-items:center;justify-content:center;padding:12px;text-align:center;font-size:9px;font-weight:700;color:rgba(255,255,255,0.85);'; d.innerText='${placeholderText}'; this.parentElement.appendChild(d); }"
       >
@@ -5978,6 +5997,15 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 } else {
   window.addEventListener('DOMContentLoaded', boot);
   window.addEventListener('load', boot);
+}
+
+// Register high-efficiency media caching Service Worker to protect Supabase bandwidth
+if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then(() => console.log('[SpotLIGHT] Service Worker registered for media caching'))
+      .catch(err => console.warn('[SpotLIGHT] Service Worker registration note:', err));
+  });
 }
 </script>
 </body>
