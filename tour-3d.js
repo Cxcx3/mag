@@ -1233,15 +1233,7 @@
         }
       };
 
-      let finalImgUrl = urlOrCanvas;
-      if (typeof window.resolveMediaUrl === 'function') {
-        finalImgUrl = window.resolveMediaUrl(urlOrCanvas);
-      } else if (typeof urlOrCanvas === 'string' && urlOrCanvas.includes('rcgtgmyiygdkbmbfspbo.supabase.co/storage/v1/object/public/')) {
-        if (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http') && !urlOrCanvas.includes('/api/media-proxy')) {
-          finalImgUrl = `/api/media-proxy?url=${encodeURIComponent(urlOrCanvas)}`;
-        }
-      }
-      img.src = finalImgUrl;
+      img.src = urlOrCanvas;
     } else {
       const srcCanvas = (urlOrCanvas instanceof HTMLCanvasElement) ? urlOrCanvas : getSceneProceduralCanvas(activeSceneList[activeSceneIndex]?.id || '360-main');
       const texture = new THREE.CanvasTexture(srcCanvas);
@@ -1290,15 +1282,7 @@
             onReady: (res) => resolve(res)
           });
         };
-        let finalTransUrl = urlOrCanvas;
-        if (typeof window.resolveMediaUrl === 'function') {
-          finalTransUrl = window.resolveMediaUrl(urlOrCanvas);
-        } else if (typeof urlOrCanvas === 'string' && urlOrCanvas.includes('rcgtgmyiygdkbmbfspbo.supabase.co/storage/v1/object/public/')) {
-          if (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http') && !urlOrCanvas.includes('/api/media-proxy')) {
-            finalTransUrl = `/api/media-proxy?url=${encodeURIComponent(urlOrCanvas)}`;
-          }
-        }
-        img.src = finalTransUrl;
+        img.src = urlOrCanvas;
       } else {
         loadThreePanoTexture(urlOrCanvas, curScene, {
           suppressLoader: true,
@@ -1319,13 +1303,6 @@
       const norm = normalize3dTourUrl(sc.tourUrl || sc.panoUrl || '');
       let url = norm.isImage ? norm.url : (sc.panoUrl || sc.tourUrl);
       if (url && (url.startsWith('http') || url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('/'))) {
-        if (typeof window.resolveMediaUrl === 'function') {
-          url = window.resolveMediaUrl(url);
-        } else if (url.includes('rcgtgmyiygdkbmbfspbo.supabase.co/storage/v1/object/public/')) {
-          if (typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http') && !url.includes('/api/media-proxy')) {
-            url = `/api/media-proxy?url=${encodeURIComponent(url)}`;
-          }
-        }
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.src = url;

@@ -721,89 +721,11 @@ Your task:
   }
 });
 
-const mediaCacheDir = path.join(uploadsDir, 'cached-media');
-if (!fs.existsSync(mediaCacheDir)) {
-  fs.mkdirSync(mediaCacheDir, { recursive: true });
-}
-
-// Media caching reverse proxy: downloads Supabase storage and remote assets ONCE to server disk,
-// then serves them with 1-year immutable caching so repeated visitor browsing consumes 0 Supabase bandwidth.
-app.get('/api/media-proxy', async (req, res) => {
-  const targetUrl = req.query.url;
-  if (!targetUrl || typeof targetUrl !== 'string') {
-    return res.status(400).send('Missing url query param');
-  }
-
-  const allowed = targetUrl.includes('rcgtgmyiygdkbmbfspbo.supabase.co/storage/') ||
-                  targetUrl.includes('supabase.co/storage/') ||
-                  targetUrl.includes('images.unsplash.com');
-  if (!allowed) {
-    return res.redirect(targetUrl);
-  }
-
-  try {
-    const parsed = new URL(targetUrl);
-    const pathname = parsed.pathname;
-    const cleanFilename = (pathname.split('/').pop() || 'asset').replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    const hash = Buffer.from(targetUrl).toString('base64url').slice(-16);
-    const cachedFilePath = path.join(mediaCacheDir, `${hash}-${cleanFilename}`);
-
-    if (fs.existsSync(cachedFilePath)) {
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      res.setHeader('Accept-Ranges', 'bytes');
-      return res.sendFile(cachedFilePath);
-    }
-
-    const remoteRes = await fetch(targetUrl);
-    if (!remoteRes.ok) {
-      return res.redirect(targetUrl);
-    }
-
-    const contentType = remoteRes.headers.get('content-type') || 'application/octet-stream';
-    const buffer = Buffer.from(await remoteRes.arrayBuffer());
-    await fs.promises.writeFile(cachedFilePath, buffer);
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    res.setHeader('Accept-Ranges', 'bytes');
-    return res.send(buffer);
-  } catch (err) {
-    console.warn('[Media Proxy Warning]', err.message);
-    return res.redirect(targetUrl);
-  }
-});
-
-// Dedicated service worker route with proper headers
-app.get('/sw.js', (req, res) => {
-  const swPath = path.join(__dirname, 'sw.js');
-  if (!fs.existsSync(swPath)) {
-    return res.status(404).send('Not Found');
-  }
-  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.setHeader('Service-Worker-Allowed', '/');
-  res.sendFile(swPath);
-});
-
-// Serve cached/uploaded assets with high-performance cache headers
-app.use('/uploads', express.static(uploadsDir, {
-  maxAge: '30d',
-  immutable: true,
-  setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
-    res.setHeader('Accept-Ranges', 'bytes');
-  }
-}));
+// Serve uploaded assets
+app.use('/uploads', express.static(uploadsDir));
 
 // Serve static assets from root
-app.use(express.static(__dirname, {
-  maxAge: '1h',
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache');
-    }
-  }
-}));
+app.use(express.static(__dirname));
 
 // Serve index.html with dynamic OG host replacement when accessed directly
 app.get(['/', '/index.html'], (req, res) => {
