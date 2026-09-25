@@ -174,8 +174,10 @@
     -webkit-transform: rotateY(0deg);
     border-radius: 8px;
     box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.18);
-    will-change: transform;
     pointer-events: none;
+  }
+  .page.is-flipping{
+    will-change: transform;
   }
   .page.flipped{
     transform: rotateY(-180deg);
@@ -229,6 +231,8 @@
     box-sizing: border-box;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 210, 63, 0.4) transparent;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
   }
   .sheet::-webkit-scrollbar {
     width: 4px;
@@ -438,74 +442,327 @@
   .spotlight-info .name{ font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.02em; margin: 0 0 2px; color: var(--ink); line-height: 1.2;}
   .spotlight-info .role{ font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--coral); font-weight: 700; margin: 0 0 4px;}
   .spotlight-info .bio{ font-size: 11px; line-height: 1.4; margin: 0; color: #3a3540;}
+  /* HIGH-END BUSINESS BOX (DARK LUXURY SHOWCASE) */
   .ad-card{
-    background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 14px;
-    border-left: 5px solid var(--coral); box-shadow: 0 3px 0 rgba(20,18,26,0.08);
+    background: #14121A;
+    background: linear-gradient(180deg, #191624 0%, #121019 100%);
+    border: 1px solid rgba(255, 210, 63, 0.22);
+    border-radius: 16px;
+    padding: 13px 13px 15px;
+    margin-bottom: 18px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.24);
+    position: relative;
+    color: #F5F1E8;
+    overflow: hidden;
+    content-visibility: auto;
+    contain-intrinsic-size: 380px;
   }
-  .ad-card:nth-of-type(2n){ border-left-color: var(--cyan); }
-  .ad-card:nth-of-type(3n){ border-left-color: var(--yellow); }
-  .ad-card .ad-media{ height: 165px; margin-bottom: 10px; min-height: 165px; border-radius: 8px; }
-  .ad-card .biz-name{ font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.02em; margin: 0 0 3px; color: var(--ink); line-height: 1.25;}
-  .ad-card .biz-tag{ font-size: 10px; color: var(--violet); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px;}
-  .ad-card .biz-blurb{ font-size: 11.5px; line-height: 1.45; margin: 0 0 6px; color: #3a3540;}
-  .ad-card .biz-cta{ font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink); }
-  .ad-card .biz-cta::after{ content: " →"; }
-  .ad-card .biz-cta a{ 
-    color: inherit; 
-    text-decoration: none; 
-    display: inline-block;
-    padding: 4px 0;
+  .biz-card-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 9px;
   }
-  .ad-card .biz-cta a:hover {
-    text-decoration: underline;
+  .biz-badges-row{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
   }
-  /* STEP INSIDE · 3D / 360° action buttons */
-  .step-inside-3d-btn{
-    display:inline-flex;
-    align-items:center;
-    justify-content:center;
-    gap:8px;
-    width:100%;
-    margin:8px 0 6px;
-    padding:10px 14px;
-    border:none;
-    border-radius:999px;
-    cursor:pointer;
-    font-family:'Space Grotesk',sans-serif;
-    font-size:11px;
-    font-weight:800;
-    letter-spacing:0.06em;
-    text-transform:uppercase;
-    color:#14121A;
-    background:linear-gradient(135deg,#FFD23F 0%,#06D6A0 100%);
-    box-shadow:0 4px 16px rgba(6,214,160,0.35),0 0 0 1px rgba(255,210,63,0.4);
-    transition:transform 0.15s ease, box-shadow 0.15s ease;
-    touch-action:manipulation;
-    -webkit-tap-highlight-color:transparent;
-    position:relative;
-    z-index:2;
+  .biz-featured-badge{
+    background: #FFD23F;
+    color: #121018;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 9.5px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(255, 210, 63, 0.35);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
   }
-  .step-inside-3d-btn:hover{
-    transform:translateY(-1px) scale(1.02);
-    box-shadow:0 6px 22px rgba(6,214,160,0.5),0 0 0 1px #FFD23F;
+  .biz-category-badge{
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    max-width: 170px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .step-inside-3d-btn:active{ transform:scale(0.97); }
-  .step-inside-3d-btn .btn-3d-pulse{
-    font-size:14px;
-    animation:stepInsidePulse 1.6s ease-in-out infinite;
+  .biz-media-wrapper{
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    background: #1B1826;
   }
-  @keyframes stepInsidePulse{
-    0%,100%{ transform:scale(1); opacity:1; }
-    50%{ transform:scale(1.2); opacity:0.85; }
+  .ad-card .ad-media{
+    height: 180px;
+    min-height: 180px;
+    width: 100%;
+    margin: 0;
+    border-radius: 12px;
+    position: relative;
+    background: #1B1826;
   }
-  .step-inside-3d-btn .btn-3d-badge{
-    background:#14121A;
-    color:#FFD23F;
-    font-size:9px;
-    font-weight:900;
-    padding:2px 7px;
-    border-radius:999px;
-    letter-spacing:0.08em;
+  .ad-card .ad-media img,
+  .ad-card .ad-media video{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .biz-media-overlay-badge{
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(18, 16, 24, 0.94);
+    color: #FFD23F;
+    border: 1px solid rgba(255, 210, 63, 0.45);
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    transition: transform 0.15s, background 0.15s;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .biz-media-overlay-badge:hover{
+    transform: scale(1.05);
+    background: #FFD23F;
+    color: #121018;
+  }
+  .biz-media-vr-icon{
+    font-size: 11px;
+  }
+  .biz-card-body{
+    padding: 11px 1px 0;
+  }
+  .biz-card-title{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 800;
+    font-size: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #FFFFFF;
+    margin: 0 0 3px;
+    line-height: 1.25;
+  }
+  .biz-card-location{
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #06D6A0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 7px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .biz-loc-pin{ font-size: 11px; }
+  .biz-loc-sep{ color: rgba(255, 255, 255, 0.3); }
+  .biz-card-blurb{
+    font-size: 11.5px;
+    line-height: 1.48;
+    color: rgba(245, 241, 232, 0.82);
+    margin: 0 0 11px;
+  }
+  .biz-enter-btn{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 16px;
+    margin: 4px 0 10px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #FFD23F 0%, #FFB703 100%);
+    color: #121018;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: 0 4px 18px rgba(255, 210, 63, 0.38);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .biz-enter-btn:hover{
+    transform: translateY(-1px) scale(1.01);
+    box-shadow: 0 6px 22px rgba(255, 210, 63, 0.55);
+  }
+  .biz-enter-btn:active{
+    transform: scale(0.98);
+  }
+  .biz-enter-pulse{
+    font-size: 14px;
+  }
+  .biz-enter-arrow{
+    font-size: 14px;
+    font-weight: 900;
+  }
+  .biz-actions-list{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .biz-action-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #FFFFFF;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+  .biz-action-row:hover{
+    background: rgba(255, 210, 63, 0.12);
+    border-color: rgba(255, 210, 63, 0.35);
+    transform: translateX(2px);
+  }
+  .biz-action-row:active{
+    transform: scale(0.99);
+  }
+  .biz-action-left{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #FFFFFF;
+    letter-spacing: 0.02em;
+    min-width: 0;
+  }
+  .biz-action-icon{
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .biz-action-text{
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .biz-action-chevron{
+    font-size: 16px;
+    font-weight: 800;
+    color: rgba(255, 210, 63, 0.75);
+    flex-shrink: 0;
+    margin-left: 6px;
+    transition: transform 0.15s, color 0.15s;
+  }
+  .biz-action-row:hover .biz-action-chevron{
+    color: #FFD23F;
+    transform: translateX(2px);
+  }
+  .biz-row-mini-tag{
+    background: #14121A;
+    color: #FFD23F;
+    border: 1px solid rgba(255, 210, 63, 0.35);
+    font-size: 8.5px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+    flex-shrink: 0;
+  }
+  .biz-thumb-strip{
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    overflow-x: auto;
+    padding: 6px 1px 2px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .biz-thumb-strip::-webkit-scrollbar{
+    display: none;
+  }
+  .biz-thumb-item{
+    position: relative;
+    flex-shrink: 0;
+    width: 62px;
+    height: 44px;
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1.5px solid rgba(255, 255, 255, 0.14);
+    background: #1B1826;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.15s, border-color 0.15s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .biz-thumb-item:hover{
+    transform: scale(1.05);
+    border-color: #FFD23F;
+  }
+  .biz-thumb-item img{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .biz-thumb-label{
+    position: absolute;
+    bottom: 0;
+    inset-x: 0;
+    background: rgba(0, 0, 0, 0.78);
+    color: #FFFFFF;
+    font-size: 8px;
+    font-weight: 700;
+    text-align: center;
+    padding: 2px 2px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .biz-thumb-vr{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 210, 63, 0.12);
+    border-color: rgba(255, 210, 63, 0.35);
+    color: #FFD23F;
+  }
+  .biz-thumb-vr-icon{
+    font-size: 13px;
+    margin-bottom: 2px;
   }
   .back-cover{ background: var(--coral); color: var(--ink); justify-content: center; align-items: center; text-align: center;}
   .back-cover h2{ font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 19px; text-transform: uppercase; letter-spacing: 0.03em; margin: 0 0 8px; line-height: 1.2;}
@@ -905,9 +1162,7 @@
     position: sticky;
     top: 0;
     z-index: 10;
-    background: rgba(20,18,26,0.94);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background: #14121A;
     padding: 8px 10px;
     border-bottom: 1px solid rgba(255,255,255,0.08);
   }
@@ -2730,7 +2985,8 @@ function mediaBlock(media, placeholderText, extraClass){
       <img 
         src="${url}" 
         alt="" 
-        loading="eager"
+        loading="lazy"
+        decoding="async"
         style="width:100%;height:100%;object-fit:cover;display:block;"
         onerror="this.style.display='none'; if(!this.parentElement.querySelector('.placeholder-fallback')){ const d=document.createElement('div'); d.className='placeholder-fallback'; d.style.cssText='width:100%;height:100%;min-height:80px;display:flex;align-items:center;justify-content:center;padding:12px;text-align:center;font-size:9px;font-weight:700;color:rgba(255,255,255,0.85);'; d.innerText='${placeholderText}'; this.parentElement.appendChild(d); }"
       >
@@ -2738,14 +2994,198 @@ function mediaBlock(media, placeholderText, extraClass){
   `;
 }
 
+const AD_DISPLAY_OPTIONS = [
+  { key: 'enterBtn', label: 'Enter Business Button', icon: '🚪', desc: 'Main gold banner button [ENTER THE BUSINESS ➔]' },
+  { key: 'websiteLink', label: 'Visit Website / Store', icon: '🌐', desc: 'Action row linking to site or store' },
+  { key: 'virtualTour', label: '3D / 360° Walkthrough', icon: '🔦', desc: 'Action row launching virtual walkthrough' },
+  { key: 'directions', label: 'Location & Directions', icon: '📍', desc: 'Action row with Google Maps directions' },
+  { key: 'shareBtn', label: 'Share Business Spot', icon: '↗', desc: 'Action row opening share card modal' },
+  { key: 'mediaTourBadge', label: '360° Photo Badge', icon: '🔄', desc: 'Overlay badge [🔦 360° TOUR] on photo' },
+  { key: 'featuredBadge', label: "'FEATURED' Badge", icon: '⭐', desc: 'Gold top-corner [⭐ FEATURED] badge' },
+  { key: 'thumbnails', label: 'Gallery Thumbnails', icon: '🖼️', desc: 'Bottom strip showing scenes & angles' }
+];
+
+function isOptionEnabled(a, key, defaultValue = true) {
+  if (!a || typeof a !== 'object') return defaultValue;
+  const cap = key.charAt(0).toUpperCase() + key.slice(1);
+  const candidates = [
+    key,
+    'show_' + key,
+    'show' + cap,
+    'show' + key,
+    'enable_' + key,
+    'enable' + cap
+  ];
+  for (const k of candidates) {
+    if (typeof a[k] !== 'undefined') {
+      const v = a[k];
+      if (v === false || v === 'false' || v === 0 || v === '0') return false;
+      if (v === true || v === 'true' || v === 1 || v === '1') return true;
+    }
+  }
+  if (a.visibleOptions && typeof a.visibleOptions[key] !== 'undefined') {
+    const v = a.visibleOptions[key];
+    if (v === false || v === 'false' || v === 0 || v === '0') return false;
+    if (v === true || v === 'true' || v === 1 || v === '1') return true;
+  }
+  return defaultValue;
+}
+window.isOptionEnabled = isOptionEnabled;
+
+window.toggleAdOption = function(ci, ai, key) {
+  const city = MAGAZINE && MAGAZINE.cities && MAGAZINE.cities[+ci];
+  if (!city || !city.ads || !city.ads[+ai]) return;
+  const a = city.ads[+ai];
+  
+  const currentVal = isOptionEnabled(a, key, true);
+  const newVal = !currentVal;
+  
+  const cap = key.charAt(0).toUpperCase() + key.slice(1);
+  a['show_' + key] = newVal;
+  a['show' + cap] = newVal;
+  a[key] = newVal;
+
+  // Update button and hidden input in UI
+  const btn = document.getElementById(`opt_btn_${ci}_${ai}_${key}`);
+  const input = document.getElementById(`ad_opt_input_${ci}_${ai}_${key}`);
+  if (input) input.value = newVal ? 'true' : 'false';
+  if (btn) {
+    if (newVal) {
+      btn.classList.add('is-active');
+      btn.classList.remove('is-inactive');
+      btn.title = `Click to hide this option`;
+      const pill = btn.querySelector('.biz-opt-pill');
+      if (pill) pill.textContent = '✓ SHOWN';
+    } else {
+      btn.classList.remove('is-active');
+      btn.classList.add('is-inactive');
+      btn.title = `Click to show this option`;
+      const pill = btn.querySelector('.biz-opt-pill');
+      if (pill) pill.textContent = '✕ HIDDEN';
+    }
+  }
+
+  // Update live preview
+  if (typeof applyMagazineUpdates === 'function') {
+    applyMagazineUpdates(true);
+  }
+
+  const optDef = AD_DISPLAY_OPTIONS.find(o => o.key === key);
+  const label = optDef ? optDef.label : key;
+  if (typeof showToast === 'function') {
+    showToast(`${a.name || 'Business ' + (+ai+1)}: ${newVal ? '✅ Showing' : '❌ Hiding'} ${label}`);
+  }
+};
+
+window.setAllAdOptions = function(ci, ai, enableAll) {
+  const city = MAGAZINE && MAGAZINE.cities && MAGAZINE.cities[+ci];
+  if (!city || !city.ads || !city.ads[+ai]) return;
+  const a = city.ads[+ai];
+
+  AD_DISPLAY_OPTIONS.forEach(opt => {
+    const key = opt.key;
+    const cap = key.charAt(0).toUpperCase() + key.slice(1);
+    a['show_' + key] = enableAll;
+    a['show' + cap] = enableAll;
+    a[key] = enableAll;
+
+    const btn = document.getElementById(`opt_btn_${ci}_${ai}_${key}`);
+    const input = document.getElementById(`ad_opt_input_${ci}_${ai}_${key}`);
+    if (input) input.value = enableAll ? 'true' : 'false';
+    if (btn) {
+      if (enableAll) {
+        btn.classList.add('is-active');
+        btn.classList.remove('is-inactive');
+        btn.title = `Click to hide this option`;
+        const pill = btn.querySelector('.biz-opt-pill');
+        if (pill) pill.textContent = '✓ SHOWN';
+      } else {
+        btn.classList.remove('is-active');
+        btn.classList.add('is-inactive');
+        btn.title = `Click to show this option`;
+        const pill = btn.querySelector('.biz-opt-pill');
+        if (pill) pill.textContent = '✕ HIDDEN';
+      }
+    }
+  });
+
+  if (typeof applyMagazineUpdates === 'function') {
+    applyMagazineUpdates(true);
+  }
+
+  if (typeof showToast === 'function') {
+    showToast(`${a.name || 'Business ' + (+ai+1)}: ${enableAll ? '✅ All options shown' : '❌ All options hidden'}`);
+  }
+};
+
+function renderAdOptionsPanel(ci, ai, a) {
+  const optionsHtml = AD_DISPLAY_OPTIONS.map(opt => {
+    const isOn = isOptionEnabled(a, opt.key, true);
+    return `
+      <button type="button" 
+        class="biz-opt-toggle-btn ${isOn ? 'is-active' : 'is-inactive'}" 
+        id="opt_btn_${ci}_${ai}_${opt.key}" 
+        onclick="window.toggleAdOption(${ci}, ${ai}, '${opt.key}')"
+        title="Click to ${isOn ? 'hide' : 'show'} ${esc(opt.label)}">
+        <div class="biz-opt-left">
+          <span class="biz-opt-icon">${opt.icon}</span>
+          <div style="min-width:0;">
+            <div class="biz-opt-label">${esc(opt.label)}</div>
+            <div style="font-size:9.5px;color:${isOn ? 'rgba(255,255,255,0.7)' : '#888'};margin-top:1px;">${esc(opt.desc)}</div>
+          </div>
+        </div>
+        <span class="biz-opt-pill">${isOn ? '✓ SHOWN' : '✕ HIDDEN'}</span>
+      </button>
+      <input type="hidden" data-ad="show_${opt.key}" id="ad_opt_input_${ci}_${ai}_${opt.key}" value="${isOn ? 'true' : 'false'}">
+    `;
+  }).join('');
+
+  return `
+    <div class="biz-options-panel">
+      <div class="biz-options-head">
+        <div>
+          <div class="biz-options-head-title">
+            🔘 CHOOSE BUTTONS &amp; OPTIONS TO SHOW ON THIS BOX
+          </div>
+          <div class="biz-options-head-desc">
+            Tap any button below to choose what options show or hide for this specific business.
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button type="button" class="ed-btn ed-light" style="padding:4px 9px;font-size:10px;min-height:28px;background:#14121A;border:1px solid #06D6A0;color:#06D6A0;font-weight:800;" onclick="window.setAllAdOptions(${ci}, ${ai}, true)">
+            ✓ SHOW ALL
+          </button>
+          <button type="button" class="ed-btn ed-light" style="padding:4px 9px;font-size:10px;min-height:28px;background:#14121A;border:1px solid rgba(255,255,255,0.25);color:#bbb;font-weight:800;" onclick="window.setAllAdOptions(${ci}, ${ai}, false)">
+            ✕ HIDE ALL
+          </button>
+        </div>
+      </div>
+      <div class="biz-options-grid">
+        ${optionsHtml}
+      </div>
+    </div>
+  `;
+}
+
 function standardAdHtml(a, pageIndexInPages, cityIdx, adIdx){
   if (!a || typeof a !== 'object') a = {};
+  const city = (MAGAZINE && Array.isArray(MAGAZINE.cities)) ? MAGAZINE.cities[cityIdx] : null;
+  const cityName = city ? (city.name || 'Local City') : 'Local City';
+  const locationLabel = (cityName + ', UT').toUpperCase();
+
   const link = (a.link && a.link !== '#' && a.link.trim() !== '') ? a.link.trim() : null;
-  const ctaContent = link 
-    ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">${esc(a.cta || 'Visit Website')}</a>`
-    : esc(a.cta || 'Visit Website');
+  const ctaText = (a.cta && a.cta.trim() !== '' && a.cta !== '#') ? a.cta.trim() : 'Visit Website / Store';
 
   const placeholderLabel = (a.name || 'BUSINESS').toUpperCase();
+
+  const showFeatured = isOptionEnabled(a, 'featuredBadge', true);
+  const showMediaTourBadge = isOptionEnabled(a, 'mediaTourBadge', true);
+  const showEnterBtn = isOptionEnabled(a, 'enterBtn', true);
+  const showWebsite = isOptionEnabled(a, 'websiteLink', true);
+  const showVirtualTour = isOptionEnabled(a, 'virtualTour', true);
+  const showDirections = isOptionEnabled(a, 'directions', true);
+  const showShare = isOptionEnabled(a, 'shareBtn', true);
+  const showThumbnails = isOptionEnabled(a, 'thumbnails', true);
 
   // If media is missing or empty, but business has a 360 tour with a photo, automatically use the 360 photo as media!
   let adMedia = a.media;
@@ -2757,22 +3197,177 @@ function standardAdHtml(a, pageIndexInPages, cityIdx, adIdx){
     }
   }
 
+  // Thumbnails: check if tourConfig has scenes, or build thumbnails from available media
+  let thumbnailsHtml = '';
+  if (showThumbnails) {
+    const scenes = (a.tourConfig && Array.isArray(a.tourConfig.scenes)) ? a.tourConfig.scenes : [];
+    if (scenes.length > 1) {
+      thumbnailsHtml = `
+        <div class="biz-thumb-strip">
+          ${scenes.slice(0, 4).map((s, si) => `
+            <button type="button" class="biz-thumb-item" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="${esc(s.name || 'Scene ' + (si + 1))}">
+              <img src="${esc(s.panoUrl || (adMedia ? adMedia.url : ''))}" alt="${esc(s.name || '')}" loading="lazy" decoding="async">
+              <span class="biz-thumb-label">${esc(s.name || ('Room ' + (si + 1)))}</span>
+            </button>
+          `).join('')}
+        </div>
+      `;
+    } else if (adMedia && adMedia.url && adMedia.type !== 'video') {
+      // Curated thumbnail preview row showing details & virtual tour entrance
+      thumbnailsHtml = `
+        <div class="biz-thumb-strip">
+          <button type="button" class="biz-thumb-item" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="Main Gallery View">
+            <img src="${esc(adMedia.url)}" alt="Main View" loading="lazy" decoding="async" style="object-position:center;">
+            <span class="biz-thumb-label">Main</span>
+          </button>
+          <button type="button" class="biz-thumb-item" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="Interior Perspective">
+            <img src="${esc(adMedia.url)}" alt="Interior" loading="lazy" decoding="async" style="object-position:left center;">
+            <span class="biz-thumb-label">Interior</span>
+          </button>
+          <button type="button" class="biz-thumb-item" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="Store Highlights">
+            <img src="${esc(adMedia.url)}" alt="Details" loading="lazy" decoding="async" style="object-position:right center;">
+            <span class="biz-thumb-label">Details</span>
+          </button>
+          <button type="button" class="biz-thumb-item biz-thumb-vr" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="360° Walkthrough">
+            <span class="biz-thumb-vr-icon">🔦</span>
+            <span class="biz-thumb-label">360° VR</span>
+          </button>
+        </div>
+      `;
+    }
+  }
+
+  const mapQuery = encodeURIComponent((a.name ? (a.name + ' ') : '') + cityName + ' UT');
+  const mapsLink = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
+
+  // Top badges row
+  const topBadges = [];
+  if (showFeatured) {
+    topBadges.push(`<span class="biz-featured-badge">⭐ FEATURED</span>`);
+  }
+  if (a.tag) {
+    topBadges.push(`<span class="biz-category-badge">${esc((a.tag || 'LOCAL BUSINESS').toUpperCase())}</span>`);
+  }
+  const badgesRowHtml = topBadges.length > 0 ? `
+    <div class="biz-card-head">
+      <div class="biz-badges-row">
+        ${topBadges.join('')}
+      </div>
+    </div>
+  ` : '';
+
+  // Media overlay badge
+  const mediaBadgeHtml = showMediaTourBadge ? `
+    <div class="biz-media-overlay-badge" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="Explore in 360° VR">
+      <span class="biz-media-vr-icon">🔦</span>
+      <span>360° TOUR</span>
+    </div>
+  ` : '';
+
+  // Enter button
+  const enterButtonText = (a.cta && a.cta !== 'Visit Website' && a.cta !== 'Learn More' && a.cta !== '#') ? a.cta.toUpperCase() : 'ENTER THE BUSINESS';
+  const enterBtnHtml = showEnterBtn ? `
+    <button type="button" class="biz-enter-btn" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="Enter ${esc(a.name || 'Business')}">
+      <span class="biz-enter-pulse">🚪</span>
+      <span class="biz-enter-label">${esc(enterButtonText)}</span>
+      <span class="biz-enter-arrow">➔</span>
+    </button>
+  ` : '';
+
+  // Action rows
+  const actionRows = [];
+  if (showWebsite) {
+    if (link) {
+      actionRows.push(`
+        <a href="${esc(link)}" target="_blank" rel="noopener noreferrer" class="biz-action-row" onclick="event.stopPropagation();" title="Visit Website / Online Store">
+          <div class="biz-action-left">
+            <span class="biz-action-icon">🌐</span>
+            <span class="biz-action-text">${esc(ctaText)}</span>
+          </div>
+          <span class="biz-action-chevron">›</span>
+        </a>
+      `);
+    } else {
+      actionRows.push(`
+        <div class="biz-action-row" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="Step Inside">
+          <div class="biz-action-left">
+            <span class="biz-action-icon">🌐</span>
+            <span class="biz-action-text">${esc(ctaText)}</span>
+          </div>
+          <span class="biz-action-chevron">›</span>
+        </div>
+      `);
+    }
+  }
+
+  if (showVirtualTour) {
+    actionRows.push(`
+      <div class="biz-action-row" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="Explore in 360° VR">
+        <div class="biz-action-left">
+          <span class="biz-action-icon">🔦</span>
+          <span class="biz-action-text">3D / 360° Virtual Walkthrough</span>
+          <span class="biz-row-mini-tag">VR</span>
+        </div>
+        <span class="biz-action-chevron">›</span>
+      </div>
+    `);
+  }
+
+  if (showDirections) {
+    actionRows.push(`
+      <a href="${mapsLink}" target="_blank" rel="noopener noreferrer" class="biz-action-row" onclick="event.stopPropagation();" title="View Location on Maps">
+        <div class="biz-action-left">
+          <span class="biz-action-icon">📍</span>
+          <span class="biz-action-text">${esc(cityName)}, UT · Directions</span>
+        </div>
+        <span class="biz-action-chevron">›</span>
+      </a>
+    `);
+  }
+
+  if (showShare) {
+    actionRows.push(`
+      <div class="biz-action-row" onclick="event.stopPropagation(); window.triggerAdShareByIndex(${cityIdx}, ${adIdx}, ${pageIndexInPages || 0}, event);" title="Share Business Spot">
+        <div class="biz-action-left">
+          <span class="biz-action-icon">↗</span>
+          <span class="biz-action-text">Share Business Spot</span>
+        </div>
+        <span class="biz-action-chevron">›</span>
+      </div>
+    `);
+  }
+
+  const actionsListHtml = actionRows.length > 0 ? `
+    <div class="biz-actions-list">
+      ${actionRows.join('')}
+    </div>
+  ` : '';
+
   return `
     <div class="ad-card">
-      ${mediaBlock(adMedia, '[ '+placeholderLabel+' PHOTO / VIDEO ]', 'ad-media')}
-      <div class="biz-name">${esc(a.name || 'Local Business')}</div>
-      <div class="biz-tag">${esc(a.tag || 'Special Offer')}</div>
-      <div class="biz-blurb">${esc(a.blurb || '')}</div>
-      <button type="button" class="step-inside-3d-btn" onclick="event.stopPropagation(); window.openCityAd3dTour(${cityIdx}, ${adIdx});" title="Explore in 3D 360°">
-        <span class="btn-3d-pulse">🔦</span>
-        <span>STEP INSIDE · 3D / 360°</span>
-        <span class="btn-3d-badge">VR</span>
-      </button>
-      <div class="biz-footer-row">
-        <div class="biz-cta">${ctaContent}</div>
-        <button class="ad-share-btn" onclick="event.stopPropagation(); window.triggerAdShareByIndex(${cityIdx}, ${adIdx}, ${pageIndexInPages || 0}, event)" title="Share this business">
-          ↗ Share Spot
-        </button>
+      ${badgesRowHtml}
+
+      <div class="biz-media-wrapper">
+        ${mediaBlock(adMedia, '[ '+placeholderLabel+' PHOTO / VIDEO ]', 'ad-media')}
+        ${mediaBadgeHtml}
+      </div>
+
+      <div class="biz-card-body">
+        <h3 class="biz-card-title">${esc((a.name || 'Local Business').toUpperCase())}</h3>
+        <div class="biz-card-location">
+          <span class="biz-loc-pin">📍</span>
+          <span>${esc(locationLabel)}</span>
+          <span class="biz-loc-sep">·</span>
+          <span>${esc(a.tag || 'Local Spot')}</span>
+        </div>
+        
+        ${a.blurb ? `<div class="biz-card-blurb">${esc(a.blurb)}</div>` : ''}
+
+        ${enterBtnHtml}
+
+        ${actionsListHtml}
+
+        ${thumbnailsHtml}
       </div>
     </div>
   `;
@@ -2912,6 +3507,123 @@ editorCss.textContent = `
   
   .cropper-footer{padding:14px 18px;border-top:1px solid rgba(255,255,255,0.12);display:flex;justify-content:space-between;align-items:center;gap:12px;background:#1a1722;}
   .ed-crop-btn{display:inline-flex;align-items:center;gap:6px;touch-action:manipulation;}
+
+  /* Business Card Custom Option / Button Controls in Editor */
+  .biz-options-panel{
+    grid-column: 1 / -1;
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: #171420;
+    border: 1px solid rgba(255, 210, 63, 0.35);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
+  .biz-options-head{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .biz-options-head-title{
+    font-size: 11.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #FFD23F;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .biz-options-head-desc{
+    font-size: 11px;
+    color: #a8a3b0;
+    margin: 3px 0 0;
+    line-height: 1.35;
+  }
+  .biz-options-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .biz-opt-toggle-btn{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+    box-sizing: border-box;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    min-height: 50px;
+  }
+  .biz-opt-toggle-btn.is-active{
+    background: rgba(6, 214, 160, 0.12);
+    border: 1.5px solid #06D6A0;
+    color: #FFFFFF;
+    box-shadow: 0 2px 10px rgba(6, 214, 160, 0.15);
+  }
+  .biz-opt-toggle-btn.is-active:hover{
+    background: rgba(6, 214, 160, 0.22);
+    border-color: #06D6A0;
+    transform: translateY(-1px);
+  }
+  .biz-opt-toggle-btn.is-inactive{
+    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px dashed rgba(255, 255, 255, 0.2);
+    color: #8a8494;
+    opacity: 0.72;
+  }
+  .biz-opt-toggle-btn.is-inactive:hover{
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 210, 63, 0.5);
+    color: #e2dee8;
+    opacity: 0.95;
+    transform: translateY(-1px);
+  }
+  .biz-opt-left{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .biz-opt-icon{
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .biz-opt-label{
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .biz-opt-pill{
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    padding: 3px 7px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+  .biz-opt-toggle-btn.is-active .biz-opt-pill{
+    background: #06D6A0;
+    color: #121018;
+  }
+  .biz-opt-toggle-btn.is-inactive .biz-opt-pill{
+    background: rgba(255, 255, 255, 0.12);
+    color: #888;
+  }
 `;
 document.head.appendChild(editorCss);
 
@@ -3175,6 +3887,7 @@ function renderEditor(){
             </div>
           </div>
           ${mediaFieldHTML('Business Media (Photo or Video)', `city-${ci}-ad-${ai}`, a.media, `ad-${ci}-${ai}-type`)}
+          ${renderAdOptionsPanel(ci, ai, a)}
         </div>
       </div>`).join('');
 
@@ -3228,7 +3941,15 @@ function renderEditor(){
           blurb: 'Describe this business here.',
           cta: 'Learn More',
           link: '#',
-          media: null
+          media: null,
+          show_enterBtn: true,
+          show_websiteLink: true,
+          show_virtualTour: true,
+          show_directions: true,
+          show_shareBtn: true,
+          show_mediaTourBadge: true,
+          show_featuredBadge: true,
+          show_thumbnails: true
         });
         renderEditor();
         bindEditor();
@@ -3321,7 +4042,16 @@ function saveActiveTabFields() {
         const a = c.ads[ai];
         if (!a) return;
         adEl.querySelectorAll('[data-ad]').forEach(el => {
-          a[el.dataset.ad] = el.value ? el.value.trim() : '';
+          if (el.dataset.ad && el.dataset.ad.startsWith('show_')) {
+            const optKey = el.dataset.ad.replace('show_', '');
+            const boolVal = (el.value === 'true' || el.value === true);
+            a[el.dataset.ad] = boolVal;
+            const cap = optKey.charAt(0).toUpperCase() + optKey.slice(1);
+            a['show' + cap] = boolVal;
+            a[optKey] = boolVal;
+          } else {
+            a[el.dataset.ad] = el.value ? el.value.trim() : '';
+          }
         });
         if (a.tour3d) a.tourUrl = a.tour3d;
         if (a.tourUrl && !a.tour3d) a.tour3d = a.tourUrl;
@@ -5054,6 +5784,11 @@ function invokeNativeShare() {
 
 const flipTimeouts = {};
 
+function getActiveSheet() {
+  const activePage = document.getElementById('page-' + current);
+  return activePage ? activePage.querySelector('.sheet') : null;
+}
+
 function getPageZIndex(idx) {
   if (idx === current) return 50;
   else if (idx > current) return 40 - (idx - current);
@@ -5061,6 +5796,7 @@ function getPageZIndex(idx) {
 }
 
 function render(){
+  if (typeof stopWheelAnimation === 'function') stopWheelAnimation();
   PAGES.forEach((p, idx) => {
     const el = document.getElementById('page-' + idx);
     if (!el) return;
@@ -5140,8 +5876,8 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') syncActiveVideos();
 });
 
-function nextPage(){ if(current < total - 1){ current++; render(); } }
-function prevPage(){ if(current > 0){ current--; render(); } }
+function nextPage(){ if(current < total - 1){ if(typeof stopWheelAnimation === 'function') stopWheelAnimation(); current++; render(); } }
+function prevPage(){ if(current > 0){ if(typeof stopWheelAnimation === 'function') stopWheelAnimation(); current--; render(); } }
 
 let lastAppliedMagJson = '';
 function applyMagazineUpdates(force) {
@@ -5161,43 +5897,23 @@ window.render = render;
 
 let gestureStartX = 0;
 let gestureStartY = 0;
-let gestureLastY = 0;
 let gestureStartTime = 0;
-let gestureLastTime = 0;
-let gestureStartScrollTop = 0;
 let isHorizontalSwipe = false;
-let isVerticalScroll = false;
-let gestureMoved = false;
-let scrollVelocity = 0;
-let momentumRaf = null;
-
-function getActiveSheet() {
-  const activePage = document.getElementById('page-' + current);
-  return activePage ? activePage.querySelector('.sheet') : null;
-}
+let isSwipeDecided = false;
 
 const bookWrap = document.querySelector('.book-wrap');
 if (bookWrap) {
+  // Mobile / Touch handling:
+  // 1. Vertical scrolling inside pages is handled 100% natively by the browser for silk-smooth 120fps scrolling.
+  // 2. Only horizontal gestures (swiping left/right across pages) are intercepted to turn magazine pages.
   bookWrap.addEventListener('touchstart', e => {
     if (e.touches.length !== 1) return;
     const t = e.touches[0];
     gestureStartX = t.clientX;
     gestureStartY = t.clientY;
-    gestureLastY = t.clientY;
     gestureStartTime = performance.now();
-    gestureLastTime = gestureStartTime;
-    scrollVelocity = 0;
-
-    if (momentumRaf) {
-      cancelAnimationFrame(momentumRaf);
-      momentumRaf = null;
-    }
-
-    const sheet = getActiveSheet();
-    gestureStartScrollTop = sheet ? sheet.scrollTop : 0;
     isHorizontalSwipe = false;
-    isVerticalScroll = false;
-    gestureMoved = false;
+    isSwipeDecided = false;
   }, { passive: true });
 
   bookWrap.addEventListener('touchmove', e => {
@@ -5205,36 +5921,24 @@ if (bookWrap) {
     const t = e.touches[0];
     const dx = t.clientX - gestureStartX;
     const dy = t.clientY - gestureStartY;
-    const now = performance.now();
-    const dt = now - gestureLastTime;
 
-    if (dt > 10) {
-      const instantaneousV = (gestureLastY - t.clientY) / dt;
-      scrollVelocity = instantaneousV * 0.7 + scrollVelocity * 0.3;
-      gestureLastY = t.clientY;
-      gestureLastTime = now;
-    }
-
-    if (!gestureMoved) {
+    if (!isSwipeDecided) {
       const dist = Math.hypot(dx, dy);
-      if (dist > 6) {
-        gestureMoved = true;
-        if (Math.abs(dx) > Math.abs(dy) * 1.25 && Math.abs(dx) > 8) {
+      if (dist > 8) {
+        isSwipeDecided = true;
+        // Mark as horizontal page flip only if movement is predominantly horizontal
+        if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 12) {
           isHorizontalSwipe = true;
         } else {
-          isVerticalScroll = true;
+          isHorizontalSwipe = false;
         }
       }
     }
 
+    // Only prevent default for true horizontal page-turning swipes to avoid diagonal drift.
+    // For vertical scrolling, NEVER preventDefault or alter scrollTop — let native hardware scrolling run smoothly.
     if (isHorizontalSwipe) {
       if (e.cancelable) e.preventDefault();
-    } else if (isVerticalScroll) {
-      if (e.cancelable) e.preventDefault();
-      const sheet = getActiveSheet();
-      if (sheet) {
-        sheet.scrollTop = gestureStartScrollTop - dy;
-      }
     }
   }, { passive: false });
 
@@ -5245,72 +5949,131 @@ if (bookWrap) {
       const dt = Math.max(1, performance.now() - gestureStartTime);
       const speed = Math.abs(dx) / dt;
 
-      if (dx < -30 || (dx < -15 && speed > 0.2)) nextPage();
-      else if (dx > 30 || (dx > 15 && speed > 0.2)) prevPage();
-    } else if (isVerticalScroll) {
-      const sheet = getActiveSheet();
-      if (sheet && Math.abs(scrollVelocity) > 0.1) {
-        let v = scrollVelocity * 16;
-        if (v > 30) v = 30;
-        if (v < -30) v = -30;
-
-        function momentumStep() {
-          if (!sheet) return;
-          sheet.scrollTop += v;
-          v *= 0.94;
-          if (Math.abs(v) > 0.4) {
-            momentumRaf = requestAnimationFrame(momentumStep);
-          } else {
-            momentumRaf = null;
-          }
-        }
-        momentumRaf = requestAnimationFrame(momentumStep);
-      }
+      if (dx < -35 || (dx < -18 && speed > 0.25)) nextPage();
+      else if (dx > 35 || (dx > 18 && speed > 0.25)) prevPage();
     }
     isHorizontalSwipe = false;
-    isVerticalScroll = false;
-    gestureMoved = false;
+    isSwipeDecided = false;
   }, { passive: true });
 
   bookWrap.addEventListener('touchcancel', () => {
     isHorizontalSwipe = false;
-    isVerticalScroll = false;
-    gestureMoved = false;
+    isSwipeDecided = false;
   }, { passive: true });
 
-  bookWrap.addEventListener('wheel', e => {
-    const sheet = getActiveSheet();
-    if (sheet && sheet.scrollHeight > sheet.clientHeight) {
-      sheet.scrollTop += e.deltaY;
+  // High-performance, butter-smooth mouse wheel & trackpad scrolling
+  let wheelTargetY = 0;
+  let wheelAnimId = null;
+  let activeWheelSheet = null;
+
+  function stopWheelAnimation() {
+    if (wheelAnimId) {
+      cancelAnimationFrame(wheelAnimId);
+      wheelAnimId = null;
     }
-  }, { passive: true });
+    activeWheelSheet = null;
+  }
+  window.stopWheelAnimation = stopWheelAnimation;
 
+  function handleWheelScroll(e) {
+    // 1. If inside an open editor, modal dialog, cropper, or text input, let that overlay scroll naturally
+    if (
+      e.target.closest('#editorPanel, #imageCropperModal, .comm-modal-overlay, #passwordModal, #shareModal, input, textarea, select') ||
+      document.getElementById('editorPanel')?.classList.contains('open') ||
+      document.querySelector('.comm-modal-overlay.show, #shareModal.show, #passwordModal.show') ||
+      document.getElementById('imageCropperModal')?.style.display === 'flex'
+    ) {
+      return;
+    }
+
+    // 2. Allow horizontal scroll containers (category pills, business thumbnail strips) to scroll horizontally
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      const hScroll = e.target.closest('.biz-thumb-strip, .comm-cat-pills, .editor-tabs');
+      if (hScroll) {
+        hScroll.scrollLeft += e.deltaX;
+        if (e.cancelable) e.preventDefault();
+      }
+      return;
+    }
+
+    // 3. Resolve the active magazine sheet
+    const sheet = getActiveSheet();
+    if (!sheet) return;
+
+    const maxScroll = Math.max(0, sheet.scrollHeight - sheet.clientHeight);
+    if (maxScroll <= 0) return; // Entire page fits in viewport, no scrolling needed
+
+    // 4. Normalize delta based on deltaMode (pixels, lines, or pages)
+    let deltaY = e.deltaY;
+    if (e.deltaMode === 1) { // Line mode (Firefox / certain mouse drivers)
+      deltaY *= 33;
+    } else if (e.deltaMode === 2) { // Page mode
+      deltaY *= sheet.clientHeight;
+    }
+
+    // Prevent background window / iframe bounce while scrolling the magazine
+    if (e.cancelable) e.preventDefault();
+
+    // 5. Trackpad vs notched mouse wheel handling:
+    // Continuous devices (trackpads / precision touchpads) send small, high-frequency continuous deltas
+    const isContinuous = Math.abs(deltaY) < 32 && e.deltaMode === 0;
+
+    if (isContinuous) {
+      if (wheelAnimId) {
+        cancelAnimationFrame(wheelAnimId);
+        wheelAnimId = null;
+      }
+      sheet.scrollTop = Math.max(0, Math.min(maxScroll, sheet.scrollTop + deltaY));
+      wheelTargetY = sheet.scrollTop;
+      activeWheelSheet = sheet;
+      return;
+    }
+
+    // Stepped physical mouse wheels (notched ticks of ~100px):
+    // Smooth, responsive interpolation using requestAnimationFrame for zero-jank 60/120fps motion
+    if (activeWheelSheet !== sheet || !wheelAnimId) {
+      wheelTargetY = sheet.scrollTop;
+      activeWheelSheet = sheet;
+    }
+
+    wheelTargetY = Math.max(0, Math.min(maxScroll, wheelTargetY + deltaY));
+
+    if (!wheelAnimId) {
+      const animate = () => {
+        if (!activeWheelSheet) {
+          wheelAnimId = null;
+          return;
+        }
+        const currentY = activeWheelSheet.scrollTop;
+        const diff = wheelTargetY - currentY;
+
+        if (Math.abs(diff) < 0.6) {
+          activeWheelSheet.scrollTop = wheelTargetY;
+          wheelAnimId = null;
+          return;
+        }
+
+        // Fast, buttery 0.32 factor (~75ms smooth transition per tick, zero stutter)
+        activeWheelSheet.scrollTop = currentY + diff * 0.32;
+        wheelAnimId = requestAnimationFrame(animate);
+      };
+      wheelAnimId = requestAnimationFrame(animate);
+    }
+  }
+
+  window.addEventListener('wheel', handleWheelScroll, { passive: false });
+
+  // Desktop mouse drag: Only flip pages when user performs a clean horizontal drag
   let isMouseDown = false;
   let mouseStartX = 0;
   let mouseStartY = 0;
-  let mouseStartScrollTop = 0;
-  let mouseMoved = false;
 
   bookWrap.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    if (e.target.closest('a, button, input, textarea, select, .like-interactive-btn, .ig-dm-action-btn, .biz-link, .back-share-btn')) return;
+    if (e.target.closest('a, button, input, textarea, select, .like-interactive-btn, .ig-dm-action-btn, .biz-link, .back-share-btn, .biz-action-row, .biz-thumb-item, .biz-enter-btn, .biz-media-overlay-badge')) return;
     isMouseDown = true;
-    mouseMoved = false;
     mouseStartX = e.clientX;
     mouseStartY = e.clientY;
-    const sheet = getActiveSheet();
-    mouseStartScrollTop = sheet ? sheet.scrollTop : 0;
-  });
-
-  window.addEventListener('mousemove', e => {
-    if (!isMouseDown) return;
-    const dx = e.clientX - mouseStartX;
-    const dy = e.clientY - mouseStartY;
-    if (Math.hypot(dx, dy) > 5) mouseMoved = true;
-    if (mouseMoved) {
-      const sheet = getActiveSheet();
-      if (sheet && Math.abs(dy) >= Math.abs(dx)) sheet.scrollTop = mouseStartScrollTop - dy;
-    }
   });
 
   window.addEventListener('mouseup', e => {
@@ -5318,7 +6081,7 @@ if (bookWrap) {
     isMouseDown = false;
     const dx = e.clientX - mouseStartX;
     const dy = e.clientY - mouseStartY;
-    if (Math.abs(dx) > 60 && Math.abs(dy) < 45) {
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 40) {
       if (dx < 0) nextPage();
       else prevPage();
     }
